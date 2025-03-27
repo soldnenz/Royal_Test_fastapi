@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Профиль</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+    pre { background: #f4f4f4; padding: 10px; border-radius: 5px; }
+    .error { color: red; }
+    .success { color: green; }
+  </style>
+</head>
+<body>
+  <h2>Профиль пользователя</h2>
+  <button id="load">Загрузить /users/me</button>
+  <div id="output"></div>
+
+  <script>
+    document.getElementById("load").addEventListener("click", async () => {
+      const output = document.getElementById("output");
+      output.innerHTML = "⏳ Загружаем...";
+
+      try {
+        const res = await fetch("http://127.0.0.1:8000/users/me", {
+          method: "GET",
+          credentials: "include"  // используем куку!
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          output.innerHTML = `<div class="error">❌ Ошибка ${res.status}: ${data.detail || 'Неизвестно'}</div>`;
+        } else {
+          output.innerHTML = `<div class="success">✅ Успешно</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
+        }
+      } catch (err) {
+        output.innerHTML = `<div class="error">Ошибка запроса: ${err.message}</div>`;
+      }
+    });
+  </script>
+</body>
+</html>
