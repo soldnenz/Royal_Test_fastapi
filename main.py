@@ -21,7 +21,10 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # или ["http://localhost:5500"] если точно знаешь источник
+    allow_origins=[
+        "http://localhost:3000",  # ← frontend на python http.server
+        "http://127.0.0.1:3000",  # ← если обращаешься с 127.0.0.1
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

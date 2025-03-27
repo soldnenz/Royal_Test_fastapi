@@ -20,12 +20,10 @@ async def get_my_profile(current_user: dict = Depends(get_current_user)):
     Здесь current_user - это документ из БД, возвращённый get_current_user.
     """
     return UserOut(
-        id=str(current_user["_id"]),
         iin=current_user["iin"],
         phone=current_user["phone"],
         email=current_user["email"],
         role=current_user.get("role", "user"),
-        created_at=current_user["created_at"]
     )
 
 

@@ -3,8 +3,8 @@ import logging
 from datetime import datetime
 import pytz
 from bson import ObjectId
-from fastapi import APIRouter, Request, HTTPException, status
-
+from fastapi import APIRouter, Request, HTTPException, status, Response
+from fastapi.responses import JSONResponse
 from app.schemas.user_schemas import UserCreate
 from app.schemas.auth_schemas import AuthRequest, TokenResponse
 from app.db.database import db
@@ -50,7 +50,7 @@ async def login_user(auth_data: AuthRequest, request: Request):
     if not check_rate_limit(ip):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many login attempts. Please wait before retrying."
+            detail="Too  many login attempts. Please wait before retrying."
         )
 
     user = await db.users.find_one({
@@ -78,13 +78,20 @@ async def login_user(auth_data: AuthRequest, request: Request):
     # Генерируем JWT + узнаём время истечения
     access_token, expires_at = create_access_token(token_data)
 
-    # Сохраняем в MongoDB (коллекция tokens)
-    await store_token_in_db(access_token, user["_id"], expires_at)
+    user_agent = request.headers.get("User-Agent", "unknown")
+    await store_token_in_db(access_token, user["_id"], expires_at, ip, user_agent)
 
-    return TokenResponse(
-        access_token=access_token,
-        token_type="bearer"
+    response = Response()
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        max_age=60 * 60 * 24 * 7,
+        path="/",
+        samesite="Lax",
+        secure=False  # Поставь True, если у тебя HTTPS
     )
+    return response
 
 # -------------------------
 # REGISTER
@@ -115,16 +122,13 @@ async def register_user(user_data: UserCreate, request: Request):
 
     hashed_pw = hash_password(user_data.password)
 
-    tz = pytz.timezone("Asia/Almaty")
-    now = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
-
     new_user = {
         "iin": user_data.iin,
         "phone": user_data.phone,
         "email": user_data.email.lower(),
         "hashed_password": hashed_pw,
         "role": "user",
-        "created_at": now
+        "created_at": datetime.utcnow()
     }
     result = await db.users.insert_one(new_user)
     user_id = result.inserted_id
@@ -139,12 +143,20 @@ async def register_user(user_data: UserCreate, request: Request):
     access_token, expires_at = create_access_token(token_data)
 
     # Сохраняем в MongoDB (коллекция tokens)
-    await store_token_in_db(access_token, user_id, expires_at)
+    user_agent = request.headers.get("User-Agent", "unknown")
+    await store_token_in_db(access_token, user_id, expires_at, ip, user_agent)
 
-    return TokenResponse(
-        access_token=access_token,
-        token_type="bearer"
+    response = Response()
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        max_age=60 * 60 * 24 * 7,
+        path="/",
+        samesite="None",
+        secure=False  # Поставь True, если у тебя HTTPS
     )
+    return response
 
 # -------------------------
 # LOGOUT (Отзыв токена)
