@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 # Создаём приложение
 app = FastAPI(
     title="Royal_api!",
-    description="TI KTO VAHE?",
+    description="TI KTO VAHE1?",
     version="1.0.0"
 )
 
