@@ -1,8 +1,9 @@
 # app/core/config.py
 
 import os
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
+from typing import List
 
 # Загружаем переменные окружения из .env (если нужен dotenv)
 load_dotenv()
@@ -17,6 +18,12 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_DAYS: int = 31
 
+    TELEGRAM_BOT_TOKEN: str
+    SUPER_ADMIN_IDS: str  # можно преобразовать позже в list[int
+
+    pdd_categories: List[str]
+    max_file_size_mb: int
+    allowed_media_types: List[str]
     class Config:
         # Сообщаем Pydantic брать переменные окружения
         env_file = ".env"

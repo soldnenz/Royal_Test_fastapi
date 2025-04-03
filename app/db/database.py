@@ -21,3 +21,6 @@ client = AsyncIOMotorClient(MONGO_URI)
 
 # Получаем нужную базу
 db = client[MONGO_DB_NAME]
+
+async def get_database():
+    return db

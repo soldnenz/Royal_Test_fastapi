@@ -115,3 +115,75 @@ async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)
     )
 
     return user
+
+
+async def get_current_actor(request: Request, token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("sub")
+        role = payload.get("role")
+
+        if not user_id or not ObjectId.is_valid(user_id):
+            raise HTTPException(status_code=401, detail="Invalid token data")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    if role == "user":
+        token_doc = await db.tokens.find_one({"token": token})
+        if not token_doc or token_doc.get("revoked") or token_doc["expires_at"] < datetime.utcnow():
+            raise HTTPException(status_code=401, detail="Token is not valid")
+
+        # Обновим активность токена
+        await db.tokens.update_one(
+            {"_id": token_doc["_id"]},
+            {"$set": {
+                "last_activity": datetime.utcnow(),
+                "ip": request.client.host,
+                "user_agent": request.headers.get("User-Agent", "unknown")
+            }}
+        )
+
+        user = await db.users.find_one({"_id": ObjectId(user_id)})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        return {
+            "type": "user",
+            "id": user["_id"],
+            "role": role,
+            "email": user.get("email"),
+            "phone": user.get("phone"),
+            "iin": user.get("iin"),
+        }
+
+    elif role == "admin":
+        admin = await db.admins.find_one({"_id": ObjectId(user_id)})
+        if not admin:
+            raise HTTPException(status_code=404, detail="Admin not found")
+
+        active_session = admin.get("active_session")
+        if not active_session or active_session.get("token") != token:
+            raise HTTPException(status_code=401, detail="Admin session not active")
+
+        # Обновим активность в админском active_session
+        await db.admins.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {
+                "active_session.last_activity": datetime.utcnow(),
+                "active_session.ip": request.client.host,
+                "active_session.user_agent": request.headers.get("User-Agent", "unknown")
+            }}
+        )
+
+        return {
+            "type": "admin",
+            "id": admin["_id"],
+            "role": role,
+            "full_name": admin.get("full_name"),
+            "iin": admin.get("iin"),
+        }
+
+    else:
+        raise HTTPException(status_code=403, detail="Unknown role")

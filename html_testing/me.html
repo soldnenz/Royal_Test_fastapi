@@ -2,41 +2,52 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Профиль</title>
+  <title>Мой профиль</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
-    pre { background: #f4f4f4; padding: 10px; border-radius: 5px; }
-    .error { color: red; }
-    .success { color: green; }
+    body { font-family: sans-serif; max-width: 500px; margin: 2rem auto; }
+    button { margin-bottom: 1rem; padding: 8px 16px; }
+    pre { background: #f0f0f0; padding: 10px; font-size: 14px; }
+    .error { color: red; margin-top: 10px; }
   </style>
 </head>
 <body>
-  <h2>Профиль пользователя</h2>
-  <button id="load">Загрузить /users/me</button>
-  <div id="output"></div>
+  <h2>🔐 Мой профиль</h2>
+  <button onclick="fetchProfile()">Получить данные</button>
+  <div id="result"></div>
+  <div id="error" class="error"></div>
 
   <script>
-    document.getElementById("load").addEventListener("click", async () => {
-      const output = document.getElementById("output");
-      output.innerHTML = "⏳ Загружаем...";
+    async function fetchProfile() {
+      const resultEl = document.getElementById("result");
+      const errorEl = document.getElementById("error");
+      resultEl.innerHTML = "";
+      errorEl.innerText = "";
+
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        errorEl.innerText = "❌ Токен не найден в localStorage (ключ: access_token)";
+        return;
+      }
 
       try {
-        const res = await fetch("http://127.0.0.1:8000/users/me", {
+        const response = await fetch("http://127.0.0.1:8000/users/me", {
           method: "GET",
-          credentials: "include"  // используем куку!
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
         });
 
-        const data = await res.json();
+        const data = await response.json();
 
-        if (!res.ok) {
-          output.innerHTML = `<div class="error">❌ Ошибка ${res.status}: ${data.detail || 'Неизвестно'}</div>`;
+        if (!response.ok) {
+          errorEl.innerText = `Ошибка: ${data.detail || response.statusText}`;
         } else {
-          output.innerHTML = `<div class="success">✅ Успешно</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
+          resultEl.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
         }
       } catch (err) {
-        output.innerHTML = `<div class="error">Ошибка запроса: ${err.message}</div>`;
+        errorEl.innerText = "❌ Ошибка запроса: " + err.message;
       }
-    });
+    }
   </script>
 </body>
 </html>

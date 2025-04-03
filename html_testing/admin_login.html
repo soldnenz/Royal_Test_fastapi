@@ -1,0 +1,37 @@
+<!-- app/html_testing/admin_dashboard.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Админ панель</title>
+</head>
+<body>
+  <h2>Текущий админ</h2>
+  <div id="info"></div>
+  <button onclick="logout()">Выйти</button>
+  <script>
+    const token = localStorage.getItem('admin_token');
+    if (!token) location.href = '/admin_login.html';
+
+    fetch('/admin/me', {
+      headers: { Authorization: 'Bearer ' + token }
+    }).then(r => r.json()).then(data => {
+      if (data.detail) throw new Error(data.detail);
+      document.getElementById('info').innerText = `ФИО: ${data.full_name}, Роль: ${data.role}, ИИН: ${data.iin}`;
+    }).catch(e => {
+      alert(e.message);
+      localStorage.removeItem('admin_token');
+      location.href = '/admin_login.html';
+    });
+
+    function logout() {
+      fetch('/admin/logout', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token }
+      }).then(() => {
+        localStorage.removeItem('admin_token');
+        location.href = '/admin_login.html';
+      });
+    }
+  </script>
+</body>
+</html>

@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 import pytz
 from bson import ObjectId
-from fastapi import APIRouter, Request, HTTPException, status, Response
+from fastapi import APIRouter, Request, HTTPException, status, Response, Depends
 from fastapi.responses import JSONResponse
 from app.schemas.user_schemas import UserCreate
 from app.schemas.auth_schemas import AuthRequest, TokenResponse
@@ -15,10 +15,14 @@ from app.core.security import (
     store_token_in_db
 )
 from app.core.config import settings
+from fastapi.security import HTTPBearer
+from app.schemas.admin_schemas import AdminToken
+from app.admin.telegram_2fa import send_2fa_request
+from app.admin.utils import create_token, get_ip, get_user_agent
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
+security = HTTPBearer()
 # -------------------------
 # RATE LIMIT (упрощённо)
 # -------------------------
@@ -40,23 +44,70 @@ def register_attempt(ip: str):
         login_attempts[ip] = []
     login_attempts[ip].append(now)
 
+
+def get_ip(request: Request) -> str:
+    return request.client.host or "unknown"
+
+def get_user_agent(request: Request) -> str:
+    return request.headers.get("User-Agent", "unknown")
+
+def sanitize_input(value: str) -> str:
+    if any(c in value for c in ['$', '{', '}', '<', '>']):
+        raise ValueError("Запрещённые символы во входе")
+    return value.strip()
+
+
 # -------------------------
 # LOGIN
 # -------------------------
-@router.post("/login", response_model=TokenResponse)
-async def login_user(auth_data: AuthRequest, request: Request):
-    ip = request.client.host
+@router.post("/login")
+async def unified_login(data: AuthRequest, request: Request):
+    ip = get_ip(request)
+    ua = get_user_agent(request)
+    now = datetime.utcnow()
+
+    try:
+        ident = sanitize_input(data.username)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Ввод содержит запрещённые символы")
 
     if not check_rate_limit(ip):
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too  many login attempts. Please wait before retrying."
-        )
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                            detail="Too many login attempts. Please wait before retrying.")
+
+    admin = await db.admins.find_one({"$or": [{"email": ident}, {"iin": ident}]})
+    if admin:
+        if not verify_password(data.password, admin["hashed_password"]):
+            await db.login_logs.insert_one({"ident": ident, "timestamp": now, "success": False})
+            raise HTTPException(status_code=401, detail="Неверные данные (admin)")
+
+        if admin.get("active_session") and (
+                admin["active_session"].get("ip") != ip or
+                admin["active_session"].get("user_agent") != ua):
+            await db.admins.update_one({"_id": admin["_id"]}, {"$set": {"is_verified": False}})
+            await send_2fa_request(admin, ip, ua)
+            raise HTTPException(status_code=403, detail="Подтвердите вход в Telegram")
+
+        token = create_token({"sub": str(admin["_id"]), "role": admin["role"]})
+
+        await db.admins.update_one({"_id": admin["_id"]}, {"$set": {
+            "active_session": {"ip": ip, "user_agent": ua, "token": token},
+            "last_login": {"timestamp": now, "ip": ip, "user_agent": ua},
+            "is_verified": True
+        }})
+
+        await db.login_logs.insert_one({"ident": ident, "timestamp": now, "success": True})
+
+        response = JSONResponse(content={
+            "access_token": token,
+            "token_type": "bearer"
+        })
+        return response
 
     user = await db.users.find_one({
         "$or": [
-            {"iin": auth_data.username},
-            {"email": auth_data.username.lower()}
+            {"iin": ident},
+            {"email": ident.lower()}
         ]
     })
 
@@ -64,34 +115,27 @@ async def login_user(auth_data: AuthRequest, request: Request):
         register_attempt(ip)
         raise HTTPException(status_code=400, detail="Incorrect username or password")
 
-    if not verify_password(auth_data.password, user["hashed_password"]):
+    if not verify_password(data.password, user["hashed_password"]):
         register_attempt(ip)
         raise HTTPException(status_code=400, detail="Incorrect username or password")
 
     register_attempt(ip)
 
-    # Формируем данные для JWT
     token_data = {
-        "sub": str(user["_id"]),        # ID пользователя
-        "role": user.get("role", "user")  # Роль пользователя (по умолчанию user)
+        "sub": str(user["_id"]),
+        "role": user.get("role", "user")
     }
-    # Генерируем JWT + узнаём время истечения
     access_token, expires_at = create_access_token(token_data)
 
-    user_agent = request.headers.get("User-Agent", "unknown")
-    await store_token_in_db(access_token, user["_id"], expires_at, ip, user_agent)
+    await store_token_in_db(access_token, user["_id"], expires_at, ip, ua)
 
-    response = Response()
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        max_age=60 * 60 * 24 * 7,
-        path="/",
-        samesite="Lax",
-        secure=False  # Поставь True, если у тебя HTTPS
-    )
-    return response
+    response = JSONResponse(content={
+        "access_token": access_token,
+        "token_type": "bearer"
+    })
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
 
 # -------------------------
 # REGISTER
@@ -146,47 +190,44 @@ async def register_user(user_data: UserCreate, request: Request):
     user_agent = request.headers.get("User-Agent", "unknown")
     await store_token_in_db(access_token, user_id, expires_at, ip, user_agent)
 
-    response = Response()
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        max_age=60 * 60 * 24 * 7,
-        path="/",
-        samesite="None",
-        secure=False  # Поставь True, если у тебя HTTPS
-    )
+    response = JSONResponse(content={
+        "access_token": access_token,
+        "token_type": "bearer"
+    })
     return response
+
 
 # -------------------------
 # LOGOUT (Отзыв токена)
 # -------------------------
 @router.post("/logout")
-async def logout_user(request: Request, token: str = None):
-    """
-    Пример эндпоинта для 'выхода': помечаем токен как 'revoked'.
-    Пользователь может передать токен напрямую (GET-параметр)
-    или оставить в заголовке Authorization: Bearer ...
-    """
-    if not token:
-        auth_header = request.headers.get("Authorization")
-        if not auth_header:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Missing Authorization header"
-            )
-        scheme, _, provided_token = auth_header.partition(" ")
-        if scheme.lower() != "bearer":
-            raise HTTPException(status_code=401, detail="Invalid auth scheme")
-        token = provided_token.strip()
+async def logout_user(request: Request, credentials=Depends(security)):
+    token = credentials.credentials
+    payload = decode_token(token)
+    user_id = payload.get("sub")
+    role = payload.get("role")
 
-    token_doc = await db.tokens.find_one({"token": token})
-    if not token_doc:
-        raise HTTPException(status_code=400, detail="Token not found or already invalid")
+    # Проверка допустимых ролей
+    if role not in ["user", "admin", "moderator", "manager", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Недопустимая роль")
 
-    # Помечаем как отозванный
-    await db.tokens.update_one(
-        {"_id": token_doc["_id"]},
-        {"$set": {"revoked": True}}
-    )
-    return {"detail": "Token has been revoked"}
+    # Логирование выхода
+    logger.info(f"[LOGOUT] role={role} user_id={user_id} ip={request.client.host}")
+
+    if role == "user":
+        token_doc = await db.tokens.find_one({"token": token})
+        if not token_doc:
+            raise HTTPException(status_code=400, detail="Token not found or already invalid")
+
+        await db.tokens.update_one(
+            {"_id": token_doc["_id"]},
+            {"$set": {"revoked": True}}
+        )
+        return {"detail": "Token has been revoked"}
+    else:
+        admin = await db.admins.find_one({"_id": ObjectId(user_id)})
+        if not admin:
+            raise HTTPException(status_code=404, detail="Админ не найден")
+
+        await db.admins.update_one({"_id": ObjectId(user_id)}, {"$set": {"active_session": None}})
+        return {"detail": f"Session closed for role: {role}"}

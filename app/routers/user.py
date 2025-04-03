@@ -5,26 +5,31 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from bson import ObjectId
-
+from fastapi.security import HTTPBearer
 from app.db.database import db
 from app.schemas.user_schemas import UserOut, UserUpdate
-from app.core.security import get_current_user  # см. пример реализации ниже
+from app.core.security import get_current_actor
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-@router.get("/me", response_model=UserOut)
-async def get_my_profile(current_user: dict = Depends(get_current_user)):
-    """
-    Получить профиль текущего (залогиненного) пользователя.
-    Здесь current_user - это документ из БД, возвращённый get_current_user.
-    """
-    return UserOut(
-        iin=current_user["iin"],
-        phone=current_user["phone"],
-        email=current_user["email"],
-        role=current_user.get("role", "user"),
-    )
+@router.get("/me")
+async def get_current_profile(actor=Depends(get_current_actor)):
+    if actor["type"] == "user":
+        return {
+            "role": "user",
+            "email": actor["email"],
+            "phone": actor["phone"],
+            "iin": actor["iin"]
+        }
+    elif actor["type"] == "admin":
+        return {
+            "role": "admin",
+            "full_name": actor["full_name"],
+            "iin": actor["iin"]
+        }
+    else:
+        return {"detail": "Unknown role"}
 
 
 # @router.patch("/me", response_model=UserOut)
@@ -73,70 +78,70 @@ async def get_my_profile(current_user: dict = Depends(get_current_user)):
 #     )
 
 
-@router.get("/{user_id}", response_model=UserOut)
-async def get_user_by_id(
-    user_id: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Пример эндпоинта получения пользователя по ID.
-    Может быть ограничен только для admin.
-    """
-    # Допустим, проверим, что роль текущего юзера = admin
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admin can get other user profiles"
-        )
-
-    # Проверяем корректность user_id (Mongo ObjectId)
-    if not ObjectId.is_valid(user_id):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid user_id"
-        )
-
-    user_doc = await db.users.find_one({"_id": ObjectId(user_id)})
-    if not user_doc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-    return UserOut(
-        id=str(user_doc["_id"]),
-        iin=user_doc["iin"],
-        phone=user_doc["phone"],
-        email=user_doc["email"],
-        role=user_doc.get("role", "user"),
-        created_at=user_doc["created_at"]
-    )
-
-
-@router.delete("/{user_id}")
-async def delete_user_by_id(
-    user_id: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Удалить пользователя по ID (например, только admin).
-    """
-    # Проверяем роль
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admin can delete users"
-        )
-
-    if not ObjectId.is_valid(user_id):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid user_id"
-        )
-
-    result = await db.users.delete_one({"_id": ObjectId(user_id)})
-    if result.deleted_count != 1:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found or already deleted"
-        )
-
-    logger.info(f"User deleted by admin. user_id={user_id}")
-    return {"message": f"User {user_id} deleted successfully"}
+# @router.get("/{user_id}", response_model=UserOut)
+# async def get_user_by_id(
+#     user_id: str,
+#     current_user: dict = Depends(get_current_user)
+# ):
+#     """
+#     Пример эндпоинта получения пользователя по ID.
+#     Может быть ограничен только для admin.
+#     """
+#     # Допустим, проверим, что роль текущего юзера = admin
+#     if current_user.get("role") != "admin":
+#         raise HTTPException(
+#             status_code=status.HTTP_403_FORBIDDEN,
+#             detail="Only admin can get other user profiles"
+#         )
+#
+#     # Проверяем корректность user_id (Mongo ObjectId)
+#     if not ObjectId.is_valid(user_id):
+#         raise HTTPException(
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#             detail="Invalid user_id"
+#         )
+#
+#     user_doc = await db.users.find_one({"_id": ObjectId(user_id)})
+#     if not user_doc:
+#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+#
+#     return UserOut(
+#         id=str(user_doc["_id"]),
+#         iin=user_doc["iin"],
+#         phone=user_doc["phone"],
+#         email=user_doc["email"],
+#         role=user_doc.get("role", "user"),
+#         created_at=user_doc["created_at"]
+#     )
+#
+#
+# @router.delete("/{user_id}")
+# async def delete_user_by_id(
+#     user_id: str,
+#     current_user: dict = Depends(get_current_user)
+# ):
+#     """
+#     Удалить пользователя по ID (например, только admin).
+#     """
+#     # Проверяем роль
+#     if current_user.get("role") != "admin":
+#         raise HTTPException(
+#             status_code=status.HTTP_403_FORBIDDEN,
+#             detail="Only admin can delete users"
+#         )
+#
+#     if not ObjectId.is_valid(user_id):
+#         raise HTTPException(
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#             detail="Invalid user_id"
+#         )
+#
+#     result = await db.users.delete_one({"_id": ObjectId(user_id)})
+#     if result.deleted_count != 1:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="User not found or already deleted"
+#         )
+#
+#     logger.info(f"User deleted by admin. user_id={user_id}")
+#     return {"message": f"User {user_id} deleted successfully"}

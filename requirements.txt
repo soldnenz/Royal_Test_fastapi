@@ -9,3 +9,6 @@ python-json-logger==2.0.7
 pymongo>=4.9
 pydantic[email]
 pytz
+aiogram
+bcrypt<4.0
+python-multipart
