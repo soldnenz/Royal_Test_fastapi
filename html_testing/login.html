@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Вход в систему</title>
   <style>
     body { font-family: sans-serif; max-width: 400px; margin: 2rem auto; }
@@ -15,8 +15,8 @@
   <h2>Авторизация</h2>
   <div id="message"></div>
   <form id="loginForm">
-    <input type="text" name="username" placeholder="ИИН или Email" required>
-    <input type="password" name="password" placeholder="Пароль" required minlength="6">
+    <input type="text" name="username" placeholder="ИИН или Email" required />
+    <input type="password" name="password" placeholder="Пароль" required minlength="6" />
     <button type="submit">Войти</button>
   </form>
 
@@ -24,6 +24,8 @@
   <div id="logs"></div>
 
   <script>
+    const API = "https://royal-test.duckdns.org";
+
     const form = document.getElementById('loginForm');
     const messageDiv = document.getElementById('message');
     const logDiv = document.getElementById('logs');
@@ -37,11 +39,11 @@
       const data = Object.fromEntries(formData.entries());
 
       try {
-        const response = await fetch('http://192.168.1.70:80/auth/login', {
+        const response = await fetch(`${API}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data),
-          credentials: 'include' // для Set-Cookie
+          credentials: 'include' // для куки (если сервер отдаёт Set-Cookie)
         });
 
         const text = await response.text();
@@ -78,11 +80,6 @@ ${typeof result === 'string' ? result : JSON.stringify(result, null, 2)}
         } else {
           messageDiv.innerHTML = `<div class="success">✅ Вход успешен!</div>`;
 
-          // 🧠 Сохраняем токен вручную, если он пришёл
-          if (result.access_token) {
-            localStorage.setItem('access_token', result.access_token);
-            console.log("🔐 Токен сохранён в localStorage");
-          }
         }
 
       } catch (err) {
