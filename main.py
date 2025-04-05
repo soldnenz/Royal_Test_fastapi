@@ -19,16 +19,16 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Royal_api!",
     description="TI KTO VAHE1?",
-    version="1.0.0"
+    version="1.0.1",
+    docs_url=None,  # отключает Swagger UI (/docs)
+    redoc_url=None,  # отключает ReDoc (/redoc)
+    openapi_url=None  # отключает схему OpenAPI (/openapi.json)
 )
 
-# CORS (для доступа с фронта)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=["https://localhost:5173", "https://192.168.1.65", "https://royal-test.duckdns.org", "http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,8 +42,7 @@ app.include_router(admin_router.router)
 app.include_router(test_router.router, prefix="/tests", tags=["tests"])
 app.include_router(subscription_router.router, prefix="/subscriptions", tags=["subscriptions"])
 
-app.mount("/", StaticFiles(directory="html_testing", html=True), name="static")
-
+# app.mount("/", StaticFiles(directory="html_testing", html=True), name="static")
 # Пример простого эндпоинта
 @app.get("/")
 def root():

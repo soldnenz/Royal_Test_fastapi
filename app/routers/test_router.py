@@ -138,6 +138,12 @@ async def edit_question(
     """
     update_fields = {}
     labels = list(string.ascii_uppercase)
+    if not current_user or current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Доступ запрещён. Администратор требуется.")
+
+    # Проверка наличия обязательных полей у пользователя
+    if "full_name" not in current_user or "iin" not in current_user:
+        raise HTTPException(status_code=400, detail="Данные пользователя неполные.")
 
     if payload.new_question_text:
         update_fields["question_text"] = payload.new_question_text
@@ -197,6 +203,13 @@ async def delete_question(
       - Обновляет поля deleted, deleted_by и deleted_at.
       - Производит проверку корректности идентификатора.
     """
+    if not current_user or current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Доступ запрещён. Администратор требуется.")
+
+    # Проверка наличия обязательных полей у пользователя
+    if "full_name" not in current_user or "iin" not in current_user:
+        raise HTTPException(status_code=400, detail="Данные пользователя неполные.")
+
     try:
         question_obj_id = ObjectId(payload.question_id)
     except Exception as e:

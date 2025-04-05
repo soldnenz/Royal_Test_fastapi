@@ -9,9 +9,14 @@ router = APIRouter()
 security = HTTPBearer()
 
 @router.get("/admin/active")
-async def check_active_session(request: Request, credentials=Depends(security)):
-    token = credentials.credentials
+async def check_active_session(request: Request):
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Не передан токен")
+
     payload = decode_token(token)
+
+
     admin_id = payload.get("sub")
     ip = get_ip(request)
     ua = get_user_agent(request)
@@ -29,8 +34,12 @@ async def check_active_session(request: Request, credentials=Depends(security)):
     return {"status": "ok", "admin": admin["full_name"], "role": admin["role"]}
 
 @router.get("/admin/list")
-async def list_admins(credentials=Depends(security)):
-    payload = decode_token(credentials.credentials)
+async def list_admins(request: Request):
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Не передан токен")
+
+    payload = decode_token(token)
     if not is_super_admin(int(payload.get("sub"))):
         raise HTTPException(status_code=403, detail="Только для суперадминов")
 

@@ -12,37 +12,35 @@ SUPER_ADMINS = [int(uid) for uid in os.getenv("SUPER_ADMIN_IDS", "").split(",") 
 def is_super_admin(user_id: int) -> bool:
     return user_id in SUPER_ADMINS
 
-async def get_current_admin_user(request: Request, token: str = Depends(oauth2_scheme)):
-    """Проверка токена только для админов. Токены обычных пользователей не трогаются."""
+async def get_current_admin_user(request: Request):
+    """Проверка токена только для админов (через cookie)."""
     not_found_exception = HTTPException(status_code=404, detail="Not found")
 
-    # 1. Расшифровка токена
+    # 1. Получаем токен из куки
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Не передан токен")
+
+    # 2. Расшифровка токена
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id: str = payload.get("sub")
         if not user_id or not ObjectId.is_valid(user_id):
-            print(1)
             raise not_found_exception
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Токен истёк")
     except jwt.PyJWTError:
-        print(2)
         raise not_found_exception
 
-    # 2. Поиск админа по ID и проверка токена в active_session
+    # 3. Поиск админа и проверка активной сессии
     admin = await db.admins.find_one({
         "_id": ObjectId(user_id),
         "active_session.token": token
     })
-
     if not admin:
-        print(3)
         raise not_found_exception
 
-    # 3. Проверка, не истёк ли токен по last_activity или expires_at (если ты хранишь expires_at)
-    # Если добавишь active_session.expires_at — можно сравнить с datetime.utcnow()
-
-    # 4. Обновление информации об активности
+    # 4. Обновляем активность
     await db.admins.update_one(
         {"_id": ObjectId(user_id)},
         {
@@ -54,7 +52,7 @@ async def get_current_admin_user(request: Request, token: str = Depends(oauth2_s
         }
     )
 
-    # 5. Возврат информации о текущем админ-пользователе
+    # 5. Возврат информации
     return {
         "_id": admin["_id"],
         "full_name": admin.get("full_name"),

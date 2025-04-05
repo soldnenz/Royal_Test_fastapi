@@ -55,10 +55,18 @@ async def store_token_in_db(token: str, user_id: ObjectId, expires_at: datetime,
     })
 
 
-async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)):
+async def get_current_user(request: Request):
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Токен не найден в cookie",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        detail="Не удалось подтвердить авторизацию",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
@@ -70,29 +78,33 @@ async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Access token has expired",
-            headers={"WWW-Authenticate": "Bearer"}
+            detail="Токен истёк",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     except jwt.PyJWTError:
         raise credentials_exception
 
+    # Проверка токена в базе
     token_doc = await db.tokens.find_one({"token": token})
     if not token_doc:
         raise credentials_exception
 
     if token_doc.get("expires_at") < datetime.utcnow():
-        await db.tokens.update_one({"_id": token_doc["_id"]}, {"$set": {"revoked": True}})
+        await db.tokens.update_one(
+            {"_id": token_doc["_id"]},
+            {"$set": {"revoked": True}}
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired",
-            headers={"WWW-Authenticate": "Bearer"}
+            detail="Срок действия токена истёк",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     if token_doc.get("revoked"):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has been revoked",
-            headers={"WWW-Authenticate": "Bearer"}
+            detail="Токен был отозван",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     if not ObjectId.is_valid(user_id):
@@ -102,22 +114,25 @@ async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)
     if not user:
         raise credentials_exception
 
-    # Обновим информацию о последнем действии, IP и User-Agent
+    # Обновление активности
     await db.tokens.update_one(
         {"_id": token_doc["_id"]},
-        {
-            "$set": {
-                "last_activity": datetime.utcnow(),
-                "ip": request.client.host,
-                "user_agent": request.headers.get("User-Agent", "unknown")
-            }
-        }
+        {"$set": {
+            "last_activity": datetime.utcnow(),
+            "ip": request.client.host,
+            "user_agent": request.headers.get("User-Agent", "unknown")
+        }}
     )
 
     return user
 
 
-async def get_current_actor(request: Request, token: str = Depends(oauth2_scheme)):
+
+async def get_current_actor(request: Request):
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Не передан токен (cookie)")
+
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id = payload.get("sub")
@@ -135,7 +150,6 @@ async def get_current_actor(request: Request, token: str = Depends(oauth2_scheme
         if not token_doc or token_doc.get("revoked") or token_doc["expires_at"] < datetime.utcnow():
             raise HTTPException(status_code=401, detail="Token is not valid")
 
-        # Обновим активность токена
         await db.tokens.update_one(
             {"_id": token_doc["_id"]},
             {"$set": {
@@ -167,7 +181,6 @@ async def get_current_actor(request: Request, token: str = Depends(oauth2_scheme
         if not active_session or active_session.get("token") != token:
             raise HTTPException(status_code=401, detail="Admin session not active")
 
-        # Обновим активность в админском active_session
         await db.admins.update_one(
             {"_id": ObjectId(user_id)},
             {"$set": {
@@ -185,5 +198,4 @@ async def get_current_actor(request: Request, token: str = Depends(oauth2_scheme
             "iin": admin.get("iin"),
         }
 
-    else:
-        raise HTTPException(status_code=403, detail="Unknown role")
+    raise HTTPException(status_code=403, detail="Unknown role")
