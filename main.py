@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.logging_config import setup_logging
 from app.core.config import settings
-from app.routers import auth, user, reset_password, admin_router, test_router
+from app.routers import auth, user, reset_password, admin_router, test_router, subscription_router
 from aiogram import Dispatcher
 from app.admin.telegram_2fa import bot, router as telegram_router
 from fastapi.staticfiles import StaticFiles
@@ -40,6 +40,7 @@ app.include_router(user.router, prefix="/users", tags=["users"])
 app.include_router(reset_password.router, prefix="/reset", tags=["reset-password"])
 app.include_router(admin_router.router)
 app.include_router(test_router.router, prefix="/tests", tags=["tests"])
+app.include_router(subscription_router.router, prefix="/subscriptions", tags=["subscriptions"])
 
 app.mount("/", StaticFiles(directory="html_testing", html=True), name="static")
 

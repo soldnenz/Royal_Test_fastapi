@@ -2,6 +2,7 @@ from typing import Optional
 from pydantic import BaseModel, Field, EmailStr, constr, validator
 import re
 import idna
+from datetime import datetime
 
 def sanitize_input(value: str) -> str:
     """
@@ -110,15 +111,18 @@ class UserOut(BaseModel):
     """
     Схема для отображения информации о пользователе.
     """
-    id: Optional[str] = Field(None, alias="_id", description="MongoDB ObjectID пользователя")
+    id: Optional[str]
     iin: str
     phone: str
     email: str
     role: str
-    created_at: str
+    created_at: datetime  # ✅ теперь datetime, а не str
 
     class Config:
         allow_population_by_field_name = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat()  # ✅ сериализация для ответа
+        }
         schema_extra = {
             "example": {
                 "_id": "603d83d6c89a72d8f751b9ab",
@@ -126,7 +130,7 @@ class UserOut(BaseModel):
                 "phone": "+77011234567",
                 "email": "user@example.com",
                 "role": "user",
-                "created_at": "2025-03-26 12:34:56"
+                "created_at": "2025-03-26T12:34:56"
             }
         }
 

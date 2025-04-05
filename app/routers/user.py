@@ -3,12 +3,13 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from bson import ObjectId
 from fastapi.security import HTTPBearer
 from app.db.database import db
 from app.schemas.user_schemas import UserOut, UserUpdate
 from app.core.security import get_current_actor
+from app.db.database import get_database
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -31,6 +32,89 @@ async def get_current_profile(actor=Depends(get_current_actor)):
     else:
         return {"detail": "Unknown role"}
 
+# 👤 Подписка текущего пользователя
+@router.get("/me/subscription", response_model=dict)
+async def get_my_subscription_info(
+    current_user: dict = Depends(get_current_actor),
+    db=Depends(get_database)
+):
+    if current_user["role"] != "user":
+        raise HTTPException(status_code=403, detail="Только для пользователей")
+
+    user_id = current_user["id"]
+    now = datetime.utcnow()
+
+    subscription = await db.subscriptions.find_one({
+        "user_id": ObjectId(user_id),
+        "is_active": True
+    })
+
+    if not subscription:
+        return {
+            "has_subscription": False,
+            "message": "У вас нет активной подписки"
+        }
+
+    # Проверка срока действия
+    if subscription["expires_at"] < now:
+        await db.subscriptions.update_one(
+            {"_id": subscription["_id"]},
+            {
+                "$set": {
+                    "is_active": False,
+                    "cancel_reason": "Истек срок действия",
+                    "cancelled_at": now,
+                    "cancelled_by": "system",
+                    "updated_at": now
+                }
+            }
+        )
+        return {
+            "has_subscription": False,
+            "message": "Подписка истекла"
+        }
+
+    days_left = (subscription["expires_at"] - now).days
+    return {
+        "has_subscription": True,
+        "subscription_type": subscription["subscription_type"],
+        "expires_at": subscription["expires_at"].isoformat(),
+        "days_left": max(days_left, 0)
+    }
+
+@router.get("/admin/search_users", response_model=list[UserOut])
+async def search_users_by_query(
+    query: str = Query(..., description="ID, ИИН, email или телефон"),
+    current_user: dict = Depends(get_current_actor),
+    db=Depends(get_database)
+):
+    if current_user["role"] not in {"admin", "moderator"}:
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
+
+    filters = []
+
+    # Попытка распознать ObjectId
+    if ObjectId.is_valid(query):
+        filters.append({"_id": ObjectId(query)})
+
+    # Добавляем другие поля
+    filters.extend([
+        {"iin": query},
+        {"email": query},
+        {"phone": query}
+    ])
+
+    cursor = db.users.find({"$or": filters})
+    results = []
+    async for user in cursor:
+        user["id"] = str(user["_id"])
+        del user["_id"]
+        results.append(user)
+
+    if not results:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+    return results
 
 # @router.patch("/me", response_model=UserOut)
 # async def update_my_profile(

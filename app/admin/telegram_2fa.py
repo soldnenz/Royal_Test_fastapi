@@ -20,7 +20,6 @@ TWO_FA_TTL = 300
 async def send_2fa_request(admin: dict, new_ip: str, new_ua: str):
     now = datetime.utcnow()
     expire_at = now + timedelta(seconds=TWO_FA_TTL)
-
     await db.twofa_requests.insert_one({
         "admin_id": admin["_id"],
         "ip": new_ip,
@@ -68,9 +67,23 @@ async def process_2fa_callback(callback: CallbackQuery):
         return
 
     if action == "allow":
-        await db.admins.update_one({"_id": admin_obj_id}, {"$set": {"is_verified": True}})
+        # Обновляем is_verified и active_session
+        await db.admins.update_one(
+            {"_id": admin_obj_id},
+            {
+                "$set": {
+                    "is_verified": True,
+                    "active_session": {
+                        "ip": request["ip"],
+                        "user_agent": request["user_agent"],
+                        "token": None  # будет установлен при следующем login
+                    }
+                }
+            }
+        )
         await db.twofa_requests.update_one({"_id": request["_id"]}, {"$set": {"status": "allowed"}})
         await callback.answer("✅ Вход разрешён", show_alert=True)
+
     else:
         await db.twofa_requests.update_one({"_id": request["_id"]}, {"$set": {"status": "denied"}})
         await callback.answer("❌ Вход запрещён", show_alert=True)

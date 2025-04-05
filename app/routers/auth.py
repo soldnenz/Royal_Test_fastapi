@@ -71,9 +71,9 @@ async def unified_login(data: AuthRequest, request: Request):
     except ValueError:
         raise HTTPException(status_code=400, detail="Ввод содержит запрещённые символы")
 
-    if not check_rate_limit(ip):
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                            detail="Too many login attempts. Please wait before retrying.")
+    # if not check_rate_limit(ip):
+    #     raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+    #                         detail="Too many login attempts. Please wait before retrying.")
 
     admin = await db.admins.find_one({"$or": [{"email": ident}, {"iin": ident}]})
     if admin:
@@ -112,14 +112,14 @@ async def unified_login(data: AuthRequest, request: Request):
     })
 
     if not user:
-        register_attempt(ip)
+        # register_attempt(ip)
         raise HTTPException(status_code=400, detail="Incorrect username or password")
 
     if not verify_password(data.password, user["hashed_password"]):
-        register_attempt(ip)
+#         register_attempt(ip)
         raise HTTPException(status_code=400, detail="Incorrect username or password")
 
-    register_attempt(ip)
+#     register_attempt(ip)
 
     token_data = {
         "sub": str(user["_id"]),
