@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Вход в Royal One</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            gold: '#d4af37',
+            'gold-dark': '#b08d2b',
+            dark: '#1f2937',
+            error: '#f87171'
+          },
+          fontFamily: {
+            sans: ['Poppins', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-gradient-to-br from-yellow-50 via-white to-yellow-100 font-sans min-h-screen flex items-center justify-center p-4">
+  <div class="bg-white/90 backdrop-blur-lg border border-gold p-8 rounded-3xl shadow-2xl w-full max-w-md animate-fade-in">
+    <div class="text-center mb-6">
+      <h2 class="text-3xl font-extrabold text-gold">Royal One</h2>
+      <p class="text-gray-600 text-sm mt-1">Добро пожаловать 👋</p>
+    </div>
+
+    <!-- Ошибка -->
+    <div id="errorBox" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
+      <span class="block sm:inline font-medium" id="errorMessage">Ошибка авторизации</span>
+      <span class="absolute top-2 right-3 cursor-pointer" onclick="closeError()">
+        <i class='bx bx-x text-xl'></i>
+      </span>
+    </div>
+
+    <!-- Форма -->
+    <form id="loginForm" class="space-y-5">
+      <div>
+        <label class="block font-medium text-sm mb-1">ИИН или Email</label>
+        <input type="text" name="username" required placeholder="Ваш ИИН или Email"
+               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold transition shadow-sm" />
+      </div>
+      <div>
+        <label class="block font-medium text-sm mb-1">Пароль</label>
+        <div class="relative">
+          <input type="password" name="password" required placeholder="Введите пароль"
+                 class="w-full px-4 py-2 border border-gray-300 rounded-lg pr-10 focus:outline-none focus:ring-2 focus:ring-gold transition shadow-sm"
+                 id="passwordField" />
+          <span class="absolute inset-y-0 right-3 flex items-center cursor-pointer" onclick="togglePassword()">
+            <i class='bx bx-show text-lg text-gold' id="eyeIcon"></i>
+          </span>
+        </div>
+      </div>
+      <button type="submit"
+              class="w-full bg-gradient-to-r from-gold to-gold-dark text-white py-3 rounded-xl font-semibold shadow hover:shadow-lg hover:scale-105 transition duration-300">
+        <i class='bx bx-log-in-circle mr-2 text-xl'></i> Войти
+      </button>
+    </form>
+
+    <p class="text-center mt-6 text-sm text-gray-600">
+      Нет аккаунта? <a href="/registration" class="text-gold font-semibold hover:underline">Зарегистрироваться</a>
+    </p>
+  </div>
+
+   <script>
+    async function loginUser(data) {
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          credentials: 'include'
+        });
+
+        const result = await res.json();
+
+        if (result.status === 'ok') {
+          window.location.href = '/';
+          return;
+        }
+
+        // Универсальная обработка ошибок
+        let message = result.message || 'Ошибка входа';
+
+        if (result.code === 422) {
+          if (typeof result.details === 'string') {
+            message = result.details;
+          } else if (Array.isArray(result.details) && result.details.length > 0) {
+            const first = result.details[0];
+            message = first?.msg || message;
+          }
+        }
+
+        showError(message);
+      } catch (err) {
+        showError('Сервер временно недоступен');
+      }
+    }
+
+    function showError(message) {
+      const errorBox = document.getElementById('errorBox');
+      const errorMessage = document.getElementById('errorMessage');
+      if (errorBox && errorMessage) {
+        errorMessage.textContent = message;
+        errorBox.classList.remove('hidden');
+      }
+    }
+
+    function closeError() {
+      const errorBox = document.getElementById('errorBox');
+      if (errorBox) errorBox.classList.add('hidden');
+    }
+
+    function togglePassword() {
+      const field = document.getElementById('passwordField');
+      const icon = document.getElementById('eyeIcon');
+      if (field && icon) {
+        if (field.type === 'password') {
+          field.type = 'text';
+          icon.classList.replace('bx-show', 'bx-hide');
+        } else {
+          field.type = 'password';
+          icon.classList.replace('bx-hide', 'bx-show');
+        }
+      }
+    }
+
+    document.getElementById('loginForm')?.addEventListener('submit', e => {
+      e.preventDefault();
+      const form = e.target;
+      const data = {
+        username: form.username.value.trim(),
+        password: form.password.value
+      };
+      loginUser(data);
+    });
+  </script>
+
+
+
+  <style>
+    @keyframes fade-in {
+      0% { opacity: 0; transform: scale(0.98); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    .animate-fade-in {
+      animation: fade-in 0.6s ease-out;
+    }
+  </style>
+</body>
+</html>

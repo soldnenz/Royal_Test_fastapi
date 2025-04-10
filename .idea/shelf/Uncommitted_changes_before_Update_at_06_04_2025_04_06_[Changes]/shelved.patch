@@ -1,0 +1,596 @@
+Index: app/routers/auth.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import time\r\nimport logging\r\nfrom datetime import datetime\r\nimport pytz\r\nfrom bson import ObjectId\r\nfrom fastapi import APIRouter, Request, HTTPException, status, Response, Depends\r\nfrom fastapi.responses import JSONResponse\r\nfrom app.schemas.user_schemas import UserCreate\r\nfrom app.schemas.auth_schemas import AuthRequest, TokenResponse\r\nfrom app.db.database import db\r\nfrom app.core.security import (\r\n    hash_password,\r\n    verify_password,\r\n    create_access_token,\r\n    store_token_in_db\r\n)\r\nfrom app.core.config import settings\r\nfrom fastapi.security import HTTPBearer\r\nfrom app.schemas.admin_schemas import AdminToken\r\nfrom app.admin.telegram_2fa import send_2fa_request\r\nfrom app.admin.utils import create_token, get_ip, get_user_agent\r\n\r\nrouter = APIRouter()\r\nlogger = logging.getLogger(__name__)\r\nsecurity = HTTPBearer()\r\n# -------------------------\r\n# RATE LIMIT (упрощённо)\r\n# -------------------------\r\nMAX_ATTEMPTS = 5\r\nWINDOW_SECONDS = 300\r\nlogin_attempts = {}\r\n\r\ndef check_rate_limit(ip: str) -> bool:\r\n    now = time.time()\r\n    if ip not in login_attempts:\r\n        login_attempts[ip] = []\r\n    # Оставляем только недавние попытки (в пределах WINDOW_SECONDS)\r\n    login_attempts[ip] = [t for t in login_attempts[ip] if (now - t) <= WINDOW_SECONDS]\r\n    return len(login_attempts[ip]) < MAX_ATTEMPTS\r\n\r\ndef register_attempt(ip: str):\r\n    now = time.time()\r\n    if ip not in login_attempts:\r\n        login_attempts[ip] = []\r\n    login_attempts[ip].append(now)\r\n\r\n\r\ndef get_ip(request: Request) -> str:\r\n    return request.client.host or \"unknown\"\r\n\r\ndef get_user_agent(request: Request) -> str:\r\n    return request.headers.get(\"User-Agent\", \"unknown\")\r\n\r\ndef sanitize_input(value: str) -> str:\r\n    if any(c in value for c in ['$', '{', '}', '<', '>']):\r\n        raise ValueError(\"Запрещённые символы во входе\")\r\n    return value.strip()\r\n\r\n\r\n# -------------------------\r\n# LOGIN\r\n# -------------------------\r\n@router.post(\"/login\")\r\nasync def unified_login(data: AuthRequest, request: Request):\r\n    ip = get_ip(request)\r\n    ua = get_user_agent(request)\r\n    now = datetime.utcnow()\r\n\r\n    try:\r\n        ident = sanitize_input(data.username)\r\n    except ValueError:\r\n        raise HTTPException(status_code=400, detail=\"Ввод содержит запрещённые символы\")\r\n\r\n    # if not check_rate_limit(ip):\r\n    #     raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS,\r\n    #                         detail=\"Too many login attempts. Please wait before retrying.\")\r\n\r\n    admin = await db.admins.find_one({\"$or\": [{\"email\": ident}, {\"iin\": ident}]})\r\n    if admin:\r\n        if not verify_password(data.password, admin[\"hashed_password\"]):\r\n            await db.login_logs.insert_one({\"ident\": ident, \"timestamp\": now, \"success\": False})\r\n            raise HTTPException(status_code=401, detail=\"Неверные данные (admin)\")\r\n\r\n        if admin.get(\"active_session\") and (\r\n                admin[\"active_session\"].get(\"ip\") != ip or\r\n                admin[\"active_session\"].get(\"user_agent\") != ua):\r\n            await db.admins.update_one({\"_id\": admin[\"_id\"]}, {\"$set\": {\"is_verified\": False}})\r\n            await send_2fa_request(admin, ip, ua)\r\n            raise HTTPException(status_code=403, detail=\"Подтвердите вход в Telegram\")\r\n\r\n        token = create_token({\"sub\": str(admin[\"_id\"]), \"role\": admin[\"role\"]})\r\n\r\n        await db.admins.update_one({\"_id\": admin[\"_id\"]}, {\"$set\": {\r\n            \"active_session\": {\"ip\": ip, \"user_agent\": ua, \"token\": token},\r\n            \"last_login\": {\"timestamp\": now, \"ip\": ip, \"user_agent\": ua},\r\n            \"is_verified\": True\r\n        }})\r\n\r\n        await db.login_logs.insert_one({\"ident\": ident, \"timestamp\": now, \"success\": True})\r\n\r\n        response = JSONResponse(content={\r\n            \"access_token\": token,\r\n            \"token_type\": \"bearer\"\r\n        })\r\n        return response\r\n\r\n    user = await db.users.find_one({\r\n        \"$or\": [\r\n            {\"iin\": ident},\r\n            {\"email\": ident.lower()}\r\n        ]\r\n    })\r\n\r\n    if not user:\r\n        # register_attempt(ip)\r\n        raise HTTPException(status_code=400, detail=\"Incorrect username or password\")\r\n\r\n    if not verify_password(data.password, user[\"hashed_password\"]):\r\n#         register_attempt(ip)\r\n        raise HTTPException(status_code=400, detail=\"Incorrect username or password\")\r\n\r\n#     register_attempt(ip)\r\n\r\n    token_data = {\r\n        \"sub\": str(user[\"_id\"]),\r\n        \"role\": user.get(\"role\", \"user\")\r\n    }\r\n    access_token, expires_at = create_access_token(token_data)\r\n\r\n    await store_token_in_db(access_token, user[\"_id\"], expires_at, ip, ua)\r\n\r\n    response = JSONResponse(content={\r\n        \"access_token\": access_token,\r\n        \"token_type\": \"bearer\"\r\n    })\r\n    return {\"access_token\": access_token, \"token_type\": \"bearer\"}\r\n\r\n\r\n\r\n# -------------------------\r\n# REGISTER\r\n# -------------------------\r\n@router.post(\"/register\", response_model=TokenResponse)\r\nasync def register_user(user_data: UserCreate, request: Request):\r\n    ip = request.client.host\r\n\r\n    if not check_rate_limit(ip):\r\n        raise HTTPException(\r\n            status_code=status.HTTP_429_TOO_MANY_REQUESTS,\r\n            detail=\"Слишком много попыток регистрации. Попробуйте позже.\"\r\n        )\r\n    register_attempt(ip)\r\n\r\n    if user_data.password != user_data.confirm_password:\r\n        raise HTTPException(status_code=400, detail=\"Пароли не совпадают\")\r\n\r\n    existing_user = await db.users.find_one({\r\n        \"$or\": [\r\n            {\"iin\": user_data.iin},\r\n            {\"email\": user_data.email.lower()},\r\n            {\"phone\": user_data.phone}\r\n        ]\r\n    })\r\n    if existing_user:\r\n        raise HTTPException(status_code=400, detail=\"Пользователь с таким ИИН, Email или телефоном уже существует\")\r\n\r\n    hashed_pw = hash_password(user_data.password)\r\n\r\n    new_user = {\r\n        \"iin\": user_data.iin,\r\n        \"phone\": user_data.phone,\r\n        \"email\": user_data.email.lower(),\r\n        \"hashed_password\": hashed_pw,\r\n        \"role\": \"user\",\r\n        \"created_at\": datetime.utcnow()\r\n    }\r\n    result = await db.users.insert_one(new_user)\r\n    user_id = result.inserted_id\r\n\r\n    logger.info(f\"Регистрация нового пользователя: {user_data.email} (ID: {user_id})\")\r\n\r\n    # Генерируем JWT + узнаём время истечения\r\n    token_data = {\r\n        \"sub\": str(user_id),\r\n        \"role\": \"user\"\r\n    }\r\n    access_token, expires_at = create_access_token(token_data)\r\n\r\n    # Сохраняем в MongoDB (коллекция tokens)\r\n    user_agent = request.headers.get(\"User-Agent\", \"unknown\")\r\n    await store_token_in_db(access_token, user_id, expires_at, ip, user_agent)\r\n\r\n    response = JSONResponse(content={\r\n        \"access_token\": access_token,\r\n        \"token_type\": \"bearer\"\r\n    })\r\n    return response\r\n\r\n\r\n# -------------------------\r\n# LOGOUT (Отзыв токена)\r\n# -------------------------\r\n@router.post(\"/logout\")\r\nasync def logout_user(request: Request, credentials=Depends(security)):\r\n    token = credentials.credentials\r\n    payload = decode_token(token)\r\n    user_id = payload.get(\"sub\")\r\n    role = payload.get(\"role\")\r\n\r\n    # Проверка допустимых ролей\r\n    if role not in [\"user\", \"admin\", \"moderator\", \"manager\", \"super_admin\"]:\r\n        raise HTTPException(status_code=403, detail=\"Недопустимая роль\")\r\n\r\n    # Логирование выхода\r\n    logger.info(f\"[LOGOUT] role={role} user_id={user_id} ip={request.client.host}\")\r\n\r\n    if role == \"user\":\r\n        token_doc = await db.tokens.find_one({\"token\": token})\r\n        if not token_doc:\r\n            raise HTTPException(status_code=400, detail=\"Token not found or already invalid\")\r\n\r\n        await db.tokens.update_one(\r\n            {\"_id\": token_doc[\"_id\"]},\r\n            {\"$set\": {\"revoked\": True}}\r\n        )\r\n        return {\"detail\": \"Token has been revoked\"}\r\n    else:\r\n        admin = await db.admins.find_one({\"_id\": ObjectId(user_id)})\r\n        if not admin:\r\n            raise HTTPException(status_code=404, detail=\"Админ не найден\")\r\n\r\n        await db.admins.update_one({\"_id\": ObjectId(user_id)}, {\"$set\": {\"active_session\": None}})\r\n        return {\"detail\": f\"Session closed for role: {role}\"}\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/routers/auth.py b/app/routers/auth.py
+--- a/app/routers/auth.py	(revision 28d3a6626bf26a95ffa95ab9417b7b5e610d2519)
++++ b/app/routers/auth.py	(date 1743893799320)
+@@ -1,6 +1,6 @@
+ import time
+ import logging
+-from datetime import datetime
++from datetime import datetime, timedelta, timezone
+ import pytz
+ from bson import ObjectId
+ from fastapi import APIRouter, Request, HTTPException, status, Response, Depends
+@@ -21,7 +21,7 @@
+ from app.admin.utils import create_token, get_ip, get_user_agent
+ 
+ router = APIRouter()
+-logger = logging.getLogger(__name__)
++logger = logging.getLogger("auth")
+ security = HTTPBearer()
+ # -------------------------
+ # RATE LIMIT (упрощённо)
+@@ -69,21 +69,26 @@
+     try:
+         ident = sanitize_input(data.username)
+     except ValueError:
++        logger.warning(f"[LOGIN][{ip}] Некорректный ввод логина")
+         raise HTTPException(status_code=400, detail="Ввод содержит запрещённые символы")
+ 
+-    # if not check_rate_limit(ip):
+-    #     raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+-    #                         detail="Too many login attempts. Please wait before retrying.")
++    if not check_rate_limit(ip):
++        logger.warning(f"[LOGIN][{ip}] Превышен лимит попыток входа")
++        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS,
++                            detail="Too many login attempts. Please wait before retrying.")
+ 
+     admin = await db.admins.find_one({"$or": [{"email": ident}, {"iin": ident}]})
+     if admin:
+         if not verify_password(data.password, admin["hashed_password"]):
++            logger.info(f"[LOGIN][{ip}] Неуспешный вход: admin={admin['email'] or admin['iin']}")
+             await db.login_logs.insert_one({"ident": ident, "timestamp": now, "success": False})
+             raise HTTPException(status_code=401, detail="Неверные данные (admin)")
+ 
++        # 2FA если другой IP или UA
+         if admin.get("active_session") and (
+                 admin["active_session"].get("ip") != ip or
+                 admin["active_session"].get("user_agent") != ua):
++            logger.info(f"[LOGIN][{ip}] Требуется 2FA: admin={admin['email'] or admin['iin']}")
+             await db.admins.update_one({"_id": admin["_id"]}, {"$set": {"is_verified": False}})
+             await send_2fa_request(admin, ip, ua)
+             raise HTTPException(status_code=403, detail="Подтвердите вход в Telegram")
+@@ -98,12 +103,27 @@
+ 
+         await db.login_logs.insert_one({"ident": ident, "timestamp": now, "success": True})
+ 
++        logger.info(f"[LOGIN][{ip}] Успешный вход: admin={admin['email'] or admin['iin']}, role={admin['role']}")
++
+         response = JSONResponse(content={
+             "access_token": token,
+             "token_type": "bearer"
+         })
++
++        response.set_cookie(
++            key="access_token",
++            value=token,
++            httponly=True,
++            secure=True,
++            samesite="None",
++            max_age=60 * 60 * 24,  # 1 день
++            expires=(datetime.now(timezone.utc) + timedelta(days=1)),
++            path="/"
++        )
+         return response
+ 
++    # ========== USER BLOCK ==========
++
+     user = await db.users.find_one({
+         "$or": [
+             {"iin": ident},
+@@ -112,14 +132,16 @@
+     })
+ 
+     if not user:
+-        # register_attempt(ip)
++        logger.info(f"[LOGIN][{ip}] Неуспешный вход: user not found — {ident}")
++        register_attempt(ip)
+         raise HTTPException(status_code=400, detail="Incorrect username or password")
+ 
+     if not verify_password(data.password, user["hashed_password"]):
+-#         register_attempt(ip)
++        logger.info(f"[LOGIN][{ip}] Неверный пароль: user={user['email'] or user['iin']}")
++        register_attempt(ip)
+         raise HTTPException(status_code=400, detail="Incorrect username or password")
+ 
+-#     register_attempt(ip)
++    register_attempt(ip)
+ 
+     token_data = {
+         "sub": str(user["_id"]),
+@@ -129,22 +151,36 @@
+ 
+     await store_token_in_db(access_token, user["_id"], expires_at, ip, ua)
+ 
++    logger.info(f"[LOGIN][{ip}] Успешный вход: user={user['email'] or user['iin']}")
++
+     response = JSONResponse(content={
+         "access_token": access_token,
+         "token_type": "bearer"
+     })
+-    return {"access_token": access_token, "token_type": "bearer"}
++    response.set_cookie(
++        key="access_token",
++        value=access_token,
++        httponly=True,
++        secure=True,
++        samesite="None",
++        max_age=60 * 60 * 24 * 31,  # 31 день
++        expires=datetime.now(timezone.utc) + timedelta(days=31),
++        path="/"
++    )
++    return response
+ 
+ 
+ 
+ # -------------------------
+ # REGISTER
+ # -------------------------
++
+ @router.post("/register", response_model=TokenResponse)
+ async def register_user(user_data: UserCreate, request: Request):
+     ip = request.client.host
+ 
+     if not check_rate_limit(ip):
++        logger.warning(f"[REGISTER][{ip}] Превышен лимит попыток")
+         raise HTTPException(
+             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+             detail="Слишком много попыток регистрации. Попробуйте позже."
+@@ -152,6 +188,7 @@
+     register_attempt(ip)
+ 
+     if user_data.password != user_data.confirm_password:
++        logger.info(f"[REGISTER][{ip}] Пароли не совпадают — {user_data.email}")
+         raise HTTPException(status_code=400, detail="Пароли не совпадают")
+ 
+     existing_user = await db.users.find_one({
+@@ -162,6 +199,7 @@
+         ]
+     })
+     if existing_user:
++        logger.info(f"[REGISTER][{ip}] Уже существует: {user_data.email or user_data.iin}")
+         raise HTTPException(status_code=400, detail="Пользователь с таким ИИН, Email или телефоном уже существует")
+ 
+     hashed_pw = hash_password(user_data.password)
+@@ -177,16 +215,15 @@
+     result = await db.users.insert_one(new_user)
+     user_id = result.inserted_id
+ 
+-    logger.info(f"Регистрация нового пользователя: {user_data.email} (ID: {user_id})")
++    logger.info(f"[REGISTER][{ip}] Успешно: {user_data.email} (ID: {user_id})")
+ 
+-    # Генерируем JWT + узнаём время истечения
++    # Генерация токена
+     token_data = {
+         "sub": str(user_id),
+         "role": "user"
+     }
+     access_token, expires_at = create_access_token(token_data)
+ 
+-    # Сохраняем в MongoDB (коллекция tokens)
+     user_agent = request.headers.get("User-Agent", "unknown")
+     await store_token_in_db(access_token, user_id, expires_at, ip, user_agent)
+ 
+@@ -194,6 +231,17 @@
+         "access_token": access_token,
+         "token_type": "bearer"
+     })
++
++    response.set_cookie(
++        key="access_token",
++        value=access_token,
++        httponly=True,
++        secure=True,
++        samesite="None",
++        max_age=60 * 60 * 24 * 31,  # 31 день
++        expires=datetime.now(timezone.utc) + timedelta(days=31),
++        path="/"
++    )
+     return response
+ 
+ 
+@@ -207,27 +255,37 @@
+     user_id = payload.get("sub")
+     role = payload.get("role")
+ 
+-    # Проверка допустимых ролей
+     if role not in ["user", "admin", "moderator", "manager", "super_admin"]:
++        logger.warning(f"[LOGOUT][{request.client.host}] Недопустимая роль: {role}")
+         raise HTTPException(status_code=403, detail="Недопустимая роль")
+ 
+-    # Логирование выхода
+-    logger.info(f"[LOGOUT] role={role} user_id={user_id} ip={request.client.host}")
++    response = JSONResponse(content={"detail": "Вы вышли из системы"})
++    response.delete_cookie("access_token")  # ⬅️ удаляем куку
+ 
+     if role == "user":
+         token_doc = await db.tokens.find_one({"token": token})
+         if not token_doc:
++            logger.info(f"[LOGOUT][{request.client.host}] Пользователь не найден по токену. user_id={user_id}")
+             raise HTTPException(status_code=400, detail="Token not found or already invalid")
+ 
+         await db.tokens.update_one(
+             {"_id": token_doc["_id"]},
+             {"$set": {"revoked": True}}
+         )
+-        return {"detail": "Token has been revoked"}
+-    else:
+-        admin = await db.admins.find_one({"_id": ObjectId(user_id)})
+-        if not admin:
+-            raise HTTPException(status_code=404, detail="Админ не найден")
++
++        logger.info(f"[LOGOUT][{request.client.host}] Успешный выход: user_id={user_id}")
++        return response
++
++    # role == admin (или др. админские роли)
++    admin = await db.admins.find_one({"_id": ObjectId(user_id)})
++    if not admin:
++        logger.warning(f"[LOGOUT][{request.client.host}] Админ не найден. user_id={user_id}")
++        raise HTTPException(status_code=404, detail="Админ не найден")
+ 
+-        await db.admins.update_one({"_id": ObjectId(user_id)}, {"$set": {"active_session": None}})
+-        return {"detail": f"Session closed for role: {role}"}
++    await db.admins.update_one(
++        {"_id": ObjectId(user_id)},
++        {"$set": {"active_session": None}}
++    )
++
++    logger.info(f"[LOGOUT][{request.client.host}] Успешный выход: admin_id={user_id}, role={role}")
++    return response
+\ No newline at end of file
+Index: app/routers/admin_router.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>from fastapi import APIRouter, Request, Depends, HTTPException\r\nfrom app.db.database import db\r\nfrom app.admin.utils import decode_token, get_ip, get_user_agent\r\nfrom app.admin.permissions import is_super_admin\r\nfrom fastapi.security import HTTPBearer\r\nfrom bson import ObjectId\r\n\r\nrouter = APIRouter()\r\nsecurity = HTTPBearer()\r\n\r\n@router.get(\"/admin/active\")\r\nasync def check_active_session(request: Request, credentials=Depends(security)):\r\n    token = credentials.credentials\r\n    payload = decode_token(token)\r\n    admin_id = payload.get(\"sub\")\r\n    ip = get_ip(request)\r\n    ua = get_user_agent(request)\r\n\r\n    admin = await db.admins.find_one({\"_id\": ObjectId(admin_id)})\r\n    if not admin:\r\n        raise HTTPException(status_code=404, detail=\"Не найден\")\r\n\r\n    if not admin.get(\"active_session\") or admin[\"active_session\"].get(\"token\") != token:\r\n        raise HTTPException(status_code=401, detail=\"Сессия недействительна\")\r\n\r\n    if admin[\"active_session\"].get(\"ip\") != ip or admin[\"active_session\"].get(\"user_agent\") != ua:\r\n        raise HTTPException(status_code=401, detail=\"Сессия сброшена из-за смены IP/UA\")\r\n\r\n    return {\"status\": \"ok\", \"admin\": admin[\"full_name\"], \"role\": admin[\"role\"]}\r\n\r\n@router.get(\"/admin/list\")\r\nasync def list_admins(credentials=Depends(security)):\r\n    payload = decode_token(credentials.credentials)\r\n    if not is_super_admin(int(payload.get(\"sub\"))):\r\n        raise HTTPException(status_code=403, detail=\"Только для суперадминов\")\r\n\r\n    cursor = db.admins.find({}, {\"full_name\": 1, \"role\": 1, \"last_login\": 1})\r\n    result = []\r\n    async for doc in cursor:\r\n        result.append({\"full_name\": doc[\"full_name\"], \"role\": doc[\"role\"], \"last_login\": doc.get(\"last_login\")})\r\n    return result\r\n\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/routers/admin_router.py b/app/routers/admin_router.py
+--- a/app/routers/admin_router.py	(revision 28d3a6626bf26a95ffa95ab9417b7b5e610d2519)
++++ b/app/routers/admin_router.py	(date 1743887628564)
+@@ -9,9 +9,14 @@
+ security = HTTPBearer()
+ 
+ @router.get("/admin/active")
+-async def check_active_session(request: Request, credentials=Depends(security)):
+-    token = credentials.credentials
++async def check_active_session(request: Request):
++    token = request.cookies.get("access_token")
++    if not token:
++        raise HTTPException(status_code=401, detail="Не передан токен")
++
+     payload = decode_token(token)
++
++
+     admin_id = payload.get("sub")
+     ip = get_ip(request)
+     ua = get_user_agent(request)
+@@ -29,8 +34,12 @@
+     return {"status": "ok", "admin": admin["full_name"], "role": admin["role"]}
+ 
+ @router.get("/admin/list")
+-async def list_admins(credentials=Depends(security)):
+-    payload = decode_token(credentials.credentials)
++async def list_admins(request: Request):
++    token = request.cookies.get("access_token")
++    if not token:
++        raise HTTPException(status_code=401, detail="Не передан токен")
++
++    payload = decode_token(token)
+     if not is_super_admin(int(payload.get("sub"))):
+         raise HTTPException(status_code=403, detail="Только для суперадминов")
+ 
+Index: main.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+># app/main.py\r\n\r\nimport logging\r\nimport asyncio\r\nfrom fastapi import FastAPI\r\nfrom fastapi.middleware.cors import CORSMiddleware\r\nfrom app.core.logging_config import setup_logging\r\nfrom app.core.config import settings\r\nfrom app.routers import auth, user, reset_password, admin_router, test_router, subscription_router\r\nfrom aiogram import Dispatcher\r\nfrom app.admin.telegram_2fa import bot, router as telegram_router\r\nfrom fastapi.staticfiles import StaticFiles\r\n\r\n# Инициализация логирования\r\nsetup_logging()\r\nlogger = logging.getLogger(__name__)\r\n\r\n# Создаём приложение\r\napp = FastAPI(\r\n    title=\"Royal_api!\",\r\n    description=\"TI KTO VAHE1?\",\r\n    version=\"1.0.0\"\r\n)\r\n\r\n# CORS (для доступа с фронта)\r\napp.add_middleware(\r\n    CORSMiddleware,\r\n    allow_origins=[\r\n        \"http://localhost:3000\",\r\n        \"http://127.0.0.1:3000\",\r\n    ],\r\n    allow_credentials=True,\r\n    allow_methods=[\"*\"],\r\n    allow_headers=[\"*\"],\r\n)\r\n\r\n# Подключаем роутеры\r\napp.include_router(auth.router, prefix=\"/auth\", tags=[\"auth\"])\r\napp.include_router(user.router, prefix=\"/users\", tags=[\"users\"])\r\napp.include_router(reset_password.router, prefix=\"/reset\", tags=[\"reset-password\"])\r\napp.include_router(admin_router.router)\r\napp.include_router(test_router.router, prefix=\"/tests\", tags=[\"tests\"])\r\napp.include_router(subscription_router.router, prefix=\"/subscriptions\", tags=[\"subscriptions\"])\r\n\r\napp.mount(\"/\", StaticFiles(directory=\"html_testing\", html=True), name=\"static\")\r\n\r\n# Пример простого эндпоинта\r\n@app.get(\"/\")\r\ndef root():\r\n    logger.info(\"Root endpoint called.\")\r\n    return {\"message\": \"Hello from Pizdes!\"}\r\n\r\n# Запуск Telegram-бота через polling\r\nasync def start_bot():\r\n    dp = Dispatcher()\r\n    dp.include_router(telegram_router)\r\n    await dp.start_polling(bot)\r\n\r\n@app.on_event(\"startup\")\r\nasync def startup_event():\r\n    asyncio.create_task(start_bot())
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/main.py b/main.py
+--- a/main.py	(revision 28d3a6626bf26a95ffa95ab9417b7b5e610d2519)
++++ b/main.py	(date 1743893052877)
+@@ -19,16 +19,16 @@
+ app = FastAPI(
+     title="Royal_api!",
+     description="TI KTO VAHE1?",
+-    version="1.0.0"
++    version="1.0.1",
++    docs_url=None,  # отключает Swagger UI (/docs)
++    redoc_url=None,  # отключает ReDoc (/redoc)
++    openapi_url=None  # отключает схему OpenAPI (/openapi.json)
+ )
+ 
+-# CORS (для доступа с фронта)
++
+ app.add_middleware(
+     CORSMiddleware,
+-    allow_origins=[
+-        "http://localhost:3000",
+-        "http://127.0.0.1:3000",
+-    ],
++    allow_origins=["https://localhost:5173", "https://192.168.1.65", "https://royal-test.duckdns.org", "http://localhost:5173"],
+     allow_credentials=True,
+     allow_methods=["*"],
+     allow_headers=["*"],
+@@ -42,8 +42,7 @@
+ app.include_router(test_router.router, prefix="/tests", tags=["tests"])
+ app.include_router(subscription_router.router, prefix="/subscriptions", tags=["subscriptions"])
+ 
+-app.mount("/", StaticFiles(directory="html_testing", html=True), name="static")
+-
++# app.mount("/", StaticFiles(directory="html_testing", html=True), name="static")
+ # Пример простого эндпоинта
+ @app.get("/")
+ def root():
+Index: app/routers/test_router.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import os\r\nimport random\r\nimport string\r\nfrom datetime import datetime\r\nfrom typing import List\r\nfrom fastapi.encoders import jsonable_encoder\r\nfrom bson import ObjectId\r\nfrom fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form\r\nfrom fastapi.responses import JSONResponse\r\nfrom fastapi.encoders import jsonable_encoder\r\nfrom dotenv import load_dotenv\r\n\r\nfrom app.schemas.test_schemas import (\r\n    QuestionCreate,\r\n    QuestionOut,\r\n    QuestionEdit,\r\n    QuestionDelete\r\n)\r\nfrom app.admin.permissions import get_current_admin_user\r\nfrom app.db.database import get_database\r\nfrom app.core.gridfs_utils import save_media_to_gridfs, get_media_file\r\nimport base64\r\nload_dotenv()\r\n\r\nrouter = APIRouter()\r\n\r\n# Допустимые типы файлов и максимальный размер (в МБ)\r\nALLOWED_TYPES = os.getenv(\"ALLOWED_MEDIA_TYPES\", \"image/jpeg,image/png,video/mp4\").split(\",\")\r\nMAX_FILE_SIZE_MB = int(os.getenv(\"MAX_FILE_SIZE_MB\", \"100\"))\r\n\r\ndef generate_uid(length: int = 10) -> str:\r\n    \"\"\"\r\n    Генерирует уникальный идентификатор – строку из случайных цифр заданной длины.\r\n    \"\"\"\r\n    return ''.join(random.choices(string.digits, k=length))\r\n\r\n@router.post(\"/\", response_model=QuestionOut)\r\nasync def create_question(\r\n\r\n    question_data_str: str = Form(...),\r\n    file: UploadFile = File(None),\r\n    current_user: dict = Depends(get_current_admin_user),\r\n    db = Depends(get_database)\r\n):\r\n    \"\"\"\r\n    Создание вопроса с защитой:\r\n      - Парсит входящую JSON-строку по схеме QuestionCreate.\r\n      - Проверяет, что пользователь имеет достаточные права (например, роль \"admin\").\r\n      - Валидирует MIME‑тип и размер файла, если он передан.\r\n      - Генерирует уникальный 10-значный uid.\r\n      - Сохраняет медиафайл в GridFS (если передан) с обработкой ошибок.\r\n      - Формирует варианты ответа с метками (A, B, ...).\r\n      - Возвращает созданный вопрос с преобразованием ObjectId в строку.\r\n    \"\"\"\r\n    # Защищённый парсинг входных данных\r\n\r\n    try:\r\n        import json\r\n        question_data = QuestionCreate.parse_raw(question_data_str)\r\n    except Exception as e:\r\n        raise HTTPException(status_code=400, detail=f\"Ошибка парсинга JSON: {e}\")\r\n\r\n    # Проверка прав доступа (требуется роль \"admin\")\r\n    if not current_user or current_user.get(\"role\") != \"admin\":\r\n        raise HTTPException(status_code=403, detail=\"Доступ запрещён. Администратор требуется.\")\r\n\r\n    # Проверка наличия обязательных полей у пользователя\r\n    if \"full_name\" not in current_user or \"iin\" not in current_user:\r\n        raise HTTPException(status_code=400, detail=\"Данные пользователя неполные.\")\r\n\r\n    uid = generate_uid(10)\r\n    created_by_name = current_user[\"full_name\"]\r\n    created_by_iin = current_user[\"iin\"]\r\n\r\n    media_file_id = None\r\n    media_filename = None\r\n    if file:\r\n        # Проверка MIME типа\r\n        if file.content_type not in ALLOWED_TYPES:\r\n            raise HTTPException(status_code=400, detail=f\"Недопустимый тип файла: {file.content_type}\")\r\n        # Проверка размера файла\r\n        if file.size and file.size > MAX_FILE_SIZE_MB * 1024 * 1024:\r\n            raise HTTPException(status_code=400, detail=\"Превышен допустимый размер файла\")\r\n        try:\r\n            media_file_id = await save_media_to_gridfs(file, db)\r\n            media_filename = file.filename\r\n        except Exception as e:\r\n            raise HTTPException(status_code=500, detail=f\"Ошибка сохранения файла: {e}\")\r\n\r\n    # Формирование вариантов ответа с метками (A, B, C, …)\r\n    try:\r\n        import string\r\n        options_with_labels = [\r\n            {\"label\": string.ascii_uppercase[i], \"text\": opt.text}\r\n            for i, opt in enumerate(question_data.options)\r\n        ]\r\n        correct_label = string.ascii_uppercase[question_data.correct_index]\r\n    except Exception as e:\r\n        raise HTTPException(status_code=400, detail=f\"Ошибка формирования вариантов ответа: {e}\")\r\n\r\n    question_dict = {\r\n        \"question_text\": question_data.question_text,\r\n        \"options\": options_with_labels,\r\n        \"correct_label\": correct_label,\r\n        \"categories\": question_data.categories,\r\n        \"created_by_name\": created_by_name,\r\n        \"created_by_iin\": created_by_iin,\r\n        \"uid\": uid,\r\n        \"created_at\": datetime.utcnow(),\r\n        \"updated_at\": None,\r\n        \"deleted\": False,\r\n        \"deleted_by\": None,\r\n        \"deleted_at\": None,\r\n        \"media_file_id\": str(media_file_id) if media_file_id else None,\r\n        \"media_filename\": media_filename\r\n    }\r\n\r\n    try:\r\n        result = await db.questions.insert_one(question_dict)\r\n    except Exception as e:\r\n        raise HTTPException(status_code=500, detail=f\"Ошибка записи в базу: {e}\")\r\n\r\n    question_dict[\"id\"] = str(result.inserted_id)\r\n    return question_dict\r\n\r\n@router.put(\"/\", response_model=dict)\r\nasync def edit_question(\r\n    payload: QuestionEdit,\r\n    new_file: UploadFile = File(None),\r\n    current_user: dict = Depends(get_current_admin_user),\r\n    db = Depends(get_database)\r\n):\r\n    \"\"\"\r\n    Редактирование вопроса с дополнительной защитой:\r\n      - Обновляются только переданные поля (текст, варианты, категории).\r\n      - При необходимости производится замена медиафайла с проверкой типа и размера.\r\n      - Все обновления оборачиваются в try/except для защиты от ошибок.\r\n    \"\"\"\r\n    update_fields = {}\r\n    labels = list(string.ascii_uppercase)\r\n\r\n    if payload.new_question_text:\r\n        update_fields[\"question_text\"] = payload.new_question_text\r\n\r\n    if payload.new_options:\r\n        try:\r\n            new_options = [\r\n                {\"label\": labels[i], \"text\": opt.text}\r\n                for i, opt in enumerate(payload.new_options)\r\n            ]\r\n            update_fields[\"options\"] = new_options\r\n            if payload.new_correct_index is not None:\r\n                if payload.new_correct_index >= len(payload.new_options):\r\n                    raise HTTPException(status_code=400, detail=\"Неверный индекс правильного ответа\")\r\n                update_fields[\"correct_label\"] = labels[payload.new_correct_index]\r\n        except Exception as e:\r\n            raise HTTPException(status_code=400, detail=f\"Ошибка обработки новых вариантов: {e}\")\r\n\r\n    if payload.new_categories:\r\n        update_fields[\"categories\"] = payload.new_categories\r\n\r\n    if payload.replace_media and new_file:\r\n        if new_file.content_type not in ALLOWED_TYPES:\r\n            raise HTTPException(status_code=400, detail=f\"Недопустимый тип файла: {new_file.content_type}\")\r\n        if new_file.size and new_file.size > MAX_FILE_SIZE_MB * 1024 * 1024:\r\n            raise HTTPException(status_code=400, detail=\"Превышен допустимый размер файла\")\r\n        try:\r\n            file_id = await save_media_to_gridfs(new_file, db)\r\n            update_fields[\"media_file_id\"] = str(file_id)\r\n            update_fields[\"media_filename\"] = new_file.filename\r\n        except Exception as e:\r\n            raise HTTPException(status_code=500, detail=f\"Ошибка сохранения нового файла: {e}\")\r\n\r\n    update_fields[\"updated_at\"] = datetime.utcnow()\r\n\r\n    try:\r\n        question_obj_id = ObjectId(payload.question_id)\r\n    except Exception as e:\r\n        raise HTTPException(status_code=400, detail=f\"Неверный формат идентификатора: {e}\")\r\n\r\n    result = await db.questions.update_one(\r\n        {\"_id\": question_obj_id},\r\n        {\"$set\": update_fields}\r\n    )\r\n    if result.modified_count == 0:\r\n        raise HTTPException(status_code=400, detail=\"Ошибка при обновлении вопроса\")\r\n    return {\"message\": \"Вопрос обновлён\"}\r\n\r\n@router.delete(\"/\", response_model=dict)\r\nasync def delete_question(\r\n    payload: QuestionDelete,\r\n    current_user: dict = Depends(get_current_admin_user),\r\n    db = Depends(get_database)\r\n):\r\n    \"\"\"\r\n    Мягкое удаление вопроса:\r\n      - Обновляет поля deleted, deleted_by и deleted_at.\r\n      - Производит проверку корректности идентификатора.\r\n    \"\"\"\r\n    try:\r\n        question_obj_id = ObjectId(payload.question_id)\r\n    except Exception as e:\r\n        raise HTTPException(status_code=400, detail=f\"Неверный формат идентификатора: {e}\")\r\n\r\n    update_fields = {\r\n        \"deleted\": True,\r\n        \"deleted_by\": payload.deleted_by,\r\n        \"deleted_at\": datetime.utcnow()\r\n    }\r\n    result = await db.questions.update_one(\r\n        {\"_id\": question_obj_id},\r\n        {\"$set\": update_fields}\r\n    )\r\n    if result.modified_count == 0:\r\n        raise HTTPException(status_code=404, detail=\"Вопрос не найден\")\r\n    return {\"message\": \"Вопрос удалён\"}\r\n\r\n@router.get(\"/by_uid/{uid}\", response_model=dict)\r\nasync def get_question_by_uid(\r\n    uid: str,\r\n    current_user: dict = Depends(get_current_admin_user),\r\n    db=Depends(get_database)\r\n):\r\n    if current_user[\"role\"] not in {\"admin\", \"moderator\"}:\r\n        raise HTTPException(status_code=403, detail=\"Доступ запрещён\")\r\n\r\n    question = await db.questions.find_one({\"uid\": uid, \"deleted\": False})\r\n    if not question:\r\n        raise HTTPException(status_code=404, detail=\"Вопрос не найден\")\r\n\r\n    question[\"id\"] = str(question[\"_id\"])\r\n    del question[\"_id\"]\r\n\r\n    # Добавляем base64 медиафайл\r\n    if question.get(\"media_file_id\"):\r\n        try:\r\n            file_data = await get_media_file(question[\"media_file_id\"], db)\r\n            question[\"media_file_base64\"] = base64.b64encode(file_data).decode(\"utf-8\")\r\n        except Exception as e:\r\n            print(e)\r\n            question[\"media_file_base64\"] = None\r\n\r\n    return JSONResponse(content=jsonable_encoder(question))\r\n\r\n@router.get(\"/all\", response_model=list[dict])\r\nasync def get_all_questions(\r\n    current_user: dict = Depends(get_current_admin_user),\r\n    db=Depends(get_database)\r\n):\r\n    \"\"\"\r\n    Возвращает все активные вопросы (без base64-медиа),\r\n    но с информацией о наличии медиа.\r\n    Доступ только для admin и moderator.\r\n    \"\"\"\r\n    if current_user[\"role\"] not in {\"admin\", \"moderator\"}:\r\n        raise HTTPException(status_code=403, detail=\"Доступ запрещён\")\r\n\r\n    cursor = db.questions.find({\"deleted\": False})\r\n    questions = []\r\n    async for q in cursor:\r\n        q[\"id\"] = str(q[\"_id\"])\r\n        del q[\"_id\"]\r\n        # Добавляем признак наличия медиа\r\n        q[\"has_media\"] = bool(q.get(\"media_file_id\") and q.get(\"media_filename\"))\r\n        # Очищаем тяжелые поля\r\n        q.pop(\"media_file_id\", None)\r\n        q.pop(\"media_filename\", None)\r\n        questions.append(q)\r\n\r\n    return questions
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/routers/test_router.py b/app/routers/test_router.py
+--- a/app/routers/test_router.py	(revision 28d3a6626bf26a95ffa95ab9417b7b5e610d2519)
++++ b/app/routers/test_router.py	(date 1743887814045)
+@@ -138,6 +138,12 @@
+     """
+     update_fields = {}
+     labels = list(string.ascii_uppercase)
++    if not current_user or current_user.get("role") != "admin":
++        raise HTTPException(status_code=403, detail="Доступ запрещён. Администратор требуется.")
++
++    # Проверка наличия обязательных полей у пользователя
++    if "full_name" not in current_user or "iin" not in current_user:
++        raise HTTPException(status_code=400, detail="Данные пользователя неполные.")
+ 
+     if payload.new_question_text:
+         update_fields["question_text"] = payload.new_question_text
+@@ -197,6 +203,13 @@
+       - Обновляет поля deleted, deleted_by и deleted_at.
+       - Производит проверку корректности идентификатора.
+     """
++    if not current_user or current_user.get("role") != "admin":
++        raise HTTPException(status_code=403, detail="Доступ запрещён. Администратор требуется.")
++
++    # Проверка наличия обязательных полей у пользователя
++    if "full_name" not in current_user or "iin" not in current_user:
++        raise HTTPException(status_code=400, detail="Данные пользователя неполные.")
++
+     try:
+         question_obj_id = ObjectId(payload.question_id)
+     except Exception as e:
+Index: .env
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>MONGO_URI = \"mongodb://localhost:27017/\"\r\nMONGO_DB_NAME = \"Royal_Test\"\r\nSECRET_KEY = \"magic_key_royal\"\r\nTELEGRAM_BOT_TOKEN=\"7666643669:AAHtiA7y1r_WR1LrBxp1tqU4GA3r2XWgO8o\"\r\nSUPER_ADMIN_IDS=1172203971\r\npdd_categories=[\"A\",\"B\",\"C\",\"D\",\"CE\",\"DE\",\"M\",\"A1\",\"B1\",\"C1\",\"D1\",\"BE\"]\r\nallowed_media_types=[\"image/jpeg\", \"image/png\", \"video/mp4\"]\r\nmax_file_size_mb=100\r\n\r\n\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.env b/.env
+--- a/.env	(revision 28d3a6626bf26a95ffa95ab9417b7b5e610d2519)
++++ b/.env	(date 1743884495824)
+@@ -1,4 +1,4 @@
+-MONGO_URI = "mongodb://localhost:27017/"
++MONGO_URI = "mongodb://admin:rmh_1337_polnokrasoti@192.168.1.69:27017/?authSource=admin"
+ MONGO_DB_NAME = "Royal_Test"
+ SECRET_KEY = "magic_key_royal"
+ TELEGRAM_BOT_TOKEN="7666643669:AAHtiA7y1r_WR1LrBxp1tqU4GA3r2XWgO8o"
+Index: app/admin/permissions.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>from fastapi import Depends, HTTPException, Request\r\nfrom app.core.security import oauth2_scheme\r\nfrom app.db.database import db\r\nfrom bson import ObjectId\r\nfrom datetime import datetime\r\nimport jwt\r\nfrom app.core.config import settings\r\nimport os\r\n\r\nSUPER_ADMINS = [int(uid) for uid in os.getenv(\"SUPER_ADMIN_IDS\", \"\").split(\",\") if uid.strip()]\r\n\r\ndef is_super_admin(user_id: int) -> bool:\r\n    return user_id in SUPER_ADMINS\r\n\r\nasync def get_current_admin_user(request: Request, token: str = Depends(oauth2_scheme)):\r\n    \"\"\"Проверка токена только для админов. Токены обычных пользователей не трогаются.\"\"\"\r\n    not_found_exception = HTTPException(status_code=404, detail=\"Not found\")\r\n\r\n    # 1. Расшифровка токена\r\n    try:\r\n        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])\r\n        user_id: str = payload.get(\"sub\")\r\n        if not user_id or not ObjectId.is_valid(user_id):\r\n            print(1)\r\n            raise not_found_exception\r\n    except jwt.ExpiredSignatureError:\r\n        raise HTTPException(status_code=401, detail=\"Токен истёк\")\r\n    except jwt.PyJWTError:\r\n        print(2)\r\n        raise not_found_exception\r\n\r\n    # 2. Поиск админа по ID и проверка токена в active_session\r\n    admin = await db.admins.find_one({\r\n        \"_id\": ObjectId(user_id),\r\n        \"active_session.token\": token\r\n    })\r\n\r\n    if not admin:\r\n        print(3)\r\n        raise not_found_exception\r\n\r\n    # 3. Проверка, не истёк ли токен по last_activity или expires_at (если ты хранишь expires_at)\r\n    # Если добавишь active_session.expires_at — можно сравнить с datetime.utcnow()\r\n\r\n    # 4. Обновление информации об активности\r\n    await db.admins.update_one(\r\n        {\"_id\": ObjectId(user_id)},\r\n        {\r\n            \"$set\": {\r\n                \"active_session.last_activity\": datetime.utcnow(),\r\n                \"active_session.ip\": request.client.host,\r\n                \"active_session.user_agent\": request.headers.get(\"User-Agent\", \"unknown\")\r\n            }\r\n        }\r\n    )\r\n\r\n    # 5. Возврат информации о текущем админ-пользователе\r\n    return {\r\n        \"_id\": admin[\"_id\"],\r\n        \"full_name\": admin.get(\"full_name\"),\r\n        \"role\": admin.get(\"role\"),\r\n        \"iin\": admin.get(\"iin\")\r\n    }\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/admin/permissions.py b/app/admin/permissions.py
+--- a/app/admin/permissions.py	(revision 28d3a6626bf26a95ffa95ab9417b7b5e610d2519)
++++ b/app/admin/permissions.py	(date 1743887997334)
+@@ -12,37 +12,35 @@
+ def is_super_admin(user_id: int) -> bool:
+     return user_id in SUPER_ADMINS
+ 
+-async def get_current_admin_user(request: Request, token: str = Depends(oauth2_scheme)):
+-    """Проверка токена только для админов. Токены обычных пользователей не трогаются."""
++async def get_current_admin_user(request: Request):
++    """Проверка токена только для админов (через cookie)."""
+     not_found_exception = HTTPException(status_code=404, detail="Not found")
+ 
+-    # 1. Расшифровка токена
++    # 1. Получаем токен из куки
++    token = request.cookies.get("access_token")
++    if not token:
++        raise HTTPException(status_code=401, detail="Не передан токен")
++
++    # 2. Расшифровка токена
+     try:
+         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+         user_id: str = payload.get("sub")
+         if not user_id or not ObjectId.is_valid(user_id):
+-            print(1)
+             raise not_found_exception
+     except jwt.ExpiredSignatureError:
+         raise HTTPException(status_code=401, detail="Токен истёк")
+     except jwt.PyJWTError:
+-        print(2)
+         raise not_found_exception
+ 
+-    # 2. Поиск админа по ID и проверка токена в active_session
++    # 3. Поиск админа и проверка активной сессии
+     admin = await db.admins.find_one({
+         "_id": ObjectId(user_id),
+         "active_session.token": token
+     })
+-
+     if not admin:
+-        print(3)
+         raise not_found_exception
+ 
+-    # 3. Проверка, не истёк ли токен по last_activity или expires_at (если ты хранишь expires_at)
+-    # Если добавишь active_session.expires_at — можно сравнить с datetime.utcnow()
+-
+-    # 4. Обновление информации об активности
++    # 4. Обновляем активность
+     await db.admins.update_one(
+         {"_id": ObjectId(user_id)},
+         {
+@@ -54,10 +52,10 @@
+         }
+     )
+ 
+-    # 5. Возврат информации о текущем админ-пользователе
++    # 5. Возврат информации
+     return {
+         "_id": admin["_id"],
+         "full_name": admin.get("full_name"),
+         "role": admin.get("role"),
+         "iin": admin.get("iin")
+-    }
++    }
+\ No newline at end of file
+Index: app/core/security.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import logging\r\nfrom datetime import datetime, timedelta\r\n\r\nimport jwt\r\nfrom fastapi import Depends, HTTPException, status, Request\r\nfrom fastapi.security import OAuth2PasswordBearer\r\nfrom passlib.context import CryptContext\r\nfrom bson import ObjectId\r\n\r\nfrom app.db.database import db\r\nfrom app.core.config import settings\r\n\r\nlogger = logging.getLogger(__name__)\r\npwd_context = CryptContext(schemes=[\"bcrypt\"], deprecated=\"auto\")\r\noauth2_scheme = OAuth2PasswordBearer(tokenUrl=\"/auth/login\")\r\n\r\n\r\ndef hash_password(plain_password: str) -> str:\r\n    return pwd_context.hash(plain_password)\r\n\r\n\r\ndef verify_password(plain_password: str, hashed_password: str) -> bool:\r\n    return pwd_context.verify(plain_password, hashed_password)\r\n\r\n\r\ndef create_access_token(data: dict, expires_delta: timedelta = None) -> tuple[str, datetime]:\r\n    expire = datetime.utcnow() + (expires_delta or timedelta(days=settings.ACCESS_TOKEN_EXPIRE_DAYS))\r\n    to_encode = data.copy()\r\n    to_encode.update({\"exp\": expire})\r\n    token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)\r\n    return token, expire\r\n\r\n\r\nasync def store_token_in_db(token: str, user_id: ObjectId, expires_at: datetime, ip: str, user_agent: str):\r\n    # Ограничиваем до 3 активных токенов\r\n    active_tokens = await db.tokens.find({\r\n        \"user_id\": user_id,\r\n        \"revoked\": False,\r\n        \"expires_at\": {\"$gt\": datetime.utcnow()}\r\n    }).sort(\"created_at\", 1).to_list(length=100)\r\n\r\n    if len(active_tokens) >= 3:\r\n        oldest = active_tokens[0]\r\n        await db.tokens.update_one({\"_id\": oldest[\"_id\"]}, {\"$set\": {\"revoked\": True}})\r\n\r\n    await db.tokens.insert_one({\r\n        \"user_id\": user_id,\r\n        \"token\": token,\r\n        \"created_at\": datetime.utcnow(),\r\n        \"expires_at\": expires_at,\r\n        \"revoked\": False,\r\n        \"ip\": ip,\r\n        \"user_agent\": user_agent,\r\n        \"last_activity\": datetime.utcnow()\r\n    })\r\n\r\n\r\nasync def get_current_user(request: Request, token: str = Depends(oauth2_scheme)):\r\n    credentials_exception = HTTPException(\r\n        status_code=status.HTTP_401_UNAUTHORIZED,\r\n        detail=\"Could not validate credentials\",\r\n        headers={\"WWW-Authenticate\": \"Bearer\"},\r\n    )\r\n\r\n    try:\r\n        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])\r\n        user_id: str = payload.get(\"sub\")\r\n        if user_id is None:\r\n            raise credentials_exception\r\n    except jwt.ExpiredSignatureError:\r\n        raise HTTPException(\r\n            status_code=status.HTTP_401_UNAUTHORIZED,\r\n            detail=\"Access token has expired\",\r\n            headers={\"WWW-Authenticate\": \"Bearer\"}\r\n        )\r\n    except jwt.PyJWTError:\r\n        raise credentials_exception\r\n\r\n    token_doc = await db.tokens.find_one({\"token\": token})\r\n    if not token_doc:\r\n        raise credentials_exception\r\n\r\n    if token_doc.get(\"expires_at\") < datetime.utcnow():\r\n        await db.tokens.update_one({\"_id\": token_doc[\"_id\"]}, {\"$set\": {\"revoked\": True}})\r\n        raise HTTPException(\r\n            status_code=status.HTTP_401_UNAUTHORIZED,\r\n            detail=\"Token has expired\",\r\n            headers={\"WWW-Authenticate\": \"Bearer\"}\r\n        )\r\n\r\n    if token_doc.get(\"revoked\"):\r\n        raise HTTPException(\r\n            status_code=status.HTTP_401_UNAUTHORIZED,\r\n            detail=\"Token has been revoked\",\r\n            headers={\"WWW-Authenticate\": \"Bearer\"}\r\n        )\r\n\r\n    if not ObjectId.is_valid(user_id):\r\n        raise credentials_exception\r\n\r\n    user = await db.users.find_one({\"_id\": ObjectId(user_id)})\r\n    if not user:\r\n        raise credentials_exception\r\n\r\n    # Обновим информацию о последнем действии, IP и User-Agent\r\n    await db.tokens.update_one(\r\n        {\"_id\": token_doc[\"_id\"]},\r\n        {\r\n            \"$set\": {\r\n                \"last_activity\": datetime.utcnow(),\r\n                \"ip\": request.client.host,\r\n                \"user_agent\": request.headers.get(\"User-Agent\", \"unknown\")\r\n            }\r\n        }\r\n    )\r\n\r\n    return user\r\n\r\n\r\nasync def get_current_actor(request: Request, token: str = Depends(oauth2_scheme)):\r\n    try:\r\n        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])\r\n        user_id = payload.get(\"sub\")\r\n        role = payload.get(\"role\")\r\n\r\n        if not user_id or not ObjectId.is_valid(user_id):\r\n            raise HTTPException(status_code=401, detail=\"Invalid token data\")\r\n    except jwt.ExpiredSignatureError:\r\n        raise HTTPException(status_code=401, detail=\"Token expired\")\r\n    except jwt.PyJWTError:\r\n        raise HTTPException(status_code=401, detail=\"Invalid token\")\r\n\r\n    if role == \"user\":\r\n        token_doc = await db.tokens.find_one({\"token\": token})\r\n        if not token_doc or token_doc.get(\"revoked\") or token_doc[\"expires_at\"] < datetime.utcnow():\r\n            raise HTTPException(status_code=401, detail=\"Token is not valid\")\r\n\r\n        # Обновим активность токена\r\n        await db.tokens.update_one(\r\n            {\"_id\": token_doc[\"_id\"]},\r\n            {\"$set\": {\r\n                \"last_activity\": datetime.utcnow(),\r\n                \"ip\": request.client.host,\r\n                \"user_agent\": request.headers.get(\"User-Agent\", \"unknown\")\r\n            }}\r\n        )\r\n\r\n        user = await db.users.find_one({\"_id\": ObjectId(user_id)})\r\n        if not user:\r\n            raise HTTPException(status_code=404, detail=\"User not found\")\r\n\r\n        return {\r\n            \"type\": \"user\",\r\n            \"id\": user[\"_id\"],\r\n            \"role\": role,\r\n            \"email\": user.get(\"email\"),\r\n            \"phone\": user.get(\"phone\"),\r\n            \"iin\": user.get(\"iin\"),\r\n        }\r\n\r\n    elif role == \"admin\":\r\n        admin = await db.admins.find_one({\"_id\": ObjectId(user_id)})\r\n        if not admin:\r\n            raise HTTPException(status_code=404, detail=\"Admin not found\")\r\n\r\n        active_session = admin.get(\"active_session\")\r\n        if not active_session or active_session.get(\"token\") != token:\r\n            raise HTTPException(status_code=401, detail=\"Admin session not active\")\r\n\r\n        # Обновим активность в админском active_session\r\n        await db.admins.update_one(\r\n            {\"_id\": ObjectId(user_id)},\r\n            {\"$set\": {\r\n                \"active_session.last_activity\": datetime.utcnow(),\r\n                \"active_session.ip\": request.client.host,\r\n                \"active_session.user_agent\": request.headers.get(\"User-Agent\", \"unknown\")\r\n            }}\r\n        )\r\n\r\n        return {\r\n            \"type\": \"admin\",\r\n            \"id\": admin[\"_id\"],\r\n            \"role\": role,\r\n            \"full_name\": admin.get(\"full_name\"),\r\n            \"iin\": admin.get(\"iin\"),\r\n        }\r\n\r\n    else:\r\n        raise HTTPException(status_code=403, detail=\"Unknown role\")
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/core/security.py b/app/core/security.py
+--- a/app/core/security.py	(revision 28d3a6626bf26a95ffa95ab9417b7b5e610d2519)
++++ b/app/core/security.py	(date 1743887957672)
+@@ -55,10 +55,18 @@
+     })
+ 
+ 
+-async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)):
++async def get_current_user(request: Request):
++    token = request.cookies.get("access_token")
++    if not token:
++        raise HTTPException(
++            status_code=status.HTTP_401_UNAUTHORIZED,
++            detail="Токен не найден в cookie",
++            headers={"WWW-Authenticate": "Bearer"},
++        )
++
+     credentials_exception = HTTPException(
+         status_code=status.HTTP_401_UNAUTHORIZED,
+-        detail="Could not validate credentials",
++        detail="Не удалось подтвердить авторизацию",
+         headers={"WWW-Authenticate": "Bearer"},
+     )
+ 
+@@ -70,29 +78,33 @@
+     except jwt.ExpiredSignatureError:
+         raise HTTPException(
+             status_code=status.HTTP_401_UNAUTHORIZED,
+-            detail="Access token has expired",
+-            headers={"WWW-Authenticate": "Bearer"}
++            detail="Токен истёк",
++            headers={"WWW-Authenticate": "Bearer"},
+         )
+     except jwt.PyJWTError:
+         raise credentials_exception
+ 
++    # Проверка токена в базе
+     token_doc = await db.tokens.find_one({"token": token})
+     if not token_doc:
+         raise credentials_exception
+ 
+     if token_doc.get("expires_at") < datetime.utcnow():
+-        await db.tokens.update_one({"_id": token_doc["_id"]}, {"$set": {"revoked": True}})
++        await db.tokens.update_one(
++            {"_id": token_doc["_id"]},
++            {"$set": {"revoked": True}}
++        )
+         raise HTTPException(
+             status_code=status.HTTP_401_UNAUTHORIZED,
+-            detail="Token has expired",
+-            headers={"WWW-Authenticate": "Bearer"}
++            detail="Срок действия токена истёк",
++            headers={"WWW-Authenticate": "Bearer"},
+         )
+ 
+     if token_doc.get("revoked"):
+         raise HTTPException(
+             status_code=status.HTTP_401_UNAUTHORIZED,
+-            detail="Token has been revoked",
+-            headers={"WWW-Authenticate": "Bearer"}
++            detail="Токен был отозван",
++            headers={"WWW-Authenticate": "Bearer"},
+         )
+ 
+     if not ObjectId.is_valid(user_id):
+@@ -102,22 +114,25 @@
+     if not user:
+         raise credentials_exception
+ 
+-    # Обновим информацию о последнем действии, IP и User-Agent
++    # Обновление активности
+     await db.tokens.update_one(
+         {"_id": token_doc["_id"]},
+-        {
+-            "$set": {
+-                "last_activity": datetime.utcnow(),
+-                "ip": request.client.host,
+-                "user_agent": request.headers.get("User-Agent", "unknown")
+-            }
+-        }
++        {"$set": {
++            "last_activity": datetime.utcnow(),
++            "ip": request.client.host,
++            "user_agent": request.headers.get("User-Agent", "unknown")
++        }}
+     )
+ 
+     return user
+ 
+ 
+-async def get_current_actor(request: Request, token: str = Depends(oauth2_scheme)):
++
++async def get_current_actor(request: Request):
++    token = request.cookies.get("access_token")
++    if not token:
++        raise HTTPException(status_code=401, detail="Не передан токен (cookie)")
++
+     try:
+         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+         user_id = payload.get("sub")
+@@ -135,7 +150,6 @@
+         if not token_doc or token_doc.get("revoked") or token_doc["expires_at"] < datetime.utcnow():
+             raise HTTPException(status_code=401, detail="Token is not valid")
+ 
+-        # Обновим активность токена
+         await db.tokens.update_one(
+             {"_id": token_doc["_id"]},
+             {"$set": {
+@@ -167,7 +181,6 @@
+         if not active_session or active_session.get("token") != token:
+             raise HTTPException(status_code=401, detail="Admin session not active")
+ 
+-        # Обновим активность в админском active_session
+         await db.admins.update_one(
+             {"_id": ObjectId(user_id)},
+             {"$set": {
+@@ -185,5 +198,4 @@
+             "iin": admin.get("iin"),
+         }
+ 
+-    else:
+-        raise HTTPException(status_code=403, detail="Unknown role")
+\ No newline at end of file
++    raise HTTPException(status_code=403, detail="Unknown role")
+Index: .idea/.gitignore
+===================================================================
+diff --git a/.idea/.gitignore b/.idea/.gitignore
+deleted file mode 100644
+--- a/.idea/.gitignore	(revision 28d3a6626bf26a95ffa95ab9417b7b5e610d2519)
++++ /dev/null	(revision 28d3a6626bf26a95ffa95ab9417b7b5e610d2519)
+@@ -1,3 +0,0 @@
+-# Default ignored files
+-/shelf/
+-/workspace.xml

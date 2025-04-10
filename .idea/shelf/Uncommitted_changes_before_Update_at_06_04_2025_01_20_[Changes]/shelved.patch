@@ -1,0 +1,58 @@
+Index: requirements.txt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>fastapi==0.115.4\r\nuvicorn==0.19.0\r\nmotor>=3.6\r\npydantic==1.10.7\r\npasslib[bcrypt]==1.7.4\r\nPyJWT==2.6.0\r\npython-dotenv==0.21.1\r\npython-json-logger==2.0.7\r\npymongo>=4.9\r\npydantic[email]\r\npytz\r\naiogram\r\nbcrypt<4.0\r\npython-multipart\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/requirements.txt b/requirements.txt
+--- a/requirements.txt	(revision 373642d0d6e2635a759d5d278fa8a570eb1427b0)
++++ b/requirements.txt	(date 1743884250438)
+@@ -1,7 +1,7 @@
+ fastapi==0.115.4
+ uvicorn==0.19.0
+ motor>=3.6
+-pydantic==1.10.7
++pydantic==2.5.3
+ passlib[bcrypt]==1.7.4
+ PyJWT==2.6.0
+ python-dotenv==0.21.1
+@@ -9,6 +9,7 @@
+ pymongo>=4.9
+ pydantic[email]
+ pytz
+-aiogram
++aiogram==3.2.0
+ bcrypt<4.0
+ python-multipart
++pydantic-settings==2.1.0
+\ No newline at end of file
+Index: .env
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>MONGO_URI = \"mongodb://localhost:27017/\"\r\nMONGO_DB_NAME = \"Royal_Test\"\r\nSECRET_KEY = \"magic_key_royal\"\r\nTELEGRAM_BOT_TOKEN=\"7666643669:AAHtiA7y1r_WR1LrBxp1tqU4GA3r2XWgO8o\"\r\nSUPER_ADMIN_IDS=1172203971\r\npdd_categories=[\"A\",\"B\",\"C\",\"D\",\"CE\",\"DE\",\"M\",\"A1\",\"B1\",\"C1\",\"D1\",\"BE\"]\r\nallowed_media_types=[\"image/jpeg\", \"image/png\", \"video/mp4\"]\r\nmax_file_size_mb=100\r\n\r\n\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.env b/.env
+--- a/.env	(revision 373642d0d6e2635a759d5d278fa8a570eb1427b0)
++++ b/.env	(date 1743883919465)
+@@ -1,4 +1,4 @@
+-MONGO_URI = "mongodb://localhost:27017/"
++MONGO_URI = "mongodb://admin:rmh_1337_polnokrasoti@192.168.1.69:27017/?authSource=admin"
+ MONGO_DB_NAME = "Royal_Test"
+ SECRET_KEY = "magic_key_royal"
+ TELEGRAM_BOT_TOKEN="7666643669:AAHtiA7y1r_WR1LrBxp1tqU4GA3r2XWgO8o"
+Index: .idea/.gitignore
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/.gitignore b/.idea/.gitignore
+deleted file mode 100644
+--- a/.idea/.gitignore	(revision 373642d0d6e2635a759d5d278fa8a570eb1427b0)
++++ /dev/null	(revision 373642d0d6e2635a759d5d278fa8a570eb1427b0)
+@@ -1,3 +0,0 @@
+-# Default ignored files
+-/shelf/
+-/workspace.xml
