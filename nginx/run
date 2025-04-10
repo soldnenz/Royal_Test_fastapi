@@ -1,4 +1,0 @@
-.\nginx.exe -p . -c conf/nginx.conf
-.\nginx.exe -s stop
-.\nginx.exe -s reload
-
