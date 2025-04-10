@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Дашборд пользователя</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Иконки -->
+  <script src="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"></script>
+
+  <script>
+    // Функция для передачи токена с куков
+    function getAccessToken() {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('access_token='))?.split('=')[1];
+      return token ? `Bearer ${token}` : '';
+    }
+
+    // Функция для отправки запросов с токеном
+    async function fetchWithToken(url, options = {}) {
+      const token = getAccessToken();
+      const headers = {
+        ...options.headers,
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      };
+      const response = await fetch(url, { ...options, headers });
+      return response.json();
+    }
+
+    // Переключение между вкладками
+    function switchTab(tab) {
+      const tabs = document.querySelectorAll('.tab-content');
+      const buttons = document.querySelectorAll('.tab-button');
+      tabs.forEach(t => t.classList.add('hidden')); // Скрыть все вкладки
+      buttons.forEach(b => b.classList.remove('bg-gold', 'text-white')); // Сбросить активные кнопки
+
+      // Показать нужную вкладку
+      document.getElementById(tab).classList.remove('hidden');
+      document.querySelector(`#btn-${tab}`).classList.add('bg-gold', 'text-white');
+    }
+
+    // Загрузка данных профиля и подписки
+    async function loadData() {
+      try {
+        // Загрузка данных профиля
+        const profileData = await fetchWithToken('/api/users/me');
+        const profile = profileData.data;
+
+        // Отображение данных профиля
+        document.getElementById('profile-full-name').textContent = profile.full_name;
+        document.getElementById('profile-email').textContent = profile.email;
+        document.getElementById('profile-phone').textContent = profile.phone;
+        document.getElementById('profile-iin').textContent = profile.iin;
+
+        // Загрузка данных подписки
+        const subscriptionData = await fetchWithToken('/api/users/my/subscription');
+        const subscription = subscriptionData.data;
+
+        if (subscription.has_subscription) {
+          document.getElementById('subscription-status').textContent = 'Подписка активна';
+          document.getElementById('subscription-type').textContent = subscription.subscription_type;
+          document.getElementById('subscription-expiry').textContent = `До: ${new Date(subscription.expires_at).toLocaleDateString()}`;
+          document.getElementById('subscription-days-left').textContent = `Осталось дней: ${subscription.days_left}`;
+        } else {
+          document.getElementById('subscription-status').textContent = 'Подписка не активна';
+        }
+
+      } catch (err) {
+        console.error('Ошибка загрузки данных', err);
+      }
+    }
+
+    async function logout() {
+      try {
+        const token = getAccessToken(); // Получаем токен из куков
+        const response = await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Authorization': token, // Передаем токен в заголовке
+            'Content-Type': 'application/json'
+          }
+        });
+
+        // Проверяем, успешен ли запрос
+        if (response.ok) {
+          window.location.href = '/'; // Перенаправляем на главную страницу после логаута
+        } else {
+          const result = await response.json();
+          showError(result.message || 'Ошибка при выходе');
+        }
+      } catch (err) {
+        showError('Ошибка при выходе');
+      }
+    }
+
+    // Функция для отображения ошибок
+    function showError(message) {
+      const errorBox = document.getElementById('errorBox');
+      const errorMessage = document.getElementById('errorMessage');
+      if (errorBox && errorMessage) {
+        errorMessage.textContent = message;
+        errorBox.classList.remove('hidden');
+      }
+    }
+
+    // Закрыть ошибку
+    function closeError() {
+      const errorBox = document.getElementById('errorBox');
+      if (errorBox) errorBox.classList.add('hidden');
+    }
+
+    window.onload = loadData;
+  </script>
+
+  <style>
+    .btn {
+      @apply px-6 py-3 rounded-lg font-semibold transition duration-300;
+    }
+
+    .btn-primary {
+      @apply bg-gold text-white hover:bg-gold-dark;
+    }
+
+    .btn-secondary {
+      @apply bg-white text-gold border border-gold hover:bg-yellow-100;
+    }
+
+    .shine {
+      background: linear-gradient(90deg, #fff, #d4af37, #fff);
+      background-size: 200% auto;
+      color: transparent;
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: shineAnim 3s linear infinite;
+    }
+
+    @keyframes shineAnim {
+      0% {
+        background-position: 0% center;
+      }
+      100% {
+        background-position: 200% center;
+      }
+    }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+    }
+
+    .tab-button {
+      @apply flex items-center gap-2 py-2 px-4 cursor-pointer transition-all;
+    }
+
+    .tab-button:hover {
+      @apply bg-gold text-white;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans">
+
+  <!-- Ошибка -->
+  <div id="errorBox" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
+    <span class="block sm:inline font-medium" id="errorMessage">Ошибка</span>
+    <span class="absolute top-2 right-3 cursor-pointer" onclick="closeError()">
+      <i class='bx bx-x text-xl'></i>
+    </span>
+  </div>
+
+  <!-- Панель навигации -->
+  <header class="sticky top-0 bg-white shadow z-50 p-4">
+    <div class="flex justify-between items-center">
+      <h1 class="text-2xl font-bold text-gold">Royal One</h1>
+      <div class="flex space-x-6">
+        <button id="btn-tests" class="tab-button text-lg" onclick="switchTab('tests')">
+          <i class="bx bx-check-circle text-2xl"></i> Тесты
+        </button>
+        <button id="btn-statistics" class="tab-button text-lg" onclick="switchTab('statistics')">
+          <i class="bx bx-bar-chart-alt text-2xl"></i> Статистика
+        </button>
+        <button id="btn-subscription" class="tab-button text-lg" onclick="switchTab('subscription')">
+          <i class="bx bx-credit-card text-2xl"></i> Подписка
+        </button>
+        <button id="btn-profile" class="tab-button text-lg" onclick="switchTab('profile')">
+          <i class="bx bx-user text-2xl"></i> Профиль
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Контент -->
+  <div class="max-w-7xl mx-auto px-6 py-6">
+    <!-- Контент: Профиль -->
+    <div id="profile" class="tab-content hidden">
+      <h3 class="text-2xl font-semibold">Профиль</h3>
+      <p><strong>ФИО:</strong> <span id="profile-full-name"></span></p>
+      <p><strong>Email:</strong> <span id="profile-email"></span></p>
+      <p><strong>Телефон:</strong> <span id="profile-phone"></span></p>
+      <p><strong>ИИН:</strong> <span id="profile-iin"></span></p>
+      <button class="btn btn-primary mt-4" onclick="logout()">Выйти</button>
+    </div>
+
+    <!-- Контент: Тесты -->
+    <div id="tests" class="tab-content hidden">
+      <h3 class="text-2xl font-semibold">Тесты</h3>
+      <p>Здесь будут тесты, которые можно пройти.</p>
+    </div>
+
+    <!-- Контент: Статистика -->
+    <div id="statistics" class="tab-content hidden">
+      <h3 class="text-2xl font-semibold">Статистика</h3>
+      <p>Здесь будет ваша статистика по результатам тестов.</p>
+    </div>
+
+    <!-- Контент: Подписка -->
+    <div id="subscription" class="tab-content hidden">
+      <h3 class="text-2xl font-semibold">Подписка</h3>
+      <p id="subscription-status"></p>
+      <p id="subscription-type"></p>
+      <p id="subscription-expiry"></p>
+      <p id="subscription-days-left"></p>
+    </div>
+  </div>
+</body>
+</html>
