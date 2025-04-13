@@ -1,6 +1,6 @@
 from motor.motor_asyncio import AsyncIOMotorDatabase, AsyncIOMotorGridFSBucket
 from fastapi import UploadFile
-from bson import ObjectId
+from bson import ObjectId, errors
 import base64
 import logging
 

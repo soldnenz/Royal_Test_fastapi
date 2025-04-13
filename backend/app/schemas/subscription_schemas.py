@@ -15,7 +15,7 @@ class IssuedBy(BaseModel):
 class SubscriptionCreate(BaseModel):
     user_id: str
     iin: str
-    subscription_type: Literal["Demo", "economy", "Vip", "Royal"]
+    subscription_type: Literal["Demo", "economy", "Vip", "Royal", "School"]
     expires_at: datetime
     activation_method: Literal["manual", "payment", "promocode", "gift"]  # Добавлен "gift"
     note: Optional[str]
