@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Моя Реферальная Система</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .container { max-width: 600px; margin: 0 auto; }
+    label, button { display: block; margin-top: 10px; }
+    input { padding: 8px; width: 100%; margin-top: 5px; }
+    .result { border: 1px solid #ddd; padding: 10px; margin-top: 20px; }
+    .error { color: red; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Моя реферальная система</h1>
+
+    <div>
+      <h2>Создать реферальный код</h2>
+      <label for="description">Описание (не обязательно):</label>
+      <input type="text" id="description" placeholder="Введите описание реферальной ссылки">
+      <button id="createBtn">Создать код</button>
+    </div>
+
+    <div>
+      <h2>Моя реферальная ссылка</h2>
+      <button id="getBtn">Получить мой код</button>
+    </div>
+
+    <div id="output" class="result"></div>
+  </div>
+
+  <script>
+    // Функция для извлечения токена доступа из cookie
+    function getAccessToken() {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('access_token='))?.split('=')[1];
+      return token ? `Bearer ${token}` : '';
+    }
+
+    // Функция для отображения результата или ошибки
+    function displayResult(message, isError = false) {
+      const output = document.getElementById('output');
+      output.innerHTML = `<p class="${isError ? 'error' : ''}">${message}</p>`;
+    }
+
+    // Функция для создания реферального кода (POST /api/referrals)
+    async function createReferral() {
+      const description = document.getElementById('description').value;
+      const token = getAccessToken();
+      try {
+        const response = await fetch('/api/referrals/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': token
+          },
+          body: JSON.stringify({ description: description })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          displayResult(`Ошибка: ${data.detail ? JSON.stringify(data.detail) : data.message}`, true);
+        } else {
+          displayResult(`Реферальный код создан: ${JSON.stringify(data.data)}`);
+        }
+      } catch (error) {
+        displayResult(`Ошибка: ${error.message}`, true);
+      }
+    }
+
+    // Функция для получения реферального кода (GET /api/referrals/my)
+    async function getReferral() {
+      const token = getAccessToken();
+      try {
+        const response = await fetch('/api/referrals/my', {
+          headers: {
+            'Authorization': token
+          }
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          displayResult(`Ошибка: ${data.detail ? JSON.stringify(data.detail) : data.message}`, true);
+        } else {
+          displayResult(`Ваша реферальная ссылка: ${JSON.stringify(data.data)}`);
+        }
+      } catch (error) {
+        displayResult(`Ошибка: ${error.message}`, true);
+      }
+    }
+
+    document.getElementById('createBtn').addEventListener('click', createReferral);
+    document.getElementById('getBtn').addEventListener('click', getReferral);
+  </script>
+</body>
+</html>

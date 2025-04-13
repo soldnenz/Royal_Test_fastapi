@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     max_file_size_mb: int
     allowed_media_types: List[str]
     PDD_SECTIONS: Json[List[Dict[str, Any]]]
+    DEFAULT_REFERRAL_RATE: int
     class Config:
         # Сообщаем Pydantic брать переменные окружения
         env_file = ".env"

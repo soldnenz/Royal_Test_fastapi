@@ -11,13 +11,11 @@
       padding: 2rem;
       margin: 0;
     }
-
     h1 {
       text-align: center;
       color: #222;
       margin-bottom: 2rem;
     }
-
     .question-card {
       background: #fff;
       border-radius: 12px;
@@ -26,47 +24,47 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.06);
       transition: 0.3s;
     }
-
     .question-card:hover {
       transform: scale(1.01);
     }
-
     .question-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
     }
-
     .question-header h3 {
       margin: 0;
       font-size: 1.1rem;
       color: #333;
     }
-
     .meta {
       font-size: 0.9rem;
       color: #666;
+      margin-top: 0.5rem;
     }
-
+    .uid {
+      font-size: 0.8rem;
+      color: #999;
+      margin-top: 6px;
+    }
     .details {
       margin-top: 1rem;
-      display: none;
       border-top: 1px solid #eee;
       padding-top: 1rem;
+      display: none;
     }
-
     .option {
       margin-left: 1rem;
       padding: 4px 0;
     }
-
     .option.correct {
       font-weight: bold;
       color: green;
     }
-
-    button.toggle-btn {
+    button.toggle-btn,
+    button.edit-btn,
+    button.delete-btn {
       background: #ffd700;
       border: none;
       padding: 6px 12px;
@@ -74,22 +72,45 @@
       cursor: pointer;
       font-weight: bold;
       transition: background 0.2s;
+      margin: 0 5px;
     }
-
-    button.toggle-btn:hover {
+    button.toggle-btn:hover,
+    button.edit-btn:hover,
+    button.delete-btn:hover {
       background: #e6c200;
     }
-
-    img, video {
+    img,
+    video {
       max-width: 100%;
       margin-top: 1rem;
       border-radius: 8px;
     }
-
-    .uid {
-      font-size: 0.8rem;
-      color: #999;
-      margin-top: 6px;
+    /* Прогресс-бар */
+    .progress-bar {
+      width: 100%;
+      height: 10px;
+      background-color: #f3f3f3;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+    .progress-bar-inner {
+      height: 100%;
+      width: 0%;
+      background-color: #4caf50;
+      transition: width 0.2s;
+    }
+    @media (max-width: 600px) {
+      .question-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      button.toggle-btn,
+      button.edit-btn,
+      button.delete-btn {
+        width: 100%;
+        margin-top: 5px;
+      }
     }
   </style>
 </head>
@@ -98,14 +119,22 @@
   <div id="questionsContainer"></div>
 
   <script>
-    const API = "https://royal-test.duckdns.org";
-
+    // Загружаем все вопросы с сервера
     async function fetchAllQuestions() {
-      const res = await fetch(`${API}/tests/all`, { credentials: "include" });
-      const questions = await res.json();
-      renderQuestions(questions);
+      try {
+        const res = await fetch('/api/tests/all', { credentials: "include" });
+        const response = await res.json();
+        if (response.status === "ok" && Array.isArray(response.data)) {
+          renderQuestions(response.data);
+        } else {
+          console.error("Ошибка загрузки вопросов:", response.message);
+        }
+      } catch (error) {
+        console.error("Ошибка запроса:", error);
+      }
     }
 
+    // Рендер списка вопросов
     function renderQuestions(questions) {
       const container = document.getElementById("questionsContainer");
       container.innerHTML = "";
@@ -115,7 +144,11 @@
         div.innerHTML = `
           <div class="question-header">
             <h3>${q.question_text}</h3>
-            <button class="toggle-btn" onclick="toggleDetails('${q.uid}', this)">Подробнее</button>
+            <div>
+              <button class="toggle-btn" onclick="toggleDetails('${q.uid}', this)">Подробнее</button>
+              <button class="edit-btn" onclick="redirectToEdit('${q.uid}')">Редактировать</button>
+              <button class="delete-btn" onclick="deleteQuestion('${q.uid}')">Удалить</button>
+            </div>
           </div>
           <div class="meta">
             Категории: ${q.categories.join(", ")} | Медиа: ${q.has_media ? "✅" : "❌"}
@@ -127,41 +160,147 @@
       });
     }
 
+    // Функция переключения подробной информации с отображением прогресс-бара
     async function toggleDetails(uid, btn) {
-      const detailsDiv = btn.parentElement.parentElement.querySelector(".details");
+      const questionCard = btn.closest('.question-card');
+      const detailsDiv = questionCard.querySelector(".details");
+
+      // Если детали уже раскрыты – скрываем их
       if (detailsDiv.style.display === "block") {
         detailsDiv.style.display = "none";
         btn.textContent = "Подробнее";
         return;
       }
 
-      const res = await fetch(`${API}/tests/by_uid/${uid}`, { credentials: "include" });
-      const data = await res.json();
-
-      let optionsHTML = data.options.map((opt, i) =>
-        `<div class="option ${opt.label === data.correct_label ? 'correct' : ''}">
-          ${opt.label}) ${opt.text}
-        </div>`
-      ).join("");
-
-      let mediaHTML = "";
-      if (data.media_file_base64 && data.media_filename) {
-        if (data.media_filename.endsWith(".mp4")) {
-          mediaHTML = `<video controls src="data:video/mp4;base64,${data.media_file_base64}"></video>`;
-        } else {
-          mediaHTML = `<img src="data:image/*;base64,${data.media_file_base64}">`;
-        }
-      }
-
-      detailsDiv.innerHTML = `
-        <strong>Правильный ответ:</strong> ${data.correct_label}<br><br>
-        ${optionsHTML}
-        ${mediaHTML}
-      `;
+      // Очистка и создание прогресс-бара
+      detailsDiv.innerHTML = "";
+      const progressBar = document.createElement("div");
+      progressBar.className = "progress-bar";
+      const progressBarInner = document.createElement("div");
+      progressBarInner.className = "progress-bar-inner";
+      progressBar.appendChild(progressBarInner);
+      detailsDiv.appendChild(progressBar);
       detailsDiv.style.display = "block";
-      btn.textContent = "Скрыть";
+
+      try {
+        const res = await fetch(`/api/tests/by_uid/${uid}`, { credentials: "include" });
+        if (!res.ok) throw new Error("Ошибка запроса деталей");
+
+        const contentLengthHeader = res.headers.get('Content-Length');
+        const contentLength = contentLengthHeader ? parseInt(contentLengthHeader, 10) : null;
+        let receivedLength = 0;
+        const chunks = [];
+
+        if (res.body && res.body.getReader) {
+          const reader = res.body.getReader();
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            receivedLength += value.length;
+            if (contentLength) {
+              const percent = (receivedLength / contentLength) * 100;
+              progressBarInner.style.width = `${percent}%`;
+            } else {
+              progressBarInner.style.width = '50%';
+            }
+          }
+        } else {
+          const textData = await res.text();
+          chunks.push(new TextEncoder().encode(textData));
+          progressBarInner.style.width = '100%';
+        }
+
+        const chunksAll = new Uint8Array(receivedLength);
+        let position = 0;
+        for (let chunk of chunks) {
+          chunksAll.set(chunk, position);
+          position += chunk.length;
+        }
+
+        const resultText = new TextDecoder("utf-8").decode(chunksAll);
+        const parsedResponse = JSON.parse(resultText);
+        // Извлекаем объект с данными (если он вложен в data)
+        const data = parsedResponse.data ? parsedResponse.data : parsedResponse;
+        displayQuestionDetails(data, detailsDiv);
+        btn.textContent = "Скрыть";
+      } catch (error) {
+        console.error("Ошибка при загрузке деталей:", error);
+        detailsDiv.innerHTML = `<p>Ошибка загрузки деталей.</p>`;
+      }
     }
 
+    // Отображение всей информации из объекта data
+    function displayQuestionDetails(data, container) {
+      let html = "";
+      html += `<p><strong>Вопрос:</strong> ${data.question_text}</p>`;
+      html += `<p><strong>Пояснение:</strong> ${data.explanation}</p>`;
+      html += `<p><strong>Правильный ответ:</strong> ${data.correct_label}</p>`;
+
+      if (data.options && Array.isArray(data.options)) {
+        html += `<p><strong>Варианты ответа:</strong></p><ul>`;
+        data.options.forEach(opt => {
+          html += `<li><strong>${opt.label}:</strong> ${opt.text}</li>`;
+        });
+        html += `</ul>`;
+      }
+      
+      if (data.categories && Array.isArray(data.categories)) {
+        html += `<p><strong>Категории:</strong> ${data.categories.join(", ")}</p>`;
+      }
+      
+      if (data.pdd_section_uids && Array.isArray(data.pdd_section_uids)) {
+        html += `<p><strong>PDD Section UIDs:</strong> ${data.pdd_section_uids.join(", ")}</p>`;
+      }
+      
+      html += `<p><strong>Создан:</strong> ${data.created_by_name} (IIN: ${data.created_by_iin})</p>`;
+      html += `<p><strong>UID:</strong> ${data.uid}</p>`;
+      html += `<p><strong>Дата создания:</strong> ${data.created_at}</p>`;
+      html += `<p><strong>Дата обновления:</strong> ${data.updated_at ? data.updated_at : "Не обновлялся"}</p>`;
+      html += `<p><strong>Удалён:</strong> ${data.deleted ? "Да" : "Нет"}</p>`;
+      html += `<p><strong>Удалён кем:</strong> ${data.deleted_by ? data.deleted_by : "-"}</p>`;
+      html += `<p><strong>Дата удаления:</strong> ${data.deleted_at ? data.deleted_at : "-"}</p>`;
+      html += `<p><strong>Media File ID:</strong> ${data.media_file_id ? data.media_file_id : "-"}</p>`;
+      html += `<p><strong>Media Filename:</strong> ${data.media_filename ? data.media_filename : "-"}</p>`;
+      html += `<p><strong>ID:</strong> ${data.id}</p>`;
+
+      // Если присутствуют данные медиа, выводим их
+      if (data.media_file_base64 && data.media_filename) {
+        if (data.media_filename.endsWith(".mp4")) {
+          html += `<video controls src="data:video/mp4;base64,${data.media_file_base64}"></video>`;
+        } else {
+          html += `<img src="data:image/*;base64,${data.media_file_base64}" alt="Медиа контент">`;
+        }
+      }
+      
+      container.innerHTML = html;
+    }
+
+    // Переход на страницу редактирования вопроса
+    function redirectToEdit(uid) {
+      window.location.href = `/edit_question.html?uid=${uid}`;
+    }
+
+    // Удаление вопроса
+    async function deleteQuestion(uid) {
+      try {
+        const res = await fetch(`/api/tests/${uid}`, {
+          method: 'DELETE',
+          credentials: "include"
+        });
+        if (res.ok) {
+          alert('Вопрос удалён');
+          fetchAllQuestions();
+        } else {
+          alert('Ошибка при удалении вопроса');
+        }
+      } catch (error) {
+        console.error("Ошибка при удалении вопроса:", error);
+        alert('Ошибка при удалении вопроса');
+      }
+    }
+
+    // Инициализация загрузки вопросов
     fetchAllQuestions();
   </script>
 </body>

@@ -19,14 +19,13 @@
   <button id="logoutBtn">🚪 Выйти</button>
 
   <script>
-    const API = "https://royal-test.duckdns.org";
     const messageDiv = document.getElementById("message");
     const userInfoDiv = document.getElementById("userInfo");
     const logoutBtn = document.getElementById("logoutBtn");
 
     async function fetchProfile() {
       try {
-        const response = await fetch(`${API}/users/me`, {
+        const response = await fetch(`/api/users/me`, {
           method: "GET",
           credentials: "include"
         });
@@ -67,7 +66,7 @@ Email: ${data.email || "-"}
 
     logoutBtn.addEventListener("click", async () => {
       try {
-        const response = await fetch(`${API}/auth/logout`, {
+        const response = await fetch(`/api/auth/logout`, {
           method: "POST",
           credentials: "include"
         });

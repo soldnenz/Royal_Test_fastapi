@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, constr, validator
+from pydantic import BaseModel, Field, validator, constr
 import re
 
 
@@ -12,16 +12,12 @@ def sanitize_input(value: str) -> str:
       - Символ равенства (=),
       - Подчёркивание (_),
       - Собачку (@),
-      - Круглые скобки ((), ),
+      - Круглые скобки (),
       - Дефис/минус (-),
       - Точку (.),
       - Плюс (+).
 
-    При обнаружении любого другого символа выбрасывает исключение ValueError.
-
-    :param value: Строка для проверки
-    :return: Исходная строка, если она проходит проверку
-    :raises ValueError: Если в строке обнаружены недопустимые символы
+    Если встречаются недопустимые символы – выбрасывается ValueError.
     """
     pattern = r'^[0-9a-zA-Zа-яА-ЯёЁ =_@().+\-]+$'
     if not re.match(pattern, value):
@@ -31,39 +27,55 @@ def sanitize_input(value: str) -> str:
         )
     return value
 
+
 def validate_ascii_email(value: str) -> str:
     """
-    Разрешены только:
-    - латинские буквы (a-z)
-    - цифры (0-9)
-    - символы '@', '.', '_', '-', '+'
+    Удаляет пробелы по краям и приводит email к нижнему регистру.
+    Проверяет, что:
+      - Длина не превышает 123 символа,
+      - Email соответствует формату:
+            локальная_часть@домен,
+        где локальная часть может содержать цифры, латинские буквы, точки, подчёркивания, плюсы и дефисы,
+        а домен – буквы, цифры, дефисы и содержит как минимум одну точку.
 
-    Пробелы по краям удаляются, всё приводится к нижнему регистру.
+    Если формат некорректен, выбрасывается ValueError.
     """
     value = value.strip().lower()
 
     if len(value) > 123:
         raise ValueError("Email не должен превышать 123 символа")
 
-    if not re.fullmatch(r"[a-z0-9@._+\-]+", value):
-        raise ValueError("Email может содержать только латинские буквы, цифры и символы '@', '.', '_', '-', '+'")
+    pattern = r'^[a-z0-9._+\-]+@[a-z0-9\-]+(\.[a-z0-9\-]+)+$'
+    if not re.fullmatch(pattern, value):
+        raise ValueError("Email должен быть валидного формата и содержать доменное имя с точкой.")
 
     return value
+
 
 class AuthRequest(BaseModel):
     """
     Схема для входа (логин).
-    Можно использовать iin или email в качестве username.
+    В качестве username можно использовать IIN или email.
     """
-    username: constr(min_length=3, max_length=256)
-    password: constr(min_length=6, max_length=256)
+    username: str
+    password: str
 
     @validator("username")
     def validate_username(cls, v):
+        v = v.strip()
+        if len(v) < 3:
+            raise ValueError("Имя пользователя должно содержать минимум 3 символа")
+        if len(v) > 256:
+            raise ValueError("Имя пользователя не должно превышать 256 символов")
         return sanitize_input(v)
 
     @validator("password")
     def validate_password(cls, v):
+        v = v.strip()
+        if len(v) < 6:
+            raise ValueError("Пароль должен содержать минимум 6 символов")
+        if len(v) > 256:
+            raise ValueError("Пароль не должен превышать 256 символов")
         return sanitize_input(v)
 
     class Config:

@@ -118,9 +118,10 @@
 
         <label>Тип подписки</label>
         <select id="subscription_type" required>
-          <option value="demo">Demo</option>
-          <option value="economy">Economy</option>
-          <option value="trial">Trial</option>
+          <option value="Demo">Demo</option>
+          <option value="economy">economy</option>
+          <option value="Vip">Vip</option>
+          <option value="Royal">Royal</option>
         </select>
 
         <label>Продолжительность (в днях)</label>
@@ -131,21 +132,26 @@
 
         <label>Метод активации</label>
         <select id="activation_method" required>
-          <option value="manual">Manual</option>
-          <option value="payment">Payment</option>
-          <option value="promocode">Promocode</option>
+          <option value="manual" selected>Manual</option>
         </select>
 
-        <label>Комментарий</label>
-        <textarea id="note" rows="2" placeholder="Комментарий (по желанию)"></textarea>
+        <label>Сумма, внесённая пользователем (тенге)</label>
+        <input type="number" id="amount" required>
+
+        <label>Использовать реферальную ссылку</label>
+        <input type="checkbox" id="use_referral">
+
+        <label>Заметка</label>
+        <textarea id="note" placeholder="Введите заметку (необязательно)"></textarea>
 
         <button type="submit">✅ Выдать подписку</button>
       </form>
     </div>
+
+    <div id="referralSection" class="hidden"></div>
   </div>
 
   <script>
-    const API = "https://royal-test.duckdns.org";
     const token = localStorage.getItem("access_token");
 
     const headers = {
@@ -170,13 +176,14 @@
       }
 
       try {
-        const res = await fetch(`${API}/users/admin/search_users?query=${encodeURIComponent(query)}`, {
+        const res = await fetch(`/api/users/admin/search_users?query=${encodeURIComponent(query)}`, {
           headers
         });
 
         if (!res.ok) throw new Error(await res.text());
 
-        const users = await res.json();
+        const data = await res.json();
+        const users = data.data;
         if (!users.length) {
           error.innerText = "❌ Пользователь не найден";
           return;
@@ -212,13 +219,15 @@
         subscription_type: document.getElementById("subscription_type").value,
         expires_at: new Date(document.getElementById("expires_at").value).toISOString(),
         activation_method: document.getElementById("activation_method").value,
-        note: document.getElementById("note").value,
+        note: document.getElementById("note").value || "",
+        payment: undefined,
         duration_days: parseInt(document.getElementById("duration_days").value),
-        payment: null
+        amount: parseInt(document.getElementById("amount").value),
+        use_referral: document.getElementById("use_referral").checked
       };
 
       try {
-        const res = await fetch(`${API}/subscriptions/`, {
+        const res = await fetch(`/api/subscriptions/`, {
           method: "POST",
           headers,
           body: JSON.stringify(payload)

@@ -81,21 +81,12 @@
         const result = await res.json();
 
         if (result.status === 'ok') {
-          window.location.href = '/';
+          window.location.href = '/dashboard';
           return;
         }
 
         // Универсальная обработка ошибок
         let message = result.message || 'Ошибка входа';
-
-        if (result.code === 422) {
-          if (typeof result.details === 'string') {
-            message = result.details;
-          } else if (Array.isArray(result.details) && result.details.length > 0) {
-            const first = result.details[0];
-            message = first?.msg || message;
-          }
-        }
 
         showError(message);
       } catch (err) {

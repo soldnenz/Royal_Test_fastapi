@@ -6,6 +6,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQu
 from aiogram.client.default import DefaultBotProperties
 from app.db.database import db
 from bson import ObjectId
+import requests
 
 router = Router()
 
@@ -16,6 +17,17 @@ bot = Bot(
 
 # TTL запросов (в секундах)
 TWO_FA_TTL = 300
+
+def get_location_by_ip(ip):
+    try:
+        response = requests.get(f"http://ip-api.com/json/{ip}")
+        data = response.json()
+        if data['status'] == 'success':
+            return f"{data['country']}, {data['city']}"
+        else:
+            return "Неизвестное местоположение"
+    except Exception as e:
+        return "Ошибка получения местоположения"
 
 async def send_2fa_request(admin: dict, new_ip: str, new_ua: str):
     now = datetime.utcnow()
@@ -28,6 +40,8 @@ async def send_2fa_request(admin: dict, new_ip: str, new_ua: str):
         "expires_at": expire_at,
         "status": "pending"
     })
+
+    location = get_location_by_ip(new_ip)
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -44,9 +58,9 @@ async def send_2fa_request(admin: dict, new_ip: str, new_ua: str):
     text = (
         f"🔐 Попытка входа в админ-панель\n"
         f"👤 {admin['full_name']}\n"
-        f"📍 IP: {new_ip}\n"
+        f"📍 IP: {new_ip} ({location})\n"
         f"🖥 Устройство: {new_ua}\n"
-        f"Разрешить вход? (5 минут)"
+        f"Разрешить вход? У вас есть 5 минут, чтобы ответить на запрос, в противном случае доступ будет запрещён."
     )
     await bot.send_message(chat_id=admin['telegram_id'], text=text, reply_markup=kb)
 

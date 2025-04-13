@@ -24,3 +24,5 @@ class QuestionModel(BaseModel):
     deleted_at: Optional[datetime] = None    # Когда удалено
     media_file_id: Optional[ObjectId] = None # Идентификатор медиафайла в GridFS (если есть)
     media_filename: Optional[str] = None     # Имя медиафайла (если есть)
+    explanation: str = "данный вопрос без объяснения"  # Новое поле
+    modified_by: Optional[str] = None         # Кто изменил вопрос

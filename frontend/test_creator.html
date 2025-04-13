@@ -296,6 +296,9 @@
       <label for="questionText">Текст вопроса:</label>
       <textarea id="questionText" rows="3" required></textarea>
 
+      <label for="explanation">Объяснение (необязательно):</label>
+      <textarea id="explanation" rows="2" placeholder="Введите объяснение..."></textarea>
+
       <label for="categories">Категории:</label>
       <div id="categoryList" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
 
@@ -355,7 +358,7 @@
     document.getElementById('menuDropdown').classList.toggle('active');
   }
 
-  const categories = ["A", "B", "C", "D", "CE", "DE", "M", "A1", "B1", "C1", "D1", "BE"];
+  const categories = ["A1","A","B1","B","BE","C","C1","BC1","D1","D","Tb","C1","CE", "D1", "DE"];
   const categoryList = document.getElementById("categoryList");
 
   categories.forEach(cat => {
@@ -477,6 +480,7 @@
     e.preventDefault();
 
     const text = document.getElementById("questionText").value.trim();
+    const explanation = document.getElementById("explanation").value.trim() || "данный вопрос без объяснения";
     const categories = [...document.querySelectorAll("input[name='categories']:checked")].map(o => o.value);
     const sections = [...document.querySelectorAll("input[name='pddSections']:checked")].map(o => o.value);
     const options = [...document.getElementById("optionsContainer").children].map(opt => {
@@ -503,6 +507,7 @@
 
     const data = {
       question_text: text,
+      explanation: explanation,
       options,
       correct_index: correctIndex,
       categories,
@@ -515,7 +520,7 @@
     if (file) formData.append("file", file);
 
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", "https://royal-test.duckdns.org/tests/");
+    xhr.open("POST", "/api/tests/");
     xhr.withCredentials = true;
 
     xhr.upload.onprogress = e => {
@@ -538,7 +543,12 @@
         addOption(); addOption();
         progressBar.style.width = "0%";
       } else {
-        showError("❌ Ошибка: " + xhr.responseText);
+        try {
+          const errorResponse = JSON.parse(xhr.responseText);
+          showError(`❌ Ошибка: ${errorResponse.detail || xhr.responseText}`);
+        } catch (e) {
+          showError(`❌ Ошибка: ${xhr.responseText}`);
+        }
       }
     };
 

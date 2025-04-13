@@ -34,7 +34,8 @@ class UserModel(BaseModel):
     referred_use: Optional[bool] = Field(False, description="Использовал ли реферальный код")
 
     # Сумма пользователя
-    money: Optional[float] = Field(None, description="Сумма пользователя (ограничена двумя знаками после запятой)")
+    money: float = Field(0.0, description="Сумма пользователя (по умолчанию 0.0)")
+
 
     # Дата создания в формате UTC+5 (строкой или ISO-форматом)
     created_at: str = Field(..., description="Дата/время создания (UTC+5)")

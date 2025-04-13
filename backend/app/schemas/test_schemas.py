@@ -17,6 +17,7 @@ class QuestionCreate(BaseModel):
     categories: List[str]  # Массив категорий
     pdd_section_uids: List[str]
     media_filename: Optional[str] = None  # Если с фронта передается имя медиафайла
+    explanation: Optional[str] = "данный вопрос без объяснения"  # Новое поле
 
     @validator('options')
     def validate_options(cls, value):
@@ -58,6 +59,8 @@ class QuestionOut(BaseModel):
     deleted_at: Optional[datetime] = None
     media_file_id: Optional[str] = None  # Идентификатор медиафайла (в виде строки)
     media_filename: Optional[str] = None
+    explanation: str = "данный вопрос без объяснения"  # Новое поле
+    modified_by: Optional[str] = None  # Кто изменил вопрос
 
 class QuestionEdit(BaseModel):
     question_id: str
@@ -67,7 +70,9 @@ class QuestionEdit(BaseModel):
     new_categories: Optional[List[str]] = None
     replace_media: Optional[bool] = False
     new_pdd_section_uids: Optional[List[str]] = None
-
+    new_explanation: Optional[str] = "данный вопрос без объяснения"  # Новое поле
+    replace_media: Optional[bool] = False
+    remove_media: Optional[bool] = False
 
     @validator('new_options')
     def validate_new_options(cls, value):

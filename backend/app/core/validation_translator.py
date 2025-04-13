@@ -1,3 +1,15 @@
+FIELD_LABELS = {
+    "full_name": "ФИО",
+    "iin": "ИИН",
+    "phone": "Телефон",
+    "email": "Email",
+    "password": "Пароль",
+    "confirm_password": "Подтверждение пароля",
+    "referred_by": "Реферальный код",
+    "referred_use": "Флаг использования рефералки",
+    "money": "Сумма",
+}
+
 def translate_error_ru(errors: list[dict]) -> str:
     translations = {
         "string_too_short": "Поле «{field}» — слишком короткое значение. Минимум {min_length} символов.",
@@ -15,18 +27,17 @@ def translate_error_ru(errors: list[dict]) -> str:
         "type_error.list": "Поле «{field}» — ожидается список.",
         "value_error.email": "Поле «{field}» — неверный формат email.",
     }
+    messages = []
+    for err in errors:
+        err_type = err.get("type")
+        field_key = str(err.get("loc", ["поле"])[-1])
+        field_name = FIELD_LABELS.get(field_key, field_key.capitalize())
+        msg_template = translations.get(err_type, err.get("msg", "Ошибка ввода"))
+        ctx = err.get("ctx", {})
+        try:
+            message = msg_template.format(field=field_name, **ctx)
+        except Exception:
+            message = f"Поле «{field_name}» — некорректное значение."
+        messages.append(message)
+    return "; ".join(messages)
 
-    # Берём только первую ошибку
-    err = errors[0]
-    err_type = err.get("type")
-    field_name = err.get("loc", ["поле"])[-1]  # например: 'password'
-    msg_template = translations.get(err_type, err.get("msg", "Ошибка ввода"))
-    ctx = err.get("ctx", {})
-
-    # Подставляем значения
-    try:
-        msg = msg_template.format(field=str(field_name).capitalize(), **ctx)
-    except Exception:
-        msg = f"Ошибка в поле «{field_name}»"
-
-    return msg

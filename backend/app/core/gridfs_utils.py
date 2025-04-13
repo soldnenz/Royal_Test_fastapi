@@ -40,5 +40,9 @@ async def delete_media_file(file_id: str, db: AsyncIOMotorDatabase) -> bool:
     Удаляет файл из GridFS.
     """
     fs = AsyncIOMotorGridFSBucket(db)
-    await fs.delete(ObjectId(file_id))
+    try:
+        await fs.delete(ObjectId(file_id))
+    except Exception as e:
+        logger.error(f"[media] Ошибка удаления из GridFS: {file_id} — {e}")
+        raise RuntimeError(f"Ошибка удаления файла: {e}")
     return True

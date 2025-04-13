@@ -20,7 +20,7 @@ from aiogram import Dispatcher
 
 from app.core.logging_config import setup_logging
 from app.core.response import error
-from app.routers import auth, user, reset_password, admin_router, test_router, subscription_router
+from app.routers import auth, user, reset_password, admin_router, test_router, subscription_router, referrals_router, transaction_router
 from app.admin.telegram_2fa import bot, router as telegram_router
 
 
@@ -57,7 +57,8 @@ app.include_router(reset_password.router, prefix="/reset", tags=["reset-password
 app.include_router(admin_router.router)
 app.include_router(test_router.router, prefix="/tests", tags=["tests"])
 app.include_router(subscription_router.router, prefix="/subscriptions")
-
+app.include_router(referrals_router.router, prefix="/referrals", tags=["referrals"])
+app.include_router(transaction_router.router, prefix="/transactions", tags=["transactions"])
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
@@ -98,13 +99,26 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+async def validation_exception_handler(request, exc: RequestValidationError):
+    error_list = []
+    for err in exc.errors():
+        field = err.get("loc", ["неизвестное поле"])[-1]
+        message = err.get("msg", "Некорректное значение")
+        # Удаляем префикс "Value error, " если он присутствует
+        prefix = "Value error, "
+        if message.startswith(prefix):
+            message = message[len(prefix):]
+        error_list.append({"field": field, "message": message})
+
+    # Форматируем каждую ошибку в строку и объединяем через "; "
+    formatted_error_details = "; ".join(
+        [f"Поле «{item['field']}»: {item['message']}" for item in error_list]
+    )
     return error(
         code=HTTP_422_UNPROCESSABLE_ENTITY,
-        message="Ошибка валидации данных",
-        details=translate_error_ru(exc.errors())
+        details="Ошибка валидации данных",
+        message=formatted_error_details
     )
-
 
 # Запуск Telegram-бота через polling
 async def start_bot():

@@ -252,7 +252,6 @@ async def register_user(user_data: UserCreate, request: Request):
 
     hashed_password = hash_password(user_data.password)
 
-
     new_user = {
         "full_name": user_data.full_name,
         "iin": user_data.iin,
@@ -261,7 +260,9 @@ async def register_user(user_data: UserCreate, request: Request):
         "hashed_password": hashed_password,
         "role": "user",
         "created_at": datetime.utcnow(),
-        "referred_by": referred_by
+        "referred_by": referred_by,
+        "money": user_data.money,  # добавлено поле money (включая значение по умолчанию 0.0)
+        "referred_use": user_data.referred_use  # добавлено поле referred_use
     }
 
     result = await db.users.insert_one(new_user)

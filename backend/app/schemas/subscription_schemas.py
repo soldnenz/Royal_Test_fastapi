@@ -24,6 +24,8 @@ class SubscriptionCreate(BaseModel):
     promo_code: Optional[str] = None  # Новый параметр для промокода
     referred_by: Optional[str] = None  # Новый параметр для реферала
     gift: Optional[bool] = False  # Новый параметр для подарочных подписок
+    amount: int
+    use_referral: bool  # Добавь это поле
 
 # 👉 Используется для вывода подписки
 class SubscriptionOut(BaseModel):

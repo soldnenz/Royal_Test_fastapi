@@ -12,6 +12,7 @@ from app.core.security import get_current_actor
 from app.db.database import get_database
 from datetime import datetime, timedelta
 from app.core.response import success
+import re
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -123,13 +124,18 @@ async def search_users_by_query(
         {"iin": query},
         {"email": query},
         {"phone": query},
-        {"full_name": {"$regex": query, "$options": "i"}}  # 👈 поиск по части ФИО, регистронезависимо
+        {"full_name": {"$regex": re.escape(query), "$options": "i"}}
     ])
 
-    cursor = db.users.find({"$or": filters}).limit(50)  # 👈 ограничим до 50 результатов
+    cursor = db.users.find({"$or": filters}).limit(50)
     results = []
     async for user in cursor:
-        user["id"] = str(user.pop("_id", None))  # 👈 безопасно забираем _id
+        _id = user.pop("_id", None)
+        if _id is not None:
+            user["id"] = str(_id)
+        # Преобразуем все значения типа datetime, если есть
+        if "created_at" in user and isinstance(user["created_at"], datetime):
+            user["created_at"] = user["created_at"].isoformat()
         results.append(user)
 
     if not results:
@@ -139,6 +145,7 @@ async def search_users_by_query(
         )
 
     return success(data=results, message=f"Найдено пользователей: {len(results)}")
+
 
 
 

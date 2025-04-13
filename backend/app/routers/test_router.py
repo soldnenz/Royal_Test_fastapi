@@ -18,9 +18,10 @@ from app.schemas.test_schemas import (
 )
 from app.admin.permissions import get_current_admin_user
 from app.db.database import get_database
-from app.core.gridfs_utils import save_media_to_gridfs, get_media_file
+from app.core.gridfs_utils import save_media_to_gridfs, get_media_file, delete_media_file
 import base64
 from app.core.config import settings
+from app.core.response import success
 
 
 load_dotenv()
@@ -38,7 +39,6 @@ def generate_uid(length: int = 10) -> str:
 
 @router.post("/", response_model=QuestionOut)
 async def create_question(
-
     question_data_str: str = Form(...),
     file: UploadFile = File(None),
     current_user: dict = Depends(get_current_admin_user),
@@ -55,9 +55,7 @@ async def create_question(
       - Возвращает созданный вопрос с преобразованием ObjectId в строку.
     """
     # Защищённый парсинг входных данных
-
     try:
-        import json
         question_data = QuestionCreate.parse_raw(question_data_str)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Ошибка парсинга JSON: {e}")
@@ -91,7 +89,6 @@ async def create_question(
 
     # Формирование вариантов ответа с метками (A, B, C, …)
     try:
-        import string
         options_with_labels = [
             {"label": string.ascii_uppercase[i], "text": opt.text}
             for i, opt in enumerate(question_data.options)
@@ -109,94 +106,122 @@ async def create_question(
         "created_by_name": created_by_name,
         "created_by_iin": created_by_iin,
         "uid": uid,
-        "created_at": datetime.utcnow(),
+        "created_at": datetime.utcnow().isoformat(),
         "updated_at": None,
         "deleted": False,
         "deleted_by": None,
         "deleted_at": None,
         "media_file_id": str(media_file_id) if media_file_id else None,
-        "media_filename": media_filename
+        "media_filename": media_filename,
+        "explanation": question_data.explanation or "данный вопрос без объяснения"
     }
 
     try:
         result = await db.questions.insert_one(question_dict)
+        question_dict["id"] = str(result.inserted_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка записи в базу: {e}")
 
-    question_dict["id"] = str(result.inserted_id)
-    return question_dict
+    return success(data=jsonable_encoder(question_dict, custom_encoder={ObjectId: str}))
+
 
 @router.put("/", response_model=dict)
 async def edit_question(
-    payload: QuestionEdit,
+    payload: str = Form(...),      # Принимаем payload как строку
     new_file: UploadFile = File(None),
     current_user: dict = Depends(get_current_admin_user),
     db = Depends(get_database)
 ):
-    """
-    Редактирование вопроса с дополнительной защитой:
-      - Обновляются только переданные поля (текст, варианты, категории).
-      - При необходимости производится замена медиафайла с проверкой типа и размера.
-      - Все обновления оборачиваются в try/except для защиты от ошибок.
-    """
+    # Разбираем JSON-строку в объект QuestionEdit
+    try:
+        payload_data = QuestionEdit.parse_raw(payload)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Ошибка парсинга JSON: {e}")
+
     update_fields = {}
     labels = list(string.ascii_uppercase)
+
     if not current_user or current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Доступ запрещён. Администратор требуется.")
 
-    # Проверка наличия обязательных полей у пользователя
+    # Проверка наличия обязательных данных пользователя
     if "full_name" not in current_user or "iin" not in current_user:
         raise HTTPException(status_code=400, detail="Данные пользователя неполные.")
 
-    if payload.new_question_text:
-        update_fields["question_text"] = payload.new_question_text
+    if payload_data.new_question_text:
+        update_fields["question_text"] = payload_data.new_question_text
 
-    if payload.new_pdd_section_uids:
-        update_fields["pdd_section_uids"] = payload.new_pdd_section_uids
+    if payload_data.new_pdd_section_uids:
+        update_fields["pdd_section_uids"] = payload_data.new_pdd_section_uids
 
-    if payload.new_options:
+    if payload_data.new_options:
         try:
             new_options = [
                 {"label": labels[i], "text": opt.text}
-                for i, opt in enumerate(payload.new_options)
+                for i, opt in enumerate(payload_data.new_options)
             ]
             update_fields["options"] = new_options
-            if payload.new_correct_index is not None:
-                if payload.new_correct_index >= len(payload.new_options):
+            if payload_data.new_correct_index is not None:
+                if payload_data.new_correct_index >= len(payload_data.new_options):
                     raise HTTPException(status_code=400, detail="Неверный индекс правильного ответа")
-                update_fields["correct_label"] = labels[payload.new_correct_index]
+                update_fields["correct_label"] = labels[payload_data.new_correct_index]
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Ошибка обработки новых вариантов: {e}")
 
-    if payload.new_categories:
-        update_fields["categories"] = payload.new_categories
+    if payload_data.new_categories:
+        update_fields["categories"] = payload_data.new_categories
 
-    if payload.replace_media and new_file:
+    if payload_data.new_explanation:
+        update_fields["explanation"] = payload_data.new_explanation
+
+    # Если пользователь решил удалить медиа, сбрасываем поля
+    if payload_data.remove_media:
+        try:
+            # Получаем ID медиа-файла из базы данных
+            existing_question = await db.questions.find_one({"uid": payload_data.question_id})
+            if existing_question and existing_question.get("media_file_id"):
+                await delete_media_file(existing_question["media_file_id"], db)
+                update_fields["media_file_id"] = None
+                update_fields["media_filename"] = None
+        except RuntimeError as e:
+            raise HTTPException(status_code=500, detail=f"Ошибка удаления медиа файла: {e}")
+
+   # Если выбран новый файл и заменяем старое медиа, обновляем медиа
+    if payload_data.replace_media and new_file:
+        # Извлекаем документ вопроса по uid, чтобы проверить наличие предыдущего медиа
+        existing_question = await db.questions.find_one({"uid": payload_data.question_id})
+        if existing_question and existing_question.get("media_file_id"):
+            try:
+                # Удаляем предыдущий медиа файл
+                await delete_media_file(existing_question["media_file_id"], db)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Ошибка удаления старого медиа файла: {e}")
+
+        # Далее проверяем новый файл на соответствие допустимым типам и размерам
         if new_file.content_type not in ALLOWED_TYPES:
             raise HTTPException(status_code=400, detail=f"Недопустимый тип файла: {new_file.content_type}")
         if new_file.size and new_file.size > MAX_FILE_SIZE_MB * 1024 * 1024:
             raise HTTPException(status_code=400, detail="Превышен допустимый размер файла")
         try:
+            # Сохраняем новый файл в GridFS
             file_id = await save_media_to_gridfs(new_file, db)
             update_fields["media_file_id"] = str(file_id)
             update_fields["media_filename"] = new_file.filename
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Ошибка сохранения нового файла: {e}")
 
+
     update_fields["updated_at"] = datetime.utcnow()
+    update_fields["modified_by"] = current_user["full_name"]
 
-    try:
-        question_obj_id = ObjectId(payload.question_id)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Неверный формат идентификатора: {e}")
-
+    # Используем пользовательский uid для поиска документа
     result = await db.questions.update_one(
-        {"_id": question_obj_id},
+        {"uid": payload_data.question_id},
         {"$set": update_fields}
     )
     if result.modified_count == 0:
         raise HTTPException(status_code=400, detail="Ошибка при обновлении вопроса")
-    return {"message": "Вопрос обновлён"}
+    return success(data={"message": "Вопрос обновлён"})
 
 @router.delete("/", response_model=dict)
 async def delete_question(
@@ -221,6 +246,14 @@ async def delete_question(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Неверный формат идентификатора: {e}")
 
+    # Получаем документ вопроса и проверяем наличие медиа-файла
+    existing_question = await db.questions.find_one({"_id": question_obj_id})
+    if existing_question and existing_question.get("media_file_id"):
+        try:
+            await delete_media_file(existing_question["media_file_id"], db)
+        except RuntimeError as e:
+            raise HTTPException(status_code=500, detail=f"Ошибка удаления медиа файла: {e}")
+
     update_fields = {
         "deleted": True,
         "deleted_by": payload.deleted_by,
@@ -232,7 +265,7 @@ async def delete_question(
     )
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="Вопрос не найден")
-    return {"message": "Вопрос удалён"}
+    return success(data={"message": "Вопрос удалён"})
 
 @router.get("/by_uid/{uid}", response_model=dict)
 async def get_question_by_uid(
@@ -250,6 +283,10 @@ async def get_question_by_uid(
     question["id"] = str(question["_id"])
     del question["_id"]
 
+    # Convert media_file_id to string if it exists
+    if question.get("media_file_id"):
+        question["media_file_id"] = str(question["media_file_id"])
+
     # Добавляем base64 медиафайл
     if question.get("media_file_id"):
         try:
@@ -259,7 +296,7 @@ async def get_question_by_uid(
             print(e)
             question["media_file_base64"] = None
 
-    return JSONResponse(content=jsonable_encoder(question))
+    return success(data=jsonable_encoder(question))
 
 @router.get("/all", response_model=list[dict])
 async def get_all_questions(
@@ -279,6 +316,9 @@ async def get_all_questions(
     async for q in cursor:
         q["id"] = str(q["_id"])
         del q["_id"]
+        # Convert media_file_id to string if it exists
+        if q.get("media_file_id"):
+            q["media_file_id"] = str(q["media_file_id"])
         # Добавляем признак наличия медиа
         q["has_media"] = bool(q.get("media_file_id") and q.get("media_filename"))
         # Очищаем тяжелые поля
@@ -286,4 +326,4 @@ async def get_all_questions(
         q.pop("media_filename", None)
         questions.append(q)
 
-    return questions
+    return success(data=questions)
