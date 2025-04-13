@@ -3,7 +3,7 @@
 import logging
 import asyncio
 from app.core.validation_translator import translate_error_ru
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -17,12 +17,17 @@ from starlette.status import (
     HTTP_500_INTERNAL_SERVER_ERROR,
 )
 from aiogram import Dispatcher
+from datetime import datetime, timedelta
+import json
 
 from app.core.logging_config import setup_logging
 from app.core.response import error
 from app.routers import auth, user, reset_password, admin_router, test_router, subscription_router, referrals_router, transaction_router
 from app.admin.telegram_2fa import bot, router as telegram_router
-
+from app.routers import lobby_router
+from app.routers import files_router
+from app.websocket.lobby_ws import lobby_ws_endpoint, ws_manager
+from app.db.database import db
 
 # Инициализация логирования
 setup_logging()
@@ -44,6 +49,7 @@ app.add_middleware(
     allow_origins=[
         "https://localhost",
         "https://royal-test.duckdns.org",
+        "*"  # Временно разрешаем все источники для тестирования WebSocket
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"],
@@ -57,8 +63,18 @@ app.include_router(reset_password.router, prefix="/reset", tags=["reset-password
 app.include_router(admin_router.router)
 app.include_router(test_router.router, prefix="/tests", tags=["tests"])
 app.include_router(subscription_router.router, prefix="/subscriptions")
-app.include_router(referrals_router.router, prefix="/referrals", tags=["referrals"])
-app.include_router(transaction_router.router, prefix="/transactions", tags=["transactions"])
+app.include_router(referrals_router.router, prefix="/referrals")
+app.include_router(transaction_router.router, prefix="/transactions")
+app.include_router(lobby_router.router, prefix="/lobbies", tags=["lobbies"])
+app.include_router(files_router.router, prefix="/files", tags=["files"])
+# WebSocket endpoint для лобби
+@app.websocket("/ws/lobby/{lobby_id}")
+async def websocket_endpoint(
+    websocket: WebSocket, 
+    lobby_id: str, 
+    token: str = Query(None)
+):
+    await lobby_ws_endpoint(websocket, lobby_id, token)
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
@@ -96,8 +112,6 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     return error(code=code, message="Ошибка запроса", details={"path": path})
 
 
-
-
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc: RequestValidationError):
     error_list = []
@@ -126,6 +140,63 @@ async def start_bot():
     dp.include_router(telegram_router)
     await dp.start_polling(bot)
 
+async def check_stalled_lobbies():
+    """Автоматически завершает зависшие тесты"""
+    while True:
+        try:
+            # Ищем лобби, которые в статусе in_progress более 2 часов
+            two_hours_ago = datetime.utcnow() - timedelta(hours=2)
+            
+            stalled_lobbies = await db.lobbies.find({
+                "status": "in_progress",
+                "created_at": {"$lt": two_hours_ago}
+            }).to_list(length=100)
+            
+            for lobby in stalled_lobbies:
+                lobby_id = lobby["_id"]
+                
+                # Подсчитываем результаты
+                results = {}
+                total_questions = len(lobby.get("question_ids", []))
+                for participant_id, answers in lobby.get("participants_answers", {}).items():
+                    correct_count = sum(1 for is_corr in answers.values() if is_corr)
+                    results[participant_id] = {"correct": correct_count, "total": total_questions}
+                    
+                    # Сохраняем историю
+                    history_record = {
+                        "user_id": participant_id,
+                        "lobby_id": lobby_id,
+                        "date": datetime.utcnow(),
+                        "score": correct_count,
+                        "total": total_questions,
+                        "categories": lobby.get("categories", []),
+                        "sections": lobby.get("sections", []),
+                        "mode": lobby.get("mode", "solo"),
+                        "pass_percentage": (correct_count / total_questions * 100) if total_questions > 0 else 0,
+                        "auto_finished": True
+                    }
+                    await db.history.insert_one(history_record)
+                
+                # Отмечаем лобби как завершенное
+                await db.lobbies.update_one(
+                    {"_id": lobby_id}, 
+                    {"$set": {"status": "finished", "finished_at": datetime.utcnow(), "auto_finished": True}}
+                )
+                
+                # Оповещаем участников, если это многопользовательское лобби
+                if lobby.get("mode") == "multi":
+                    try:
+                        await ws_manager.send_message(lobby_id, f"AUTO_FINISHED:{json.dumps(results)}")
+                    except:
+                        pass  # Игнорируем ошибки отправки сообщений
+
+        except Exception as e:
+            logger.error(f"Ошибка при проверке зависших лобби: {e}")
+        
+        # Проверяем раз в 30 минут
+        await asyncio.sleep(1800)
+
 @app.on_event("startup")
 async def startup_event():
     asyncio.create_task(start_bot())
+    asyncio.create_task(check_stalled_lobbies())  # Запускаем проверку зависших лобби

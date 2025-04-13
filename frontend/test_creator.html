@@ -300,6 +300,7 @@
       <textarea id="explanation" rows="2" placeholder="Введите объяснение..."></textarea>
 
       <label for="categories">Категории:</label>
+      <button type="button" class="btn" onclick="toggleAllCategories()" style="margin-bottom: 10px;">✅ Все категории</button>
       <div id="categoryList" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
 
       <label for="pddSearch">Поиск по разделам ПДД:</label>
@@ -333,6 +334,12 @@
   </div>
 
 <script>
+  function toggleAllCategories() {
+    const checkboxes = document.querySelectorAll("input[name='categories']");
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    checkboxes.forEach(cb => cb.checked = !allChecked);
+  }
+
   const loopVideo = document.getElementById("loopVideo");
 
   loopVideo.addEventListener('loadeddata', () => {

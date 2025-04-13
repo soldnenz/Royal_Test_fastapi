@@ -326,4 +326,4 @@ async def get_all_questions(
         q.pop("media_filename", None)
         questions.append(q)
 
-    return success(data=questions)
+    return success(data=jsonable_encoder(questions))

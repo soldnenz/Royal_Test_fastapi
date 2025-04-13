@@ -3,7 +3,7 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from bson import ObjectId
 from fastapi.security import HTTPBearer
 from app.db.database import db
@@ -262,3 +262,35 @@ async def search_users_by_query(
 #
 #     logger.info(f"User deleted by admin. user_id={user_id}")
 #     return {"message": f"User {user_id} deleted successfully"}
+
+@router.get("/users/history", summary="История тестов пользователя")
+async def get_user_history(
+    limit: int = 50, 
+    offset: int = 0, 
+    request: Request = None, 
+    current_user: dict = Depends(get_current_actor)
+):
+    """
+    Возвращает историю прохождения тестов пользователя
+    """
+    user_id = str(current_user["id"])
+    
+    # Подсчитываем общее количество
+    total = await db.history.count_documents({"user_id": user_id})
+    
+    # Получаем записи с пагинацией и сортировкой по дате (новые в начале)
+    history = await db.history.find(
+        {"user_id": user_id}
+    ).sort("date", -1).skip(offset).limit(limit).to_list(length=limit)
+    
+    # Преобразуем ObjectId в строки
+    for record in history:
+        record["id"] = str(record["_id"])
+        del record["_id"]
+    
+    return success(data={
+        "history": history,
+        "total": total,
+        "limit": limit,
+        "offset": offset
+    })
