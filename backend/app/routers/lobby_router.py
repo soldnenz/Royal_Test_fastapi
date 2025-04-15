@@ -1,5 +1,5 @@
 # app/routers/lobby.py (фрагмент)
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, Query
 from app.db.database import db  # предположим, db - это подключение к Mongo (AsyncIOMotorDatabase)
 from app.utils.id_generator import generate_unique_lobby_id
 from datetime import datetime
@@ -9,11 +9,20 @@ from app.websocket.lobby_ws import ws_manager
 from bson import ObjectId
 import json
 from pydantic import BaseModel
+import logging
+
+# Настройка логгера
+logger = logging.getLogger(__name__)
 
 class AnswerSubmit(BaseModel):
     question_id: str
     answer_index: int
 
+class LobbyCreate(BaseModel):
+    mode: str = "solo"  # По умолчанию solo
+    categories: list[str] = None
+    pdd_section_uids: list[str] | None = None
+    questions_count: int = 40
 
 router = APIRouter()
 
@@ -25,10 +34,7 @@ def get_user_id(current_user):
 
 @router.post("/lobbies", summary="Создать новое лобби")
 async def create_lobby(
-    questions_count: int = 40, 
-    pdd_section_uids: list[str] = None,
-    categories: list[str] = None,
-    mode: str = "solo",  # "solo" или "multi"
+    lobby_data: LobbyCreate,
     request: Request = None, 
     current_user: dict = Depends(get_current_actor)
 ):
@@ -41,6 +47,7 @@ async def create_lobby(
     - В solo режиме тест запускается автоматически
     """
     user_id = get_user_id(current_user)
+    logger.info(f"Запрос на создание лобби от пользователя: {user_id}, режим: {lobby_data.mode}")
     
     # Принудительно установим количество вопросов в 40
     questions_count = 40
@@ -51,6 +58,7 @@ async def create_lobby(
         "status": {"$ne": "finished"}
     })
     if active_lobby:
+        logger.warning(f"Пользователь {user_id} уже имеет активный тест: {active_lobby['_id']}")
         raise HTTPException(
             status_code=400, 
             detail="У вас уже есть активный тест. Завершите его перед началом нового."
@@ -66,56 +74,66 @@ async def create_lobby(
     if not subscription:
         # Демо-режим или бесплатный доступ
         subscription_type = "Demo"
+        logger.info(f"Пользователь {user_id} без подписки, установлен demo-режим")
     else:
         subscription_type = subscription["subscription_type"]
+        logger.info(f"Пользователь {user_id} с подпиской: {subscription_type}")
     
     # Проверка прав на создание лобби
-    if mode == "multi" and subscription_type not in ["Royal", "School"]:
+    if lobby_data.mode == "multi" and subscription_type not in ["Royal", "School"]:
+        logger.warning(f"Отказ в создании multi-лобби пользователю {user_id} с подпиской {subscription_type}")
         raise HTTPException(
             status_code=403, 
             detail="Для создания многопользовательского лобби требуется подписка Royal или School"
         )
     
     # Обрабатываем разделы ПДД (доступно для School и Royal)
-    if pdd_section_uids and subscription_type not in ["School", "Royal"]:
+    if lobby_data.pdd_section_uids is not None and subscription_type not in ["School"]:
+        logger.warning(f"Отказ в выборе разделов ПДД пользователю {user_id} с подпиской {subscription_type}")
         raise HTTPException(
             status_code=403,
-            detail="Выбор разделов ПДД доступен только для подписок School и Royal"
+            detail="Выбор разделов ПДД доступен только для подписки School"
         )
     
     # Ограничения по категориям в зависимости от подписки
     if subscription_type == "Economy":
         allowed_categories = ["A1", "A", "B1", "B", "BE"]
-        if categories and not all(cat in allowed_categories for cat in categories):
+        if lobby_data.categories and not all(cat in allowed_categories for cat in lobby_data.categories):
+            logger.warning(f"Отказ в выборе категории пользователю {user_id} с подпиской Economy")
             raise HTTPException(status_code=403, detail="Ваша подписка не даёт доступа к выбранным категориям")
         
         # Для Economy нельзя выбирать разделы
-        pdd_section_uids = None
+        lobby_data.pdd_section_uids = None
         
         # Определяем группу (мото или авто)
-        if categories and any(cat in ["A1", "A", "B1"] for cat in categories):
+        if lobby_data.categories and any(cat in ["A1", "A", "B1"] for cat in lobby_data.categories):
             category_group = ["A1", "A", "B1"]
         else:
             category_group = ["B", "BE"]
         
-        categories = category_group
+        lobby_data.categories = category_group
+        logger.info(f"Установлены категории для Economy: {lobby_data.categories}")
         
     elif subscription_type == "Vip":
         # Vip может выбирать любые категории
-        pdd_section_uids = None  # но не может выбирать разделы
+        lobby_data.pdd_section_uids = None  # но не может выбирать разделы
+        logger.info(f"VIP подписка, разделы ПДД отключены")
         
     # Построение фильтра для запроса вопросов
     query = {"deleted": False}
     
-    if categories:
-        query["categories"] = {"$in": categories}
+    if lobby_data.categories:
+        query["categories"] = {"$in": lobby_data.categories}
         
-    if pdd_section_uids and subscription_type in ["Royal", "School"]:
-        query["pdd_section_uids"] = {"$in": pdd_section_uids}
+    if lobby_data.pdd_section_uids and subscription_type in ["Royal", "School"]:
+        query["pdd_section_uids"] = {"$in": lobby_data.pdd_section_uids}
+    
+    logger.info(f"Фильтр для вопросов: {query}")
     
     # Выбор случайных вопросов из коллекции вопросов
     total_questions = await db.questions.count_documents(query)
     if total_questions == 0:
+        logger.error(f"Не найдено вопросов для фильтра: {query}")
         raise HTTPException(
             status_code=404, 
             detail="Не найдено вопросов для выбранных категорий и разделов"
@@ -126,6 +144,8 @@ async def create_lobby(
     # Убедимся, что не больше 40 вопросов
     questions_count = min(questions_count, 40)
     
+    logger.info(f"Будет выбрано {questions_count} вопросов из {total_questions} доступных")
+    
     # Получаем случайную выборку вопросов из БД
     questions_cursor = db.questions.aggregate([
         {"$match": query}, 
@@ -133,6 +153,8 @@ async def create_lobby(
     ])
     questions = await questions_cursor.to_list(length=questions_count)
     question_ids = [str(q["_id"]) for q in questions]
+    
+    logger.info(f"Выбрано {len(question_ids)} вопросов")
     
     # Составляем словарь правильных ответов для выбранных вопросов
     correct_answers_map = {}
@@ -143,9 +165,11 @@ async def create_lobby(
 
     # Генерируем уникальный ID лобби
     lobby_id = await generate_unique_lobby_id()
+    logger.info(f"Сгенерирован ID лобби: {lobby_id}")
     
-    # Определяем начальный статус - для solo сразу in_progress
-    initial_status = "in_progress" if mode == "solo" else "waiting"
+    # Определяем начальный статус - для solo сразу in_progress, для multi - waiting
+    initial_status = "waiting" if lobby_data.mode == "multi" else "in_progress"
+    logger.info(f"Установлен начальный статус лобби: {initial_status}")
     
     lobby_doc = {
         "_id": lobby_id,
@@ -157,36 +181,42 @@ async def create_lobby(
         "participants_answers": {user_id: {}},
         "current_index": 0,
         "created_at": datetime.utcnow(),
-        "sections": pdd_section_uids or [],
-        "categories": categories or [],
-        "mode": mode,
+        "sections": lobby_data.pdd_section_uids or [],
+        "categories": lobby_data.categories or [],
+        "mode": lobby_data.mode,
         "subscription_type": subscription_type
     }
     
     try:
         await db.lobbies.insert_one(lobby_doc)
+        logger.info(f"Лобби {lobby_id} успешно создано в базе данных")
         
         # Если solo режим, отправляем WebSocket сообщение о начале теста
-        if mode == "solo":
+        if lobby_data.mode == "solo":
             first_question_id = question_ids[0] if question_ids else None
             if first_question_id:
                 try:
                     # Отправляем событие START и ID первого вопроса
-                    await ws_manager.send_message(lobby_id, f"START:{first_question_id}")
+                    logger.info(f"Отправка WS-сообщения start, вопрос: {first_question_id} для solo режима")
+                    await ws_manager.send_json(lobby_id, {
+                        "type": "start",
+                        "data": {"question_id": first_question_id}
+                    })
+
                 except Exception as e:
-                    print(f"Error sending WebSocket notification: {str(e)}")
+                    logger.error(f"Ошибка при отправке WebSocket сообщения: {str(e)}")
         
         return success(data={
             "lobby_id": lobby_id, 
             "status": initial_status, 
             "questions_count": questions_count,
-            "categories": categories,
-            "sections": pdd_section_uids,
-            "auto_started": mode == "solo"
+            "categories": lobby_data.categories,
+            "sections": lobby_data.pdd_section_uids,
+            "auto_started": lobby_data.mode == "solo"
         })
     except Exception as e:
         # Логируем ошибку
-        print(f"Error creating lobby: {str(e)}")
+        logger.error(f"Ошибка при создании лобби: {str(e)}")
         raise HTTPException(status_code=500, detail="Ошибка при создании лобби")
 
 
@@ -198,6 +228,7 @@ async def join_lobby(lobby_id: str, request: Request = None, current_user: dict 
     - Проверяет доступ к категориям и разделам на основе подписки
     """
     user_id = get_user_id(current_user)
+    logger.info(f"Пользователь {user_id} пытается присоединиться к лобби {lobby_id}")
     
     try:
         # Проверка на наличие активных лобби у пользователя
@@ -208,6 +239,7 @@ async def join_lobby(lobby_id: str, request: Request = None, current_user: dict 
         })
         
         if active_lobby:
+            logger.warning(f"Пользователь {user_id} уже в активном лобби {active_lobby['_id']}")
             raise HTTPException(
                 status_code=400, 
                 detail="У вас уже есть активное лобби. Завершите его перед присоединением к новому."
@@ -215,13 +247,16 @@ async def join_lobby(lobby_id: str, request: Request = None, current_user: dict 
         
         lobby = await db.lobbies.find_one({"_id": lobby_id})
         if not lobby:
+            logger.error(f"Лобби {lobby_id} не найдено")
             raise HTTPException(status_code=404, detail="Лобби не найдено")
         
         if lobby["status"] != "waiting":
+            logger.warning(f"Пользователь {user_id} пытается присоединиться к лобби {lobby_id} со статусом {lobby['status']}")
             raise HTTPException(status_code=400, detail="Нельзя присоединиться: тест уже начат или завершен")
         
         if user_id in lobby["participants"]:
             # Если пользователь уже в лобби, просто возвращаем успех
+            logger.info(f"Пользователь {user_id} уже в лобби {lobby_id}")
             return success(data={"message": f"Вы уже присоединены к лобби {lobby_id}"})
         
         if len(lobby["participants"]) >= 35:
@@ -274,7 +309,10 @@ async def join_lobby(lobby_id: str, request: Request = None, current_user: dict 
         
         # Оповещаем других участников о новом пользователе через WebSocket
         try:
-            await ws_manager.send_message(lobby_id, f"USER_JOINED:{user_id}")
+            await ws_manager.send_json(lobby_id, {
+                "type": "user_joined",
+                "data": {"user_id": user_id}
+            })
         except Exception as e:
             print(f"Error sending WebSocket notification: {str(e)}")
             # Не прерываем выполнение, если не удалось отправить WebSocket сообщение
@@ -289,84 +327,95 @@ async def join_lobby(lobby_id: str, request: Request = None, current_user: dict 
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при присоединении к лобби")
 
 
-@router.post("/lobbies/{lobby_id}/start", summary="Начать тест в лобби")
-async def start_lobby(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
+@router.post("/lobbies/{lobby_id}/start", summary="Начать тест")
+async def start_test(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
     """
-    Запускает тест (переводит лобби в статус in_progress).
-    Доступно только создателю (хосту) лобби.
+    Начинает тест в лобби. Только создатель лобби может начать тест.
     """
     user_id = get_user_id(current_user)
+    logger.info(f"Пользователь {user_id} пытается начать тест в лобби {lobby_id}")
     
-    lobby = await db.lobbies.find_one({"_id": lobby_id})
-    if not lobby:
-        raise HTTPException(status_code=404, detail="Lobby not found")
-    if lobby["host_id"] != user_id:
-        raise HTTPException(status_code=403, detail="Only the lobby creator can start the test")
-    if lobby["status"] != "waiting":
-        raise HTTPException(status_code=400, detail="Lobby already started or finished")
-
-    # Переводим лобби в состояние "in_progress"
-    await db.lobbies.update_one({"_id": lobby_id}, {"$set": {"status": "in_progress"}})
-    
-    # Отправляем через WebSocket уведомление всем участникам о начале теста и первый вопрос
-    first_question_id = lobby["question_ids"][0] if lobby.get("question_ids") else None
-    if first_question_id:
-        # Отправляем событие START и ID первого вопроса
-        await ws_manager.send_message(lobby_id, f"START:{first_question_id}")
-    return success(data={"status": "in_progress"})
+    try:
+        lobby = await db.lobbies.find_one({"_id": lobby_id})
+        if not lobby:
+            logger.error(f"Лобби {lobby_id} не найдено")
+            raise HTTPException(status_code=404, detail="Лобби не найдено")
+        
+        if lobby["host_id"] != user_id:
+            logger.warning(f"Пользователь {user_id} пытается начать тест в чужом лобби {lobby_id}")
+            raise HTTPException(status_code=403, detail="Только создатель лобби может начать тест")
+        
+        if lobby["status"] != "waiting":
+            logger.warning(f"Попытка начать тест в лобби {lobby_id} со статусом {lobby['status']}")
+            raise HTTPException(status_code=400, detail="Тест уже начат или завершен")
+        
+        if len(lobby["participants"]) < 2:
+            logger.warning(f"Попытка начать тест в лобби {lobby_id} с недостаточным количеством участников")
+            raise HTTPException(status_code=400, detail="Необходимо минимум 2 участника для начала теста")
+        
+        # Обновляем статус лобби
+        await db.lobbies.update_one(
+            {"_id": lobby_id},
+            {"$set": {"status": "in_progress"}}
+        )
+        
+        logger.info(f"Тест в лобби {lobby_id} успешно начат")
+        
+        # Отправляем WebSocket сообщение о начале теста
+        try:
+            await ws_manager.send_json(lobby_id, {
+                "type": "test_started",
+                "data": {
+                    "message": "Тест начат",
+                    "first_question": lobby["question_ids"][0] if lobby["question_ids"] else None
+                }
+            })
+        except Exception as e:
+            logger.error(f"Ошибка при отправке WebSocket сообщения о начале теста: {str(e)}")
+        
+        return success(data={"message": "Тест успешно начат"})
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при начале теста: {str(e)}")
+        raise HTTPException(status_code=500, detail="Ошибка при начале теста")
 
 @router.get("/lobbies/{lobby_id}/current-question", summary="Получить текущий вопрос")
-async def get_current_question(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
+async def get_current_question(lobby_id: str, current_user: dict = Depends(get_current_actor)):
     """
-    Возвращает текущий (первый неотвеченный) вопрос в лобби для текущего пользователя.
-    Включает только данные, необходимые для отображения вопроса, без правильного ответа.
-
-    Безопасность:
-    - Проверяет, что пользователь является участником этого лобби
-    - Проверяет, что лобби в статусе "in_progress"
-    - Возвращает только вопросы, принадлежащие этому лобби
+    Получает текущий вопрос в лобби.
     """
     user_id = get_user_id(current_user)
-
-    # Получаем данные о лобби
-    lobby = await db.lobbies.find_one({"_id": lobby_id})
-    if not lobby:
-        raise HTTPException(status_code=404, detail="Лобби не найдено")
-
-    # Проверяем, что пользователь участник лобби
-    if user_id not in lobby["participants"]:
-        raise HTTPException(status_code=403, detail="Вы не являетесь участником этого лобби")
-
-    # Проверяем статус лобби - должен быть "in_progress"
-    if lobby["status"] != "in_progress":
-        raise HTTPException(status_code=400, detail="Тест не активен. Статус лобби должен быть 'in_progress'")
-
-    # Получаем ID вопросов в лобби
-    question_ids = lobby["question_ids"]
-
-    current_index = lobby.get("current_index", 0)
-
-    if current_index >= len(question_ids):
-        return success(data={"completed": True})
-
-    current_question_id = question_ids[current_index]
-
-    # Запрашиваем вопрос из коллекции
-    question = await db.questions.find_one({"_id": ObjectId(current_question_id)})
-    if not question:
-        raise HTTPException(status_code=404, detail="Вопрос не найден")
-
-    # Создаем объект с данными вопроса, НЕ включая правильный ответ и объяснение
-    question_out = {
-        "id": str(question["_id"]),
-        "text": question["question_text"],
-        "options": question["options"],
-        "media_file_id": str(question["media_file_id"]) if question.get("media_file_id") else None,
-        "media_base64": question.get("media_base64"),  # Включаем base64 данные изображения, если они есть
-        "explanation": None  # Объяснение будет доступно только после ответа
-    }
-
-    return success(data=question_out)
+    logger.info(f"Пользователь {user_id} запрашивает текущий вопрос в лобби {lobby_id}")
+    
+    try:
+        lobby = await db.lobbies.find_one({"_id": lobby_id})
+        if not lobby:
+            logger.error(f"Лобби {lobby_id} не найдено")
+            raise HTTPException(status_code=404, detail="Лобби не найдено")
+        
+        if lobby["status"] != "in_progress":
+            logger.warning(f"Попытка получить вопрос в лобби {lobby_id} со статусом {lobby['status']}")
+            raise HTTPException(status_code=400, detail="Тест не начат или уже завершен")
+        
+        if user_id not in lobby["participants"]:
+            logger.warning(f"Пользователь {user_id} пытается получить вопрос в чужом лобби {lobby_id}")
+            raise HTTPException(status_code=403, detail="Вы не являетесь участником этого лобби")
+        
+        current_question_index = lobby.get("current_index", 0)
+        if current_question_index >= len(lobby["question_ids"]):
+            logger.warning(f"Попытка получить вопрос за пределами списка в лобби {lobby_id}")
+            raise HTTPException(status_code=400, detail="Все вопросы уже пройдены")
+        
+        current_question = lobby["question_ids"][current_question_index]
+        logger.info(f"Текущий вопрос {current_question_index + 1} успешно получен для лобби {lobby_id}")
+        
+        return success(data={"question": current_question})
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при получении текущего вопроса: {str(e)}")
+        raise HTTPException(status_code=500, detail="Ошибка при получении вопроса")
 
 @router.get("/lobbies/{lobby_id}/questions/{question_id}", summary="Получить данные вопроса")
 async def get_question(lobby_id: str, question_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
@@ -410,7 +459,7 @@ async def get_question(lobby_id: str, question_id: str, request: Request = None,
     question_out = {
         "id": str(question["_id"]),
         "text": question["question_text"],
-        "options": question["options"],
+        "options": question.get("options", []) if isinstance(question.get("options", []), list) else [],
         "media_file_id": str(question["media_file_id"]) if question.get("media_file_id") else None,
         "media_base64": question.get("media_base64"),  # Включаем base64 данные изображения, если они есть
         "media_filename": question.get("media_filename")
@@ -423,6 +472,39 @@ async def get_question(lobby_id: str, question_id: str, request: Request = None,
         question_out["explanation"] = None  # Объяснение будет доступно только после ответа
     
     return success(data=question_out)
+
+def get_user_id(current_user):
+    return str(current_user["id"])
+
+@router.get("/lobbies/{lobby_id}/correct-answer", summary="Получить индекс правильного ответа на вопрос (только хост)")
+async def get_correct_answer(
+    lobby_id: str,
+    question_id: str = Query(..., description="ID вопроса"),
+    current_user: dict = Depends(get_current_actor)
+):
+    user_id = get_user_id(current_user)
+
+    lobby = await db.lobbies.find_one({"_id": lobby_id})
+    if not lobby:
+        raise HTTPException(status_code=404, detail="Лобби не найдено")
+
+    if lobby["status"] != "in_progress":
+        raise HTTPException(status_code=400, detail="Тест неактивен")
+
+    if user_id not in lobby["participants"]:
+        raise HTTPException(status_code=403, detail="Вы не участник этого лобби")
+
+    if user_id != lobby["host_id"]:
+        raise HTTPException(status_code=403, detail="Только хост может получить правильный ответ")
+
+    if question_id not in lobby.get("question_ids", []):
+        raise HTTPException(status_code=403, detail="Вопрос не относится к этому лобби")
+
+    correct_index = lobby.get("correct_answers", {}).get(question_id)
+    if correct_index is None:
+        raise HTTPException(status_code=404, detail="Правильный ответ не найден")
+
+    return success(data={"correct_index": correct_index})
 
 
 @router.post("/lobbies/{lobby_id}/answer", summary="Отправить ответ на вопрос")
@@ -476,11 +558,15 @@ async def submit_answer(
     )
     
     # Отправляем уведомление всем участникам
-    await ws_manager.send_message(
-        lobby_id, 
-        f"ANSWER_RECEIVED:{user_id}:{question_id}:{is_correct}"
-    )
-    
+    await ws_manager.send_json(lobby_id, {
+        "type": "answer_received",
+        "data": {
+            "user_id": user_id,
+            "question_id": question_id,
+            "is_correct": is_correct
+        }
+    })
+
     # Проверяем, все ли пользователи ответили на текущий вопрос
     lobby = await db.lobbies.find_one({"_id": lobby_id})
     current_index = lobby.get("current_index", 0)
@@ -530,7 +616,11 @@ async def submit_answer(
                 await db.history.insert_one(history_record)
             
             # Отправляем уведомление о завершении теста
-            await ws_manager.send_message(lobby_id, f"TEST_FINISHED:{json.dumps(results)}")
+            await ws_manager.send_json(lobby_id, {
+                "type": "test_finished",
+                "data": results
+            })
+
         else:
             # Переходим к следующему вопросу
             new_index = current_index + 1
@@ -538,7 +628,10 @@ async def submit_answer(
             next_question_id = lobby["question_ids"][new_index]
             
             # Уведомляем всех о переходе к следующему вопросу
-            await ws_manager.send_message(lobby_id, f"NEXT_QUESTION:{next_question_id}")
+            await ws_manager.send_json(lobby_id, {
+                "type": "next_question",
+                "data": {"question_id": next_question_id}
+            })
 
     question = await db.questions.find_one({"_id": ObjectId(question_id)})
     explanation = question.get("explanation", "N/A") if question else "N/A"
@@ -579,7 +672,11 @@ async def skip_question(lobby_id: str, request: Request = None, current_user: di
         next_question_id = lobby["question_ids"][new_index]
         
         # Уведомляем всех по WebSocket о переходе к следующему вопросу
-        await ws_manager.send_message(lobby_id, f"SKIP_TO:{next_question_id}")
+        await ws_manager.send_json(lobby_id, {
+            "type": "skip_to",
+            "data": {"question_id": next_question_id}
+        })
+
         return success(data={"message": "Вопрос пропущен, переход к следующему"})
     else:
         # Если это был последний вопрос или уже ответили на 40 вопросов, завершаем тест
@@ -609,35 +706,69 @@ async def skip_question(lobby_id: str, request: Request = None, current_user: di
             await db.history.insert_one(history_record)
         
         # Отправляем уведомление о завершении теста
-        await ws_manager.send_message(lobby_id, f"TEST_FINISHED:{json.dumps(results)}")
+        await ws_manager.send_json(lobby_id, {
+            "type": "test_finished",
+            "data": results
+        })
+
         return success(data={"message": "Тест завершен", "results": results})
 
-@router.post("/lobbies/{lobby_id}/kick", summary="Исключить участника")
-async def kick_user(lobby_id: str, target_user_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
+@router.post("/lobbies/{lobby_id}/kick", summary="Исключить участника из лобби")
+async def kick_participant(
+    lobby_id: str,
+    target_user_id: str,
+    current_user: dict = Depends(get_current_actor)
+):
     """
-    Исключает участника с ID `target_user_id` из лобби. Доступно только хосту.
+    Исключает участника из лобби. Только хост лобби может исключать участников.
     """
     user_id = get_user_id(current_user)
+    print(f"Zapros na isklyuchenie uchastnika {target_user_id} iz lobbi {lobby_id} ot polzovatelya {user_id}")
     
+    # Получаем информацию о лобби
     lobby = await db.lobbies.find_one({"_id": lobby_id})
     if not lobby:
-        raise HTTPException(status_code=404, detail="Lobby not found")
+        print(f"Lobbi {lobby_id} ne naideno")
+        raise HTTPException(status_code=404, detail="Лобби не найдено")
+    
+    # Проверяем, является ли пользователь хостом лобби
     if lobby["host_id"] != user_id:
-        raise HTTPException(status_code=403, detail="Only host can kick participants")
-
+        print(f"Polzovatel {user_id} ne yavlyaetsya hostom lobbi {lobby_id}")
+        raise HTTPException(status_code=403, detail="Только хост лобби может исключать участников")
+    
+    # Проверяем, существует ли участник в лобби
     if target_user_id not in lobby["participants"]:
-        raise HTTPException(status_code=400, detail="User not in lobby")
-    # Удаляем пользователя из списка участников и его ответы
-    await db.lobbies.update_one({"_id": lobby_id}, {
-        "$pull": {"participants": target_user_id},
-        "$unset": {f"participants_answers.{target_user_id}": ""}
-    })
-    # Удаляем все записи этого пользователя из коллекции UserAnswer
-    await db.user_answers.delete_many({"lobby_id": lobby_id, "user_id": target_user_id})
+        print(f"Uchastnik {target_user_id} ne naiden v lobbi {lobby_id}")
+        raise HTTPException(status_code=404, detail="Участник не найден в лобби")
+    
+    # Нельзя исключить хоста
+    if target_user_id == lobby["host_id"]:
+        print(f"Popytka isklyuchit hosta {target_user_id} iz lobbi {lobby_id}")
+        raise HTTPException(status_code=400, detail="Нельзя исключить хоста лобби")
+    
+    try:
+        # Удаляем участника из списка участников
+        await db.lobbies.update_one(
+            {"_id": lobby_id},
+            {"$pull": {"participants": target_user_id}}
+        )
+        print(f"Uchastnik {target_user_id} isklyuchen iz lobbi {lobby_id}")
+        
+        # Отправляем WebSocket сообщение об исключении участника
+        try:
+            print(f"Otpravka WebSocket soobsheniya USER_KICKED:{target_user_id}")
+            await ws_manager.send_json(lobby_id, {
+                "type": "user_kicked",
+                "data": {"user_id": target_user_id}
+            })
 
-    # Оповещаем остальных, что пользователь исключен
-    await ws_manager.send_message(lobby_id, f"USER_KICKED:{target_user_id}")
-    return success(data={"message": f"User {target_user_id} was kicked from lobby"})
+        except Exception as e:
+            print(f"Oshibka pri otpravke WebSocket soobsheniya: {str(e)}")
+        
+        return success(data={"status": "ok"})
+    except Exception as e:
+        print(f"Oshibka pri isklyuchenii uchastnika: {str(e)}")
+        raise HTTPException(status_code=500, detail="Ошибка при исключении участника")
 
 @router.post("/lobbies/{lobby_id}/finish", summary="Завершить тест")
 async def finish_lobby(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
@@ -776,10 +907,17 @@ async def finish_lobby(lobby_id: str, request: Request = None, current_user: dic
         # Оповещаем участников о завершении и сообщаем результаты
         try:
             # Отправляем базовые результаты через WebSocket
-            await ws_manager.send_message(lobby_id, f"FINISHED:{json.dumps(results)}")
-            
+            await ws_manager.send_json(lobby_id, {
+                "type": "finished",
+                "data": results
+            })
+
             # Отправляем детальные результаты через отдельное WebSocket сообщение
-            await ws_manager.send_message(lobby_id, f"DETAILED_RESULTS:{json.dumps(detailed_results)}")
+            await ws_manager.send_json(lobby_id, {
+                "type": "detailed_results",
+                "data": detailed_results
+            })
+
         except Exception as e:
             print(f"Error sending WebSocket notification: {str(e)}")
         
@@ -799,43 +937,54 @@ async def finish_lobby(lobby_id: str, request: Request = None, current_user: dic
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при завершении теста")
 
 @router.get("/lobbies/{lobby_id}", summary="Получить информацию о лобби")
-async def get_lobby(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
+async def get_lobby(
+    lobby_id: str,
+    current_user: dict = Depends(get_current_actor)
+):
     """
-    Возвращает базовую информацию о лобби.
+    Получает информацию о лобби по его ID.
     """
     user_id = get_user_id(current_user)
+    logger.info(f"Запрос информации о лобби {lobby_id} от пользователя {user_id}")
     
-    lobby = await db.lobbies.find_one({"_id": lobby_id})
-    if not lobby:
-        raise HTTPException(status_code=404, detail="Lobby not found")
+    try:
+        # Получаем информацию о лобби
+        lobby = await db.lobbies.find_one({"_id": lobby_id})
+        if not lobby:
+            logger.error(f"Лобби {lobby_id} не найдено")
+            raise HTTPException(status_code=404, detail="Лобби не найдено")
         
-    # Пользователь должен быть участником этого лобби
-    if user_id not in lobby["participants"]:
-        raise HTTPException(status_code=403, detail="You are not a participant of this lobby")
-    
-    # Формируем данные для ответа
-    lobby_info = {
-        "id": lobby["_id"],
-        "status": lobby["status"],
-        "host_id": lobby["host_id"],
-        "is_host": (user_id == lobby["host_id"]),
-        "participants_count": len(lobby["participants"]),
-        "questions_count": len(lobby["question_ids"]),
-        "current_index": lobby.get("current_index", 0),
-        "created_at": lobby.get("created_at", datetime.utcnow()).isoformat(),
-        "sections": lobby.get("sections", [])
-    }
-    
-    # Если тест завершен, добавляем результаты
-    if lobby["status"] == "finished":
-        results = {}
-        total_questions = len(lobby.get("question_ids", []))
-        for participant_id, answers in lobby.get("participants_answers", {}).items():
-            correct_count = sum(1 for is_corr in answers.values() if is_corr)
-            results[participant_id] = {"correct": correct_count, "total": total_questions}
-        lobby_info["results"] = results
+        # Проверяем, является ли пользователь участником лобби
+        if user_id not in lobby["participants"]:
+            logger.warning(f"Пользователь {user_id} не является участником лобби {lobby_id}")
+            raise HTTPException(status_code=403, detail="Вы не являетесь участником этого лобби")
         
-    return success(data=lobby_info)
+        # Получаем информацию о создателе лобби
+        host_user = await db.users.find_one({"_id": ObjectId(lobby["host_id"])})
+        host_name = host_user.get("full_name", "Неизвестный пользователь") if host_user else "Неизвестный пользователь"
+        
+        # Формируем ответ
+        response_data = {
+            "id": str(lobby["_id"]),
+            "host_id": lobby["host_id"],
+            "host_name": host_name,
+            "is_host": lobby["host_id"] == user_id,
+            "current_user_id": user_id,
+            "status": lobby["status"],
+            "participants_count": len(lobby["participants"]),
+            "created_at": lobby["created_at"].isoformat() if isinstance(lobby["created_at"], datetime) else str(lobby["created_at"]),
+            "mode": lobby["mode"],
+            "categories": lobby["categories"],
+            "sections": lobby["sections"]
+        }
+        
+        logger.info(f"Возвращена информация о лобби {lobby_id}")
+        return success(data=response_data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при получении информации о лобби {lobby_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
 
 @router.get("/lobbies/{lobby_id}/answered-users", summary="Получить список пользователей, ответивших на текущий вопрос")
 async def get_answered_users(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):

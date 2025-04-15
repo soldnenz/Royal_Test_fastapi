@@ -1,0 +1,1805 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Прохождение теста - Royal Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --light-color: #ecf0f1;
+            --dark-color: #2c3e50;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7fa;
+            color: var(--dark-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        .header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            color: white;
+        }
+
+        .main-content {
+            flex-grow: 1;
+            padding: 2rem 0;
+        }
+
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
+        }
+
+        .question-card {
+            margin-top: 1rem;
+        }
+
+        .question-number {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--secondary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .question-text {
+            font-size: 1.4rem;
+            font-weight: 500;
+            margin-bottom: 1.5rem;
+        }
+
+        .question-image {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .answer-option {
+            padding: 12px 20px;
+            background-color: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+        }
+
+        .answer-option:hover {
+            border-color: var(--secondary-color);
+            background-color: rgba(52, 152, 219, 0.05);
+        }
+
+        .answer-option.selected {
+            border-color: var(--secondary-color);
+            background-color: rgba(52, 152, 219, 0.1);
+        }
+
+        .answer-option.correct {
+            border-color: var(--success-color);
+            background-color: rgba(39, 174, 96, 0.1);
+        }
+
+        .answer-option.incorrect {
+            border-color: var(--accent-color);
+            background-color: rgba(231, 76, 60, 0.1);
+        }
+
+        .answer-label {
+            width: 30px;
+            height: 30px;
+            background-color: #e0e0e0;
+            color: #555;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            margin-right: 15px;
+            transition: all 0.2s ease;
+        }
+
+        .answer-option:hover .answer-label {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+
+        .answer-option.selected .answer-label {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+
+        .answer-option.correct .answer-label {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .answer-option.incorrect .answer-label {
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        .answer-content {
+            flex-grow: 1;
+        }
+
+        .explanation-card {
+            background-color: rgba(52, 152, 219, 0.05);
+            border-left: 4px solid var(--secondary-color);
+            padding: 1rem;
+            margin-top: 1.5rem;
+            display: none;
+        }
+
+        .explanation-header {
+            font-weight: 600;
+            color: var(--secondary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .btn-next {
+            background-color: var(--secondary-color);
+            border: none;
+            padding: 12px 24px;
+            font-weight: 600;
+            border-radius: 8px;
+            color: white;
+            margin-top: 1rem;
+            transition: all 0.3s;
+        }
+
+        .btn-next:hover {
+            background-color: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .btn-finish {
+            background-color: var(--accent-color);
+            border: none;
+            padding: 12px 24px;
+            font-weight: 600;
+            border-radius: 8px;
+            color: white;
+            margin-top: 1rem;
+            transition: all 0.3s;
+        }
+
+        .btn-finish:hover {
+            background-color: #c0392b;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(231, 76, 60, 0.3);
+        }
+
+        .test-progress {
+            height: 8px;
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--secondary-color), var(--success-color));
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .test-stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-item {
+            text-align: center;
+            flex: 1;
+            padding: 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.2rem;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: #7f8c8d;
+        }
+
+        .timer {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+        }
+
+        .timer i {
+            margin-right: 8px;
+            color: var(--secondary-color);
+        }
+
+        .answer-status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+        }
+
+        .answer-status.correct {
+            background-color: rgba(39, 174, 96, 0.1);
+            color: var(--success-color);
+        }
+
+        .answer-status.incorrect {
+            background-color: rgba(231, 76, 60, 0.1);
+            color: var(--accent-color);
+        }
+
+        .host-controls {
+            margin-top: 2rem;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .answered-users-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 1rem;
+        }
+
+        .answered-user {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            background-color: #f8f9fa;
+        }
+
+        .answered-user.correct {
+            border-left: 3px solid var(--success-color);
+        }
+
+        .answered-user.incorrect {
+            border-left: 3px solid var(--accent-color);
+        }
+
+        .user-avatar {
+            width: 30px;
+            height: 30px;
+            background-color: var(--secondary-color);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            margin-right: 10px;
+            font-size: 0.8rem;
+        }
+
+        .user-name {
+            flex-grow: 1;
+            font-weight: 500;
+        }
+
+        .answer-icon {
+            margin-left: auto;
+        }
+
+        .answer-icon .fa-check {
+            color: var(--success-color);
+        }
+
+        .answer-icon .fa-times {
+            color: var(--accent-color);
+        }
+
+        .all-answered-notification {
+            background-color: #e8f7f1;
+            color: var(--success-color);
+            padding: 10px 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
+
+        .all-answered-notification i {
+            margin-right: 10px;
+            font-size: 1.2rem;
+        }
+
+        .pulse-animation {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(52, 152, 219, 0.7);
+            }
+            
+            70% {
+                transform: scale(1.05);
+                box-shadow: 0 0 0 10px rgba(52, 152, 219, 0);
+            }
+            
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(52, 152, 219, 0);
+            }
+        }
+
+        .status-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-weight: 500;
+            z-index: 1050;
+            display: none;
+        }
+
+        .status-message.success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status-message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-message.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .answer-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            margin-top: 15px;
+            background-color: rgba(52, 152, 219, 0.1);
+            border-radius: 8px;
+            color: var(--secondary-color);
+            font-weight: 500;
+        }
+
+        .answer-loading i {
+            margin-right: 10px;
+        }
+
+        .answer-option.disabled {
+            opacity: 0.7;
+        }
+
+        .participants-card {
+            background-color: #f8f9fa;
+            border-left: 4px solid var(--secondary-color);
+        }
+
+        .participants-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .participant-pill {
+            display: flex;
+            align-items: center;
+            background-color: white;
+            border-radius: 20px;
+            padding: 5px 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .participant-avatar {
+            width: 24px;
+            height: 24px;
+            background-color: var(--secondary-color);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            margin-right: 8px;
+            font-size: 0.7rem;
+        }
+
+        .host-indicator {
+            background-color: var(--primary-color);
+            color: white;
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: 6px;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <a href="/" class="navbar-brand">Royal Test</a>
+                <div class="timer">
+                    <i class="fas fa-clock"></i>
+                    <span id="timer-display">00:00:00</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-9 mx-auto">
+                    <div class="card mb-3">
+                      <div class="card-body">
+                        <p><strong>Режим:</strong> <span id="lobby-mode">-</span></p>
+                        <p><strong>Участников:</strong> <span id="participants-count">0/35</span></p>
+                        <p><strong>Ведущий:</strong> <span id="lobby-host">-</span></p>
+                        <p><strong>Категории:</strong> <span id="lobby-categories">-</span></p>
+                      </div>
+                    </div>
+
+                    <!-- Прогресс теста -->
+                    <div class="card mb-4">
+                        <div class="card-body p-4">
+                            <div class="test-progress">
+                                <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
+                            </div>
+                            <div class="test-stats">
+                                <div class="stat-item">
+                                    <div class="stat-value" id="current-question">1</div>
+                                    <div class="stat-label">Текущий</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="total-questions">40</div>
+                                    <div class="stat-label">Всего</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="correct-answers">0</div>
+                                    <div class="stat-label">Правильно</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="incorrect-answers">0</div>
+                                    <div class="stat-label">Неправильно</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="percentage">0%</div>
+                                    <div class="stat-label">Процент</div>
+                                </div>
+                            </div>
+                            <button id="btn-finish-test" class="btn btn-finish float-end">Завершить тест</button>
+                        </div>
+                    </div>
+
+                    <!-- Карточка вопроса -->
+                    <div class="card question-card" id="question-container">
+                        <div class="card-body p-4">
+                            <div class="question-number" id="question-number">Вопрос 1 из 40</div>
+                            <h2 class="question-text" id="question-text">Загрузка вопроса...</h2>
+
+                            <!-- Изображение вопроса (если есть) -->
+                            <div id="question-image-container" style="display: none;">
+                                <img src="" id="question-image" class="question-image" alt="Иллюстрация к вопросу" style="display: none;">
+                                <video id="question-video" class="question-image" controls style="display: none;">
+                                    <source src="" type="video/mp4" id="video-source">
+                                    Ваш браузер не поддерживает воспроизведение видео.
+                                </video>
+                            </div>
+
+                            <!-- Варианты ответа -->
+                            <div id="answer-options">
+                                <!-- Варианты ответов будут добавлены динамически -->
+                            </div>
+
+                            <!-- Статус ответа (правильный/неправильный) -->
+                            <div id="answer-status" style="display: none;"></div>
+
+                            <!-- Объяснение ответа -->
+                            <div class="explanation-card" id="explanation-card">
+                                <div class="explanation-header">Объяснение:</div>
+                                <div id="explanation-text"></div>
+                            </div>
+
+                            <!-- Кнопка следующего вопроса -->
+                            <button id="btn-next" class="btn btn-next mt-4" style="display: none;">
+                                Следующий вопрос <i class="fas fa-arrow-right ms-2"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Модальное окно подтверждения завершения теста -->
+    <div class="modal fade" id="finish-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Завершить тест?</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Вы уверены, что хотите завершить тест? Все оставшиеся вопросы будут отмечены как неотвеченные.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-danger" id="confirm-finish">Завершить тест</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Host Controls Section (visible only to the host) -->
+    <div id="host-controls" class="card host-controls d-none">
+        <div class="card-body">
+            <h3 class="mb-3">Host Controls</h3>
+            
+            <div class="participants-status">
+                <h4>Participants' Answers <span id="answered-counter">0/0</span></h4>
+                <div id="answered-users" class="answered-users-list">
+                    <!-- Participants who answered will appear here -->
+                </div>
+            </div>
+            
+            <div class="correct-answer-display mt-3">
+                <h4>Correct Answer</h4>
+                <div id="correct-answer" class="p-3 bg-light rounded">
+                    The correct answer will appear here
+                </div>
+            </div>
+            
+            <div class="mt-4 text-center">
+                <button id="next-question-btn" class="btn btn-primary btn-lg" onclick="goToNextQuestion()">
+                    <i class="fas fa-arrow-right me-2"></i> Next Question
+                </button>
+                
+                <button id="skip-question-btn" class="btn btn-warning ms-3" onclick="skipQuestion()">
+                    <i class="fas fa-forward me-2"></i> Skip Question
+                </button>
+                
+                <button id="finish-test-btn" class="btn btn-danger ms-3" onclick="finishTest()">
+                    <i class="fas fa-stop-circle me-2"></i> Finish Test
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add this section to show current participants in the test -->
+    <div class="container">
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="card participants-card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-users me-2"></i> Participants
+                        </h5>
+                        <div id="participants-list" class="participants-pills">
+                            <!-- Participants will be added here dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables for multiplayer functionality
+        let lobbyId = null;
+        let isHost = false;
+        let userId = null;
+        let wsConnection = null;
+        let participants = [];
+        let answeredUsers = [];
+        let currentUserRole = 'participant'; // Default role
+        let hostId = null;
+
+        // Helper functions
+        function getAuthToken() {
+            // Получаем токен из куки браузера
+            return getCookie('access_token');
+        }
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+
+        function showStatusMessage(message, type = 'info') {
+            const statusElement = document.getElementById('status-message');
+            if (!statusElement) return;
+            
+            statusElement.textContent = message;
+            statusElement.className = `status-message status-${type}`;
+            statusElement.style.display = 'block';
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                statusElement.style.display = 'none';
+            }, 5000);
+        }
+
+        // Получение WebSocket токена
+        async function getWebSocketToken() {
+            try {
+                console.log('Getting temporary WebSocket token');
+                const response = await fetch('/api/websocket_token/ws-token', {
+                    method: 'GET',
+                    credentials: 'include'  // Important for sending HttpOnly cookies
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error('Error getting WebSocket token:', errorData);
+                    showStatusMessage('Authentication error. Please log in again.', 'error');
+                    
+                    // Redirect to login after 3 seconds
+                    setTimeout(() => {
+                        window.location.href = '/login.html';
+                    }, 3000);
+                    return null;
+                }
+                
+                const data = await response.json();
+                console.log('Received WebSocket token');
+                
+                if (!data.data || !data.data.token) {
+                    console.error('Error: token is missing in the response');
+                    showStatusMessage('Authentication error', 'error');
+                    return null;
+                }
+                
+                return data.data.token;
+            } catch (error) {
+                console.error('Error getting WebSocket token:', error);
+                showStatusMessage('Failed to connect to the server', 'error');
+                return null;
+            }
+        }
+
+        // Initialize WebSocket connection
+        async function connectWebSocket() {
+            try {
+                // Получаем специальный одноразовый токен для WebSocket
+                const wsToken = await getWebSocketToken();
+                if (!wsToken) {
+                    return;
+                }
+                
+                // WebSocket URL with lobby and one-time token in query parameter
+                const wsUrl = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/lobby/${lobbyId}?token=${wsToken}`;
+                
+                console.log('Connecting to WebSocket:', wsUrl);
+                
+                wsConnection = new WebSocket(wsUrl);
+                
+                wsConnection.onopen = function() {
+                    console.log('WebSocket connection established');
+                    showStatusMessage('Connected to the test lobby', 'success');
+                };
+                
+                wsConnection.onmessage = function(event) {
+                    handleWebSocketMessage(event);
+                };
+                
+                wsConnection.onerror = function(error) {
+                    console.error('WebSocket error:', error);
+                    showStatusMessage('Connection error', 'error');
+                };
+                
+                wsConnection.onclose = function() {
+                    console.log('WebSocket connection closed');
+                    showStatusMessage('Connection lost. Trying to reconnect...', 'warning');
+                    
+                    // Try to reconnect after 5 seconds
+                    setTimeout(connectWebSocket, 5000);
+                };
+            } catch (error) {
+                console.error('Error connecting to WebSocket:', error);
+                showStatusMessage('Failed to connect to the test server', 'error');
+            }
+        }
+
+        // Handle WebSocket messages
+        function handleWebSocketMessage(event) {
+            const message = JSON.parse(event.data);
+            console.log('Received WebSocket message:', message);
+            
+            switch (message.type) {
+                case 'answer_received':
+                    // Обновляем информацию о том, кто ответил на текущий вопрос
+                    if (isHost) {
+                        fetchAnsweredUsers();
+                    }
+                    break;
+                    
+                case 'next_question':
+                    // Загружаем следующий вопрос
+                    if (message.data && message.data.question_id) {
+                        loadQuestion(message.data.question_id);
+                    }
+                    break;
+                    
+                case 'test_finished':
+                    // Тест завершен, переходим на страницу результатов
+                    window.location.href = `/test-results.html?lobby_id=${lobbyId}`;
+                    break;
+                    
+                case 'user_joined':
+                    // Новый участник присоединился
+                    if (message.data && message.data.user_id) {
+                        showStatusMessage(`Новый участник присоединился`, 'info');
+                        // Обновляем информацию о лобби
+                        fetchLobbyInfo();
+                    }
+                    break;
+                    
+                case 'user_left':
+                    // Участник вышел
+                    if (message.data && message.data.user_id) {
+                        showStatusMessage(`Участник покинул тест`, 'info');
+                        // Обновляем информацию о лобби
+                        fetchLobbyInfo();
+                    }
+                    break;
+                    
+                case 'user_kicked':
+                    // Участник был исключен
+                    if (message.data && message.data.user_id === userId) {
+                        showStatusMessage('Вы были исключены из теста', 'error');
+                        // Перенаправляем на главную страницу
+                        setTimeout(() => {
+                            window.location.href = '/';
+                        }, 3000);
+                    }
+                    break;
+                    
+                case 'error':
+                    // Ошибка
+                    showStatusMessage(message.data?.message || 'Произошла ошибка', 'error');
+                    break;
+                    
+                case 'all_answered':
+                    // Все участники ответили на текущий вопрос
+                    if (isHost) {
+                        showAllUsersAnsweredMessage();
+                    }
+                    break;
+                    
+                case 'current_question':
+                    // Информация о текущем вопросе
+                    if (message.data && message.data.question_id) {
+                        loadQuestion(message.data.question_id);
+                    }
+                    break;
+                    
+                case 'answered_users':
+                    // Информация о том, кто ответил на текущий вопрос
+                    if (isHost && message.data) {
+                        updateAnsweredUsersUI(message.data);
+                    }
+                    break;
+                    
+                default:
+                    console.log('Unknown message type:', message.type);
+            }
+        }
+
+        function updateAnsweredUsers(data) {
+            const container = document.getElementById('answered-users');
+            if (!container) return;
+
+            // Очищаем контейнер
+            container.innerHTML = '';
+
+            // Создаем таблицу
+            const table = document.createElement('table');
+            table.className = 'results-table';
+
+            // Добавляем заголовок
+            const thead = document.createElement('thead');
+            thead.innerHTML = `
+                <tr>
+                    <th>Участник</th>
+                    <th>Статус</th>
+                </tr>
+            `;
+            table.appendChild(thead);
+
+            // Добавляем тело таблицы
+            const tbody = document.createElement('tbody');
+            data.results.forEach(result => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${result.username}</td>
+                    <td>
+                        <span class="status-badge ${result.is_correct ? 'correct' : 'incorrect'}">
+                            ${result.is_correct ? '✓' : '✗'}
+                        </span>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            table.appendChild(tbody);
+
+            // Добавляем таблицу в контейнер
+            container.appendChild(table);
+
+            // Добавляем стили, если их еще нет
+            if (!document.getElementById('results-styles')) {
+                const style = document.createElement('style');
+                style.id = 'results-styles';
+                style.textContent = `
+                    .results-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin-top: 1rem;
+                    }
+                    .results-table th,
+                    .results-table td {
+                        padding: 0.5rem;
+                        text-align: left;
+                        border-bottom: 1px solid #ddd;
+                    }
+                    .status-badge {
+                        padding: 0.25rem 0.5rem;
+                        border-radius: 4px;
+                        font-weight: bold;
+                    }
+                    .status-badge.correct {
+                        background-color: #4CAF50;
+                        color: white;
+                    }
+                    .status-badge.incorrect {
+                        background-color: #f44336;
+                        color: white;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        }
+
+        function updateQuestionResults(data) {
+            // Обновляем результаты текущего вопроса
+            const resultsContainer = document.getElementById('question-results');
+            if (!resultsContainer) return;
+
+            resultsContainer.innerHTML = `
+                <h3>Результаты вопроса ${data.question_id}</h3>
+                <div class="results-summary">
+                    <p>Правильных ответов: ${data.results.filter(r => r.is_correct).length}</p>
+                    <p>Неправильных ответов: ${data.results.filter(r => !r.is_correct).length}</p>
+                </div>
+            `;
+        }
+
+        function updateFinalResults(data) {
+            // Обновляем финальные результаты
+            const finalResultsContainer = document.getElementById('final-results');
+            if (!finalResultsContainer) return;
+
+            const results = data.results;
+            const sortedResults = results.sort((a, b) => b.score - a.score);
+
+            finalResultsContainer.innerHTML = `
+                <h2>Финальные результаты</h2>
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>Место</th>
+                            <th>Участник</th>
+                            <th>Баллы</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${sortedResults.map((result, index) => `
+                            <tr>
+                                <td>${index + 1}</td>
+                                <td>${result.username}</td>
+                                <td>${result.score}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        // Update UI for host to show who answered the current question
+        function updateAnsweredUsersUI() {
+            const answeredUsersContainer = document.getElementById('answered-users');
+            if (!answeredUsersContainer) return;
+
+            // Очищаем контейнер
+            answeredUsersContainer.innerHTML = '';
+
+            // Создаем таблицу для отображения результатов
+            const table = document.createElement('table');
+            table.className = 'answered-users-table';
+            
+            // Добавляем заголовок таблицы
+            const thead = document.createElement('thead');
+            thead.innerHTML = `
+                <tr>
+                    <th>Участник</th>
+                    <th>Статус</th>
+                </tr>
+            `;
+            table.appendChild(thead);
+            
+            // Создаем тело таблицы
+            const tbody = document.createElement('tbody');
+            
+            // Добавляем строки для каждого участника
+            answeredUsers.forEach(user => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${user.full_name || 'Участник'}</td>
+                    <td>
+                        <span class="status-badge ${user.is_correct ? 'correct' : 'incorrect'}">
+                            ${user.is_correct ? '✓' : '✗'}
+                        </span>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            table.appendChild(tbody);
+            answeredUsersContainer.appendChild(table);
+
+            // Добавляем стили для таблицы, если их еще нет
+            if (!document.getElementById('answered-users-styles')) {
+                const style = document.createElement('style');
+                style.id = 'answered-users-styles';
+                style.textContent = `
+                    .answered-users-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin-top: 1rem;
+                        background: white;
+                        border-radius: 8px;
+                        overflow: hidden;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    }
+                    .answered-users-table th,
+                    .answered-users-table td {
+                        padding: 12px;
+                        text-align: left;
+                        border-bottom: 1px solid #eee;
+                    }
+                    .answered-users-table th {
+                        background: #f8f9fa;
+                        font-weight: 600;
+                    }
+                    .status-badge {
+                        display: inline-block;
+                        width: 24px;
+                        height: 24px;
+                        line-height: 24px;
+                        text-align: center;
+                        border-radius: 50%;
+                        font-weight: bold;
+                    }
+                    .status-badge.correct {
+                        background: #28a745;
+                        color: white;
+                    }
+                    .status-badge.incorrect {
+                        background: #dc3545;
+                        color: white;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        }
+
+        // Show message when all users have answered
+        function showAllUsersAnsweredMessage() {
+            const hostControls = document.getElementById('host-controls');
+            if (!hostControls) return;
+            
+            const notification = document.createElement('div');
+            notification.className = 'all-answered-notification';
+            notification.innerHTML = '<i class="fas fa-users-check"></i> All participants have answered! You can proceed to the next question.';
+            
+            // Remove any existing notification
+            const existingNotification = hostControls.querySelector('.all-answered-notification');
+            if (existingNotification) {
+                existingNotification.remove();
+            }
+            
+            hostControls.prepend(notification);
+            
+            // Make the next button more prominent
+            const nextButton = document.getElementById('next-question-btn');
+            if (nextButton) {
+                nextButton.classList.add('pulse-animation');
+            }
+        }
+
+        // Move to the next question (host only)
+        function goToNextQuestion() {
+            if (!isHost) return;
+
+            // Send WebSocket message to move to next question
+            wsConnection.send('NEXT_QUESTION');
+            
+            // Reset the answered users list
+            answeredUsers = [];
+            updateAnsweredUsersUI();
+            
+            // Remove prominence from next button
+            const nextButton = document.getElementById('next-question-btn');
+            if (nextButton) {
+                nextButton.classList.remove('pulse-animation');
+            }
+            
+            // Remove the all-answered notification
+            const notification = document.querySelector('.all-answered-notification');
+            if (notification) {
+                notification.remove();
+            }
+        }
+
+        // Submit an answer via WebSocket
+        function submitAnswer(questionId, answerIndex) {
+            if (!wsConnection || wsConnection.readyState !== WebSocket.OPEN) {
+                alert('Connection to server lost. Please refresh the page.');
+                return;
+            }
+            
+            // Send the answer through WebSocket
+            wsConnection.send(`ANSWER:${questionId}:${answerIndex}`);
+        }
+
+        // Handle finishing the test
+        function handleTestFinished(resultsData) {
+            // Redirect to results page
+            window.location.href = `/test-results?id=${lobbyId}`;
+        }
+
+        // Helper functions
+        function getUserName(userId) {
+            // For this demo, we'll use simple naming based on user ID
+            // In a real app, you'd have actual user profiles
+            if (userId === getCurrentUserId()) {
+                return 'You';
+            }
+            // Extract the random part after "user_" and make it more readable
+            const idPart = userId.replace('user_', '');
+            return 'User ' + idPart.substr(0, 4);
+        }
+
+        function getUserInitials(userId) {
+            if (userId === getCurrentUserId()) {
+                return 'Y';
+            }
+            return 'U';
+        }
+
+        // Initialize the test page
+        async function initTest() {
+            // Get lobby ID from URL
+            lobbyId = getLobbyIdFromUrl();
+            
+            if (!lobbyId) {
+                alert('Test ID not specified');
+                window.location.href = '/';
+                return;
+            }
+            
+            try {
+                // Get information about the lobby
+                await fetchLobbyInfo();
+                
+                // Connect to WebSocket for real-time updates
+                connectWebSocket();
+                
+                // Load the current question
+                await loadCurrentQuestion();
+            } catch (error) {
+                console.error('Error initializing test:', error);
+                alert('An error occurred while loading the test. Please try again.');
+            }
+        }
+
+        // Get lobby ID from URL query parameters
+        function getLobbyIdFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('lobby_id');
+        }
+
+        // Fetch lobby information
+        async function fetchLobbyInfo() {
+            try {
+                const response = await fetch(`/api/lobbies/lobbies/${lobbyId}`, {
+                    method: 'GET',
+                    credentials: "include",
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === "ok") {
+                    const lobbyData = data.data;
+                    
+                    // Check if the test is already finished
+                    if (lobbyData.status === "finished") {
+                        window.location.href = `/test-results?id=${lobbyId}`;
+                        return;
+                    }
+                    
+                    // Check if the test has not started yet
+                    if (lobbyData.status === "waiting") {
+                        window.location.href = `/lobby-waiting?id=${lobbyId}`;
+                        return;
+                    }
+                    
+                    // Save if current user is the host
+                    isHost = lobbyData.is_host;
+                    
+                    // If the user is the host, show host controls
+                    if (isHost) {
+                        document.getElementById('host-controls').classList.remove('d-none');
+                    }
+                    
+                    // Save participants information
+                    participants = lobbyData.participants || [];
+                    
+                    // Update UI with test information
+                    document.getElementById('lobby-mode').textContent = lobbyData.mode === 'multi' ? 'Мультиплеер' : 'Одиночный';
+                    document.getElementById('participants-count').textContent = `${lobbyData.participants_count}/35`;
+                    document.getElementById('lobby-host').textContent = lobbyData.host_name || 'Неизвестно';
+                    document.getElementById('lobby-categories').textContent = lobbyData.categories.join(', ');
+                    // Update participants list
+                    updateParticipantsList();
+                } else {
+                    console.error('Error fetching lobby info:', data.message);
+                    alert('Error loading test information: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error fetching lobby information:', error);
+                throw error;
+            }
+        }
+
+        // Load the current question
+        async function loadCurrentQuestion() {
+            try {
+                const response = await fetch(`/api/lobbies/lobbies/${lobbyId}/current-question`, {
+                    method: 'GET',
+                    credentials: "include",
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === "ok") {
+                    // Check if the test is completed
+                    if (data.data.completed) {
+                        // If test is completed, redirect to results page
+                        window.location.href = `/test-results.html?id=${lobbyId}`;
+                        return;
+                    }
+                    
+                    // Display the question
+                    displayQuestion(data.data);
+                    
+                    // If host, get information about who has answered
+                    if (isHost) {
+                        await fetchAnsweredUsers();
+                    }
+                } else {
+                    console.error('Error fetching current question:', data.message);
+                    alert('Error loading question: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error loading current question:', error);
+                throw error;
+            }
+        }
+
+        // Fetch information about who has answered the current question (host only)
+        async function fetchAnsweredUsers() {
+            if (!isHost) return;
+            
+            try {
+                const response = await fetch(`/api/lobbies/lobbies/${lobbyId}/answered-users`, {
+                    method: 'GET',
+                    credentials: "include",
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === "ok") {
+                    // Reset the answered users list
+                    answeredUsers = [];
+                    
+                    // Add each answered user to the list
+                    data.data.answered_users.forEach(user => {
+                        answeredUsers.push({
+                            id: user.user_id,
+                            isCorrect: user.is_correct
+                        });
+                    });
+                    
+                    // Update the UI
+                    updateAnsweredUsersUI();
+                    
+                    // If all users have answered, show the message
+                    if (data.data.all_answered) {
+                        showAllUsersAnsweredMessage();
+                    }
+                } else {
+                    console.error('Error fetching answered users:', data.message);
+                }
+            } catch (error) {
+                console.error('Error fetching answered users:', error);
+            }
+        }
+
+        // Skip the current question (host only)
+        async function skipQuestion() {
+            if (!isHost) return;
+            
+            if (!confirm('Are you sure you want to skip this question? Users who haven\'t answered yet won\'t be able to answer.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/lobbies/lobbies/${lobbyId}/skip`, {
+                    method: 'POST',
+                    credentials: "include",
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === "ok") {
+                    // The WebSocket will notify about moving to the next question
+                    // or test finishing if this was the last question
+                } else {
+                    console.error('Error skipping question:', data.message);
+                    alert('Error skipping question: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error skipping question:', error);
+                alert('An error occurred while skipping the question');
+            }
+        }
+
+        // Finish the test early (host only)
+        async function finishTest() {
+            if (!isHost) return;
+            
+            if (!confirm('Are you sure you want to end the test now? This will calculate final results based on current answers.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/lobbies/lobbies/${lobbyId}/finish`, {
+                    method: 'POST',
+                    credentials: "include",
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === "ok") {
+                    // Redirect to results page
+                    window.location.href = `/test-results.html?id=${lobbyId}`;
+                } else {
+                    console.error('Error finishing test:', data.message);
+                    alert('Error finishing test: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error finishing test:', error);
+                alert('An error occurred while finishing the test');
+            }
+        }
+
+        // Display a question in the UI
+       function displayQuestion(questionData) {
+            if (!questionData || typeof questionData !== 'object') {
+                console.error('❌ Неверный формат данных вопроса:', questionData);
+                return;
+            }
+
+            const questionContainer = document.getElementById('question-container');
+            if (!questionContainer) return;
+
+            // <Устанавлива></Устанавлива>ем ID
+            questionContainer.setAttribute('data-question-id', questionData.id || '');
+
+            // Обновляем текст вопроса
+            document.getElementById('question-text').textContent = questionData.text || 'Нет текста вопроса';
+
+            // Изображение/видео
+            const img = document.getElementById('question-image');
+            const vid = document.getElementById('question-video');
+            const container = document.getElementById('question-image-container');
+
+            if (questionData.media_base64) {
+                img.src = `data:image/jpeg;base64,${questionData.media_base64}`;
+                img.style.display = 'block';
+                vid.style.display = 'none';
+                container.style.display = 'block';
+            } else if (questionData.media_file_id) {
+                img.src = `/api/media/${questionData.media_file_id}`;
+                img.style.display = 'block';
+                vid.style.display = 'none';
+                container.style.display = 'block';
+            } else {
+                container.style.display = 'none';
+            }
+
+            // 🧠 Проверка на варианты ответов
+            const options = questionData.options;
+            if (!Array.isArray(options)) {
+                console.error('❌ Ошибка: варианты ответа не массив:', options);
+                return;
+            }
+
+            const optionsContainer = document.getElementById('answer-options');
+            optionsContainer.innerHTML = '';
+
+            options.forEach((option, index) => {
+                if (!option || typeof option !== 'object') {
+                    console.warn('⚠️ Пропущен некорректный вариант:', option);
+                    return;
+                }
+
+                const label = option.label || String.fromCharCode(65 + index);
+                const text = option.text || '[нет текста]';
+
+                const optionElement = document.createElement('div');
+                optionElement.className = 'answer-option';
+                optionElement.innerHTML = `
+                    <div class="answer-label">${label}</div>
+                    <div class="answer-content">${text}</div>
+                `;
+                optionElement.addEventListener('click', () => handleAnswerSelection(optionElement, index));
+                optionsContainer.appendChild(optionElement);
+            });
+
+            // Объяснение сбрасываем
+            const explanationCard = document.getElementById('explanation-card');
+            explanationCard.style.display = 'none';
+
+            // Включаем выбор
+            enableAnswerOptions();
+
+            // Если ведущий — показать правильный ответ
+            if (isHost) {
+                fetchCorrectAnswer(questionData.id);
+            }
+
+            // Очистка списка ответивших
+            if (isHost) {
+                answeredUsers = [];
+                updateAnsweredUsersUI();
+            }
+        }
+
+        // Fetch the correct answer (for host only)
+        async function fetchCorrectAnswer(questionId) {
+            if (!isHost) return;
+            
+            try {
+                // Get question details with the correct answer
+                const response = await fetch(`/api/lobbies/lobbies/${lobbyId}/questions/${questionId}`, {
+                    method: 'GET',
+                    credentials: "include",
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === "ok") {
+                    const questionData = data.data;
+                    
+                    // Find the correct answer from the lobby data
+                    const correctAnswerIndex = await getCorrectAnswerIndex(questionId);
+                    if (correctAnswerIndex !== null && questionData.options) {
+                        const correctAnswerText = questionData.options[correctAnswerIndex].text;
+                        const correctAnswerLabel = String.fromCharCode(65 + correctAnswerIndex);
+                        
+                        // Display the correct answer in the host UI
+                        document.getElementById('correct-answer').innerHTML = `
+                            <div class="d-flex align-items-center">
+                                <div class="answer-label correct">${correctAnswerLabel}</div>
+                                <div class="ms-3">${correctAnswerText}</div>
+                            </div>
+                        `;
+                    }
+                } else {
+                    console.error('Error fetching question details:', data.message);
+                }
+            } catch (error) {
+                console.error('Error fetching question details:', error);
+            }
+        }
+
+        // Get the correct answer index from the lobby data
+        async function getCorrectAnswerIndex(questionId) {
+            try {
+                // This would ideally come from the lobby data, but for simplicity,
+                // we'll make a specific request to get it
+                const response = await fetch(`/api/lobbies/lobbies/${lobbyId}/correct-answer?question_id=${questionId}`, {
+                    method: 'GET',
+                    credentials: "include",
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === "ok") {
+                    return data.data.correct_index;
+                } else {
+                    console.error('Error fetching correct answer:', data.message);
+                    return null;
+                }
+            } catch (error) {
+                console.error('Error fetching correct answer:', error);
+                return null;
+            }
+        }
+
+        // Load a question by ID
+        async function loadQuestion(questionId) {
+            try {
+                const response = await fetch(`/api/lobbies/lobbies/${lobbyId}/questions/${questionId}`, {
+                    method: 'GET',
+                    credentials: "include",
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === "ok") {
+                    // Display the question
+                    displayQuestion(data.data);
+                    
+                    // If host, reset the answered users list
+                    if (isHost) {
+                        answeredUsers = [];
+                        updateAnsweredUsersUI();
+                    }
+                } else {
+                    console.error('Error loading question:', data.message);
+                    alert('Error loading question: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error loading question:', error);
+                alert('An error occurred while loading the question');
+            }
+        }
+
+        // Check if the current user has already answered
+        function hasUserAnswered() {
+            return document.querySelector('.answer-option.selected, .answer-option.correct, .answer-option.incorrect') !== null;
+        }
+
+        // Disable all answer options
+        function disableAnswerOptions() {
+            document.querySelectorAll('.answer-option').forEach(option => {
+                option.style.pointerEvents = 'none';
+                option.classList.add('disabled');
+            });
+        }
+
+        // Enable all answer options
+        function enableAnswerOptions() {
+            document.querySelectorAll('.answer-option').forEach(option => {
+                option.style.pointerEvents = 'auto';
+                option.classList.remove('disabled');
+            });
+        }
+
+        // Show loading indicator while waiting for answer confirmation
+        function showAnswerLoadingIndicator() {
+            const loadingIndicator = document.createElement('div');
+            loadingIndicator.id = 'answer-loading';
+            loadingIndicator.className = 'answer-loading';
+            loadingIndicator.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking your answer...';
+            
+            document.getElementById('question-container').appendChild(loadingIndicator);
+        }
+
+        // Hide answer loading indicator
+        function hideAnswerLoadingIndicator() {
+            const loadingIndicator = document.getElementById('answer-loading');
+            if (loadingIndicator) {
+                loadingIndicator.remove();
+            }
+        }
+
+        // Mark the correct answer after submission
+        function markCorrectAnswer(correctAnswerIndex) {
+            const options = document.querySelectorAll('.answer-option');
+            const selectedOption = document.querySelector('.answer-option.selected');
+            
+            // Mark the correct option
+            options[correctAnswerIndex].classList.add('correct');
+            
+            // If the selected option is not correct, mark it as incorrect
+            if (selectedOption && !selectedOption.classList.contains('correct')) {
+                selectedOption.classList.add('incorrect');
+            }
+        }
+
+        // Show explanation after answering
+        function showExplanation(explanation) {
+            const explanationCard = document.getElementById('explanation-card');
+            const explanationText = document.getElementById('explanation-text');
+            
+            explanationText.textContent = explanation || 'No explanation available for this question.';
+            explanationCard.style.display = 'block';
+        }
+
+        // Update statistics after answering
+        function updateStats(isCorrect) {
+            // Update the correct/incorrect counters
+            if (isCorrect) {
+                const correctCounter = document.getElementById('correct-count');
+                correctCounter.textContent = parseInt(correctCounter.textContent) + 1;
+            } else {
+                const incorrectCounter = document.getElementById('incorrect-count');
+                incorrectCounter.textContent = parseInt(incorrectCounter.textContent) + 1;
+            }
+            
+            // Update the answered counter
+            const answeredCounter = document.getElementById('answered-count');
+            answeredCounter.textContent = parseInt(answeredCounter.textContent) + 1;
+        }
+
+        // Handle answer submission
+        function handleAnswerSelection(optionElement, answerIndex) {
+            // If already answered, do nothing
+            if (hasUserAnswered()) return;
+            
+            // Mark option as selected
+            document.querySelectorAll('.answer-option').forEach(option => {
+                option.classList.remove('selected');
+            });
+            optionElement.classList.add('selected');
+            
+            // Get question ID
+            const questionId = document.getElementById('question-container').getAttribute('data-question-id');
+            
+            // Submit answer via WebSocket
+            submitAnswer(questionId, answerIndex);
+            
+            // Disable further answers
+            disableAnswerOptions();
+            
+            // Show loading indicator
+            showAnswerLoadingIndicator();
+        }
+
+        // Function to update the participants list in the UI
+        function updateParticipantsList() {
+            const participantsContainer = document.getElementById('participants-list');
+            if (!participantsContainer) {
+                console.error('Participants container not found');
+                return;
+            }
+            
+            participantsContainer.innerHTML = '';
+            
+            participants.sort((a, b) => {
+                // Host always first
+                if (a.id === hostId) return -1;
+                if (b.id === hostId) return 1;
+                // Then sort by join time
+                return a.joined - b.joined;
+            }).forEach(participant => {
+                const participantEl = document.createElement('div');
+                participantEl.className = 'participant';
+                
+                const initialsEl = document.createElement('div');
+                initialsEl.className = 'participant-initials';
+                initialsEl.textContent = getUserInitials(participant.id);
+                
+                const nameEl = document.createElement('div');
+                nameEl.className = 'participant-name';
+                nameEl.textContent = getUserName(participant.id);
+                
+                if (participant.id === hostId) {
+                    const hostBadge = document.createElement('span');
+                    hostBadge.className = 'host-badge';
+                    hostBadge.textContent = 'HOST';
+                    nameEl.appendChild(hostBadge);
+                }
+                
+                if (participant.id === getCurrentUserId()) {
+                    participantEl.classList.add('current-user');
+                }
+                
+                participantEl.appendChild(initialsEl);
+                participantEl.appendChild(nameEl);
+                participantsContainer.appendChild(participantEl);
+            });
+        }
+
+        // Add styles for participants list
+        function addParticipantStyles() {
+            const styleEl = document.createElement('style');
+            styleEl.textContent = `
+                #participants-list {
+                    margin-top: 20px;
+                }
+                .participant {
+                    display: flex;
+                    align-items: center;
+                    margin-bottom: 8px;
+                    padding: 8px;
+                    border-radius: 4px;
+                    background-color: #f5f5f5;
+                }
+                .participant.current-user {
+                    background-color: #e6f7ff;
+                    border-left: 3px solid #1890ff;
+                }
+                .participant-initials {
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 50%;
+                    background-color: #1890ff;
+                    color: white;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-weight: bold;
+                    margin-right: 10px;
+                }
+                .participant-name {
+                    flex-grow: 1;
+                    font-size: 14px;
+                }
+                .host-badge {
+                    background-color: #52c41a;
+                    color: white;
+                    font-size: 10px;
+                    padding: 2px 5px;
+                    border-radius: 3px;
+                    margin-left: 8px;
+                }
+            `;
+            document.head.appendChild(styleEl);
+        }
+
+        // Call the style functions when document is ready
+       document.addEventListener('DOMContentLoaded', function () {
+            addParticipantStyles();  // ✅ функция есть
+            initTest();              // ✅ запуск всей логики
+
+            // Create participants list container if it doesn't exist
+            if (!document.getElementById('participants-list')) {
+                const participantsSection = document.createElement('div');
+                participantsSection.className = 'section';
+
+                const participantsHeader = document.createElement('h3');
+                participantsHeader.textContent = 'Participants';
+
+                const participantsList = document.createElement('div');
+                participantsList.id = 'participants-list';
+
+                participantsSection.appendChild(participantsHeader);
+                participantsSection.appendChild(participantsList);
+                document.body.appendChild(participantsSection);
+            }
+        });
+
+        // Add function to send a "join" message
+        function joinSession() {
+            const userId = getCurrentUserId();
+            wsConnection.send(JSON.stringify({
+                type: 'join',
+                userId: userId,
+                timestamp: new Date().toISOString()
+            }));
+        }
+
+        // Helper functions for user information
+        function getCurrentUserId() {
+            // In a real app, this would come from authentication
+            // For testing, we'll generate a random ID if not already set
+            if (!localStorage.getItem('testUserId')) {
+                localStorage.setItem('testUserId', 'user_' + Math.random().toString(36).substr(2, 9));
+            }
+            return localStorage.getItem('testUserId');
+        }
+
+        function getCurrentUserName() {
+            // For this demo, we'll use simple naming based on user ID
+            // In a real app, you'd have actual user profiles
+            if (getCurrentUserId() === getCurrentUserId()) {
+                return 'You';
+            }
+            // Extract the random part after "user_" and make it more readable
+            const idPart = getCurrentUserId().replace('user_', '');
+            return 'User ' + idPart.substr(0, 4);
+        }
+
+        function getCurrentUserInitials() {
+            if (getCurrentUserId() === getCurrentUserId()) {
+                return 'Y';
+            }
+            return 'U';
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusElement = document.getElementById('status-message');
+            if (!statusElement) return;
+            
+            statusElement.textContent = message;
+            statusElement.className = `status-message status-${type}`;
+            statusElement.style.display = 'block';
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                statusElement.style.display = 'none';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

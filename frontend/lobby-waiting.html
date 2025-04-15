@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ожидание начала теста - Royal Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --light-color: #ecf0f1;
+            --dark-color: #2c3e50;
+            --success-color: #27ae60;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7fa;
+            color: var(--dark-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .navbar {
+            background-color: var(--primary-color);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            color: white;
+        }
+        
+        .navbar-nav .nav-link {
+            color: white;
+            opacity: 0.8;
+            transition: opacity 0.3s;
+        }
+        
+        .navbar-nav .nav-link:hover {
+            opacity: 1;
+        }
+        
+        .main-content {
+            flex-grow: 1;
+            padding: 3rem 0;
+        }
+        
+        .page-title {
+            color: var(--primary-color);
+            font-weight: 700;
+            margin-bottom: 2rem;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
+        }
+        
+        .participant-list {
+            max-height: 350px;
+            overflow-y: auto;
+        }
+        
+        .participants-container {
+            margin: 20px 0;
+            max-width: 600px;
+        }
+        
+        .participant-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            transition: background-color 0.2s;
+        }
+        
+        .participant-item:hover {
+            background-color: #e9ecef;
+        }
+        
+        .participant-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #007bff;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+        
+        .participant-name {
+            flex-grow: 1;
+            font-size: 16px;
+        }
+        
+        .host-badge {
+            background-color: #28a745;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        
+        .btn-action {
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-start {
+            background-color: var(--success-color);
+            color: white;
+            margin-right: 10px;
+        }
+        
+        .btn-start:hover {
+            background-color: #219653;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(39, 174, 96, 0.3);
+        }
+        
+        .btn-cancel {
+            background-color: var(--accent-color);
+            color: white;
+        }
+        
+        .btn-cancel:hover {
+            background-color: #c0392b;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(231, 76, 60, 0.3);
+        }
+        
+        .btn-kick {
+            background: none;
+            border: none;
+            color: #dc3545;
+            cursor: pointer;
+            padding: 5px;
+            transition: color 0.2s;
+        }
+        
+        .btn-kick:hover {
+            color: #c82333;
+        }
+        
+        .invite-link {
+            background-color: #f8f9fa;
+            border: 1px dashed #dcdde1;
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .invite-link input {
+            flex-grow: 1;
+            border: none;
+            background: transparent;
+            padding: 5px;
+            outline: none;
+        }
+        
+        .invite-link button {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .invite-link button:hover {
+            background-color: #2980b9;
+        }
+        
+        .footer {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 2rem 0;
+            margin-top: auto;
+        }
+        
+        .footer-links a {
+            color: white;
+            opacity: 0.8;
+            text-decoration: none;
+            margin-right: 1.5rem;
+            transition: opacity 0.3s;
+        }
+        
+        .footer-links a:hover {
+            opacity: 1;
+        }
+        
+        .social-icons {
+            font-size: 1.3rem;
+        }
+        
+        .social-icons a {
+            color: white;
+            margin-left: 1rem;
+            opacity: 0.8;
+            transition: opacity 0.3s;
+        }
+        
+        .social-icons a:hover {
+            opacity: 1;
+        }
+        
+        .lobby-info {
+            display: flex;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            gap: 15px;
+        }
+        
+        .info-item {
+            background-color: white;
+            border-radius: 8px;
+            padding: 15px;
+            flex: 1;
+            min-width: 200px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .info-label {
+            font-size: 0.8rem;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+        }
+        
+        .info-value {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: var(--dark-color);
+        }
+        
+        .countdown {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-color);
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .status-message {
+            text-align: center;
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #e8f4fd;
+            border-radius: 8px;
+            color: var(--secondary-color);
+            font-weight: 500;
+        }
+        
+        @media (max-width: 768px) {
+            .info-item {
+                min-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="/">Royal Test</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Главная</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/subscriptions.html">Подписки</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/history.html">История тестов</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/profile.html">Профиль</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="container">
+            <h1 class="text-center page-title">Ожидание начала теста</h1>
+            
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <div class="status-message" id="status-message">
+                        <i class="fas fa-spinner fa-spin me-2"></i> Ожидание участников...
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-body p-4">
+                            <h2 class="card-title mb-3">Информация о лобби</h2>
+                            
+                            <div class="lobby-info">
+                                <div class="info-item">
+                                    <div class="info-label">ID лобби</div>
+                                    <div class="info-value" id="lobby-id">...</div>
+                                </div>
+                                <div class="info-item">
+                                    <div class="info-label">Создатель</div>
+                                    <div class="info-value" id="lobby-host">...</div>
+                                </div>
+                                <div class="info-item">
+                                    <div class="info-label">Категории</div>
+                                    <div class="info-value" id="lobby-categories">...</div>
+                                </div>
+                                <div class="info-item">
+                                    <div class="info-label">Режим</div>
+                                    <div class="info-value" id="lobby-mode">...</div>
+                                </div>
+                                <div class="info-item">
+                                    <div class="info-label">Участники</div>
+                                    <div class="info-value" id="participants-count">0/35</div>
+                                </div>
+                            </div>
+
+                            <div class="invite-link">
+                                <i class="fas fa-link me-3 text-secondary"></i>
+                                <input type="text" id="invite-url" readonly>
+                                <button id="copy-invite" onclick="copyInviteLink()">
+                                    <i class="fas fa-copy me-2"></i> Копировать
+                                </button>
+                            </div>
+
+                            <!-- Кнопки управления (только для создателя лобби) -->
+                            <div id="host-controls" class="d-none text-center mt-4">
+                                <button id="start-test-btn" class="btn btn-start" onclick="startTest()">
+                                    <i class="fas fa-play me-2"></i> Начать тест
+                                </button>
+                                <button id="cancel-lobby-btn" class="btn btn-cancel" onclick="cancelLobby()">
+                                    <i class="fas fa-times me-2"></i> Отменить лобби
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-body p-4">
+                            <h3 class="mb-3">Участники (<span id="participant-counter">0</span>)</h3>
+
+                            <div id="participant-list" class="participant-list">
+                                <!-- Участники будут добавляться динамически через JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="footer-links">
+                    <a href="/about.html">О нас</a>
+                    <a href="/contact.html">Контакты</a>
+                    <a href="/terms.html">Условия использования</a>
+                    <a href="/privacy.html">Политика конфиденциальности</a>
+                </div>
+                <div class="social-icons">
+                    <a href="#"><i class="fab fa-telegram"></i></a>
+                    <a href="#"><i class="fab fa-vk"></i></a>
+                    <a href="#"><i class="fab fa-youtube"></i></a>
+                </div>
+            </div>
+            <hr class="mt-3 mb-3" style="border-color: rgba(255,255,255,0.1);">
+            <div class="text-center">
+                <p class="mb-0">&copy; 2023 Royal Test. Все права защищены.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Глобальные переменные
+        let lobbyId = null;
+        let isHost = false;
+        let userId = null;
+        let hostId = null;
+        let wsConnection = null;
+        let participants = [];
+
+        // Получение ID лобби из URL
+        function getLobbyIdFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('id');
+        }
+
+        // Получение WebSocket токена
+        async function getWebSocketToken() {
+            try {
+                console.log('Запрос WebSocket токена...');
+                const response = await fetch('/api/websocket_token/ws-token', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                console.log('Ответ на запрос WebSocket токена:', data);
+                
+                if (data.status === "ok" && data.data.token) {
+                    return data.data.token;
+                } else {
+                    throw new Error('Не удалось получить WebSocket токен');
+                }
+            } catch (error) {
+                console.error('Ошибка получения WebSocket токена:', error);
+                throw error;
+            }
+        }
+
+        // Инициализация страницы
+        async function initPage() {
+            lobbyId = getLobbyIdFromUrl();
+            if (!lobbyId) {
+                alert('ID лобби не указан');
+                window.location.href = '/';
+                return;
+            }
+            
+            console.log('Инициализация страницы для лобби:', lobbyId);
+            document.getElementById('lobby-id').textContent = lobbyId;
+            const inviteUrl = `${window.location.origin}/lobby-waiting?id=${lobbyId}`;
+            document.getElementById('invite-url').value = inviteUrl;
+            
+            try {
+                await fetchLobbyInfo();
+                const wsToken = await getWebSocketToken();
+                connectWebSocket(wsToken);
+            } catch (error) {
+                console.error('Ошибка при инициализации:', error);
+                alert('Произошла ошибка при загрузке информации о лобби. Пожалуйста, попробуйте снова.');
+            }
+        }
+
+        // Получение информации о лобби
+        async function fetchLobbyInfo() {
+            try {
+                console.log('Запрос информации о лобби:', lobbyId);
+                const response = await fetch(`/api/lobbies/lobbies/${lobbyId}`, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                console.log('Ответ о лобби:', data);
+                
+                if (data.status === "ok") {
+                    const lobby = data.data;
+                    hostId = lobby.host_id;
+                    userId = lobby.current_user_id;
+                    isHost = lobby.is_host;
+                    
+                    console.log('Информация о лобби:', {
+                        hostId,
+                        userId,
+                        isHost,
+                        status: lobby.status,
+                        mode: lobby.mode
+                    });
+
+                    // Обновляем информацию о создателе
+                    document.getElementById('lobby-host').textContent = lobby.host_name || 'Неизвестный пользователь';
+                    document.getElementById('lobby-categories').textContent = getCategoriesInfo(lobby.categories);
+                    document.getElementById('lobby-mode').textContent = lobby.mode === 'solo' ? 'Одиночный' : 'Мультиплеер';
+                    
+                    // Обновляем счетчик участников
+                    const participantsCount = lobby.participants_count || 0;
+                    document.getElementById('participant-counter').textContent = participantsCount;
+                    document.getElementById('participants-count').textContent = `${participantsCount}/35`;
+
+                    // Очищаем список участников
+                    const participantsList = document.getElementById('participant-list');
+                    participantsList.innerHTML = '';
+
+                    // Если есть информация о создателе, добавляем его в список
+                    if (lobby.host_id) {
+                        addParticipant(
+                            lobby.host_id,
+                            true,
+                            lobby.host_name || 'Создатель лобби'
+                        );
+                    }
+
+                    if (isHost) {
+                        document.getElementById('host-controls').classList.remove('d-none');
+                    }
+
+                    // Проверка статуса лобби
+                    if (lobby.status === "in_progress") {
+                        console.log('Лобби уже в процессе, перенаправление на страницу теста');
+                        window.location.href = `/multiplay-test.html?lobby_id=${lobbyId}`;
+                    } else if (lobby.status === "finished") {
+                        console.log('Лобби завершено, перенаправление на страницу результатов');
+                        window.location.href = `/test-results.html?lobby_id=${lobbyId}`;
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка при загрузке информации о лобби:', error);
+                throw error;
+            }
+        }
+
+        // Подключение к WebSocket
+        function connectWebSocket(token) {
+            if (!token) {
+                console.error('Отсутствует WebSocket токен');
+                document.getElementById('status-message').innerHTML =
+                    '<i class="fas fa-exclamation-triangle me-2 text-danger"></i> Ошибка подключения к серверу';
+                return;
+            }
+
+            const wsUrl = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/lobby/${lobbyId}?token=${token}`;
+            console.log('Подключение к WebSocket:', wsUrl);
+            
+            wsConnection = new WebSocket(wsUrl);
+
+            wsConnection.onopen = function() {
+                console.log('WebSocket соединение установлено');
+                document.getElementById('status-message').innerHTML =
+                    '<i class="fas fa-check-circle me-2 text-success"></i> Подключено к лобби';
+            };
+
+            wsConnection.onmessage = function(event) {
+                const message = JSON.parse(event.data);
+                console.log('Получено WebSocket сообщение:', message);
+
+                switch (message.type) {
+                    case 'user_joined':
+                        console.log('Новый участник присоединился:', message.data);
+                        if (message.data && message.data.user_id) {
+                            const userInfo = message.data;
+                            addParticipant(
+                                userInfo.user_id,
+                                userInfo.is_host,
+                                userInfo.user_full_name || userInfo.user_name || `Участник ${userInfo.user_id.substring(0, 5)}`
+                            );
+                        }
+                        break;
+
+                    case 'user_left':
+                        console.log('Участник покинул лобби:', message.data);
+                        if (message.data && message.data.user_id) {
+                            removeParticipant(message.data.user_id);
+                        }
+                        break;
+
+                    case 'test_started':
+                        console.log('Тест начат, перенаправление...');
+                        window.location.href = `/multiplay-test.html?lobby_id=${lobbyId}`;
+                        break;
+
+                    case 'lobby_closed':
+                        console.log('Лобби закрыто создателем');
+                        alert('Лобби было закрыто создателем');
+                        window.location.href = '/';
+                        break;
+
+                    case 'error':
+                        console.error('Получена ошибка:', message.data);
+                        alert(message.data.message || 'Произошла ошибка');
+                        break;
+
+                    default:
+                        console.log('Получено неизвестное сообщение:', message);
+                }
+            };
+
+            wsConnection.onerror = function(error) {
+                console.error('WebSocket ошибка:', error);
+                document.getElementById('status-message').innerHTML =
+                    '<i class="fas fa-exclamation-triangle me-2 text-danger"></i> Ошибка подключения';
+            };
+
+            wsConnection.onclose = function() {
+                console.log('WebSocket соединение закрыто');
+                document.getElementById('status-message').innerHTML =
+                    '<i class="fas fa-times-circle me-2 text-danger"></i> Соединение прервано';
+                // Пробуем получить новый токен и переподключиться через 5 секунд
+                setTimeout(async () => {
+                    try {
+                        console.log('Попытка переподключения...');
+                        const newToken = await getWebSocketToken();
+                        connectWebSocket(newToken);
+                    } catch (error) {
+                        console.error('Ошибка переподключения:', error);
+                    }
+                }, 5000);
+            };
+        }
+
+        // Начать тест (только для хоста)
+        async function startTest() {
+            if (!isHost) {
+                return;
+            }
+
+            try {
+                document.getElementById('status-message').innerHTML =
+                    '<i class="fas fa-spinner fa-spin me-2 text-primary"></i> Запуск теста...';
+
+                const response = await fetch(`/api/lobbies/lobbies/${lobbyId}/start`, {
+                    method: 'POST',
+                    credentials: 'include' // Важно: включаем отправку куки
+                });
+
+                const data = await response.json();
+                if (data.status === "ok") {
+                    document.getElementById('status-message').innerHTML =
+                        '<i class="fas fa-check-circle me-2 text-success"></i> Тест запущен! Перенаправление...';
+                } else {
+                    throw new Error(data.message || 'Ошибка при запуске теста');
+                }
+            } catch (error) {
+                console.error('Ошибка при запуске теста:', error);
+                alert('Произошла ошибка при запуске теста: ' + error.message);
+            }
+        }
+
+        // Исключение участника (только для хоста)
+        async function kickParticipant(userId) {
+            if (!isHost || !confirm('Вы действительно хотите исключить участника?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/lobbies/lobbies/${lobbyId}/kick`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include', // Важно: включаем отправку куки
+                    body: JSON.stringify({ target_user_id: userId })
+                });
+
+                const data = await response.json();
+                if (data.status === "ok") {
+                    removeParticipant(userId);
+                } else {
+                    throw new Error(data.message || 'Ошибка при исключении участника');
+                }
+            } catch (error) {
+                console.error('Ошибка при исключении участника:', error);
+                alert('Произошла ошибка при исключении участника: ' + error.message);
+            }
+        }
+
+        // Добавление участника в список
+        function addParticipant(userId, isHost = false, userName = null) {
+            if (participants.includes(userId)) {
+                return;
+            }
+
+            participants.push(userId);
+            document.getElementById('participant-counter').textContent = participants.length;
+            document.getElementById('participants-count').textContent = `${participants.length}/35`;
+
+            const participantItem = document.createElement('div');
+            participantItem.className = 'participant-item';
+            participantItem.id = `participant-${userId}`;
+
+            const initials = (userName || 'НУ').substring(0, 2).toUpperCase();
+            
+            participantItem.innerHTML = `
+                <div class="participant-avatar">${initials}</div>
+                <div class="participant-name">
+                    ${userName || 'Неизвестный участник'}
+                    ${isHost ? '<span class="host-badge">Создатель</span>' : ''}
+                </div>
+                ${isHost ? '' : getCurrentUserId() === getHostId() ?
+                    `<button class="btn-kick" onclick="kickParticipant('${userId}')">
+                        <i class="fas fa-user-times"></i>
+                    </button>` : ''}
+            `;
+
+            document.getElementById('participant-list').appendChild(participantItem);
+        }
+
+        // Удаление участника из списка
+        function removeParticipant(userId) {
+            participants = participants.filter(id => id !== userId);
+            document.getElementById('participant-counter').textContent = participants.length;
+            document.getElementById('participants-count').textContent = `${participants.length}/35`;
+
+            const participantElement = document.getElementById(`participant-${userId}`);
+            if (participantElement) {
+                participantElement.remove();
+            }
+        }
+
+        // Получение информации о категориях
+        function getCategoriesInfo(categories) {
+            if (!categories || categories.length === 0) {
+                return 'Все категории';
+            }
+            const categoryNames = {
+                'A1': 'A1 - Мотоциклы с объемом двигателя до 125 см³',
+                'A': 'A - Мотоциклы',
+                'B1': 'B1 - Квадрициклы',
+                'B': 'B - Легковые автомобили',
+                'BE': 'BE - Легковые автомобили с прицепом',
+                'C': 'C - Грузовые автомобили',
+                'CE': 'CE - Грузовые автомобили с прицепом',
+                'D': 'D - Автобусы',
+                'DE': 'DE - Автобусы с прицепом',
+                'M': 'M - Мопеды'
+            };
+            return categories.map(cat => categoryNames[cat] || cat).join(', ');
+        }
+
+        // Копирование ссылки-приглашения
+        function copyInviteLink() {
+            const inviteUrl = document.getElementById('invite-url');
+            inviteUrl.select();
+            document.execCommand('copy');
+            
+            const copyButton = document.getElementById('copy-invite');
+            const originalText = copyButton.innerHTML;
+            copyButton.innerHTML = '<i class="fas fa-check me-2"></i> Скопировано';
+            setTimeout(() => {
+                copyButton.innerHTML = originalText;
+            }, 2000);
+        }
+
+        // Вспомогательные функции
+        function getCurrentUserId() {
+            return userId;
+        }
+
+        function getHostId() {
+            return hostId;
+        }
+
+        // Запускаем инициализацию при загрузке страницы
+        window.addEventListener('DOMContentLoaded', initPage);
+    </script>
+</body>
+</html>

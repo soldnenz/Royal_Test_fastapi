@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Результаты теста - Royal Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --light-color: #ecf0f1;
+            --dark-color: #2c3e50;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7fa;
+            color: var(--dark-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .navbar {
+            background-color: var(--primary-color);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            color: white;
+        }
+        
+        .navbar-nav .nav-link {
+            color: white;
+            opacity: 0.8;
+            transition: opacity 0.3s;
+        }
+        
+        .navbar-nav .nav-link:hover {
+            opacity: 1;
+        }
+        
+        .main-content {
+            flex-grow: 1;
+            padding: 3rem 0;
+        }
+        
+        .page-title {
+            color: var(--primary-color);
+            font-weight: 700;
+            margin-bottom: 2rem;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
+        }
+        
+        .result-header {
+            padding: 2rem;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border-radius: 12px 12px 0 0;
+            text-align: center;
+        }
+        
+        .result-score {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        
+        .result-subtitle {
+            font-size: 1.2rem;
+            opacity: 0.8;
+        }
+        
+        .result-status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-top: 15px;
+        }
+        
+        .result-status.passed {
+            background-color: rgba(39, 174, 96, 0.2);
+            color: var(--success-color);
+        }
+        
+        .result-status.failed {
+            background-color: rgba(231, 76, 60, 0.2);
+            color: var(--accent-color);
+        }
+        
+        .result-card-body {
+            padding: 2rem;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-item {
+            background-color: white;
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: var(--secondary-color);
+        }
+        
+        .stat-value.good {
+            color: var(--success-color);
+        }
+        
+        .stat-value.bad {
+            color: var(--accent-color);
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+        }
+        
+        .section-performance {
+            margin-bottom: 2rem;
+        }
+        
+        .section-title {
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+            border-bottom: 1px solid #eee;
+            padding-bottom: 0.5rem;
+        }
+        
+        .section-progress {
+            height: 10px;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-bottom: 0.5rem;
+        }
+        
+        .section-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--secondary-color), var(--success-color));
+        }
+        
+        .section-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            color: #7f8c8d;
+        }
+        
+        .leaderboard {
+            margin-top: 2rem;
+        }
+        
+        .leaderboard-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .leaderboard-table th {
+            background-color: #f8f9fa;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #2c3e50;
+            border-bottom: 2px solid #eee;
+        }
+        
+        .leaderboard-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .leaderboard-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .leaderboard-rank {
+            font-weight: 700;
+            width: 50px;
+            text-align: center;
+        }
+        
+        .rank-1 {
+            color: gold;
+        }
+        
+        .rank-2 {
+            color: silver;
+        }
+        
+        .rank-3 {
+            color: #cd7f32; /* Bronze */
+        }
+        
+        .leaderboard-user {
+            display: flex;
+            align-items: center;
+        }
+        
+        .user-avatar {
+            width: 35px;
+            height: 35px;
+            background-color: var(--secondary-color);
+            border-radius: 50%;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            margin-right: 15px;
+        }
+        
+        .user-name {
+            font-weight: 500;
+        }
+        
+        .current-user {
+            background-color: rgba(52, 152, 219, 0.05);
+        }
+        
+        .host-badge {
+            background-color: var(--primary-color);
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 10px;
+        }
+        
+        .score-cell {
+            font-weight: 600;
+            color: var(--secondary-color);
+        }
+        
+        .btn-action {
+            display: inline-block;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            margin-right: 10px;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+        
+        .btn-primary {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+        }
+        
+        .btn-outline {
+            border: 2px solid var(--secondary-color);
+            color: var(--secondary-color);
+            background-color: transparent;
+        }
+        
+        .btn-outline:hover {
+            background-color: var(--secondary-color);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+        }
+        
+        .footer {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 2rem 0;
+            margin-top: auto;
+        }
+        
+        .footer-links a {
+            color: white;
+            opacity: 0.8;
+            text-decoration: none;
+            margin-right: 1.5rem;
+            transition: opacity 0.3s;
+        }
+        
+        .footer-links a:hover {
+            opacity: 1;
+        }
+        
+        .social-icons {
+            font-size: 1.3rem;
+        }
+        
+        .social-icons a {
+            color: white;
+            margin-left: 1rem;
+            opacity: 0.8;
+            transition: opacity 0.3s;
+        }
+        
+        .social-icons a:hover {
+            opacity: 1;
+        }
+        
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="/">Royal Test</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Главная</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/subscriptions.html">Подписки</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/history.html">История тестов</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/profile.html">Профиль</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="container">
+            <h1 class="text-center page-title">Результаты теста</h1>
+            
+            <div class="row justify-content-center">
+                <div class="col-lg-10">
+                    <div class="card mb-4">
+                        <div class="result-header">
+                            <div class="result-score" id="user-score">36/40</div>
+                            <div class="result-subtitle">Правильных ответов</div>
+                            <div class="result-status passed" id="result-status">ТЕСТ ПРОЙДЕН</div>
+                        </div>
+                        <div class="result-card-body">
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <div class="stat-value good" id="percentage">90%</div>
+                                    <div class="stat-label">Процент правильных</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="duration">12:45</div>
+                                    <div class="stat-label">Затраченное время</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="rank">2/15</div>
+                                    <div class="stat-label">Ваше место</div>
+                                </div>
+                            </div>
+                            
+                            <section class="section-performance">
+                                <h3 class="section-title">Результаты по разделам</h3>
+                                <div id="sections-container">
+                                    <!-- Секции будут добавлены через JavaScript -->
+                                </div>
+                            </section>
+                            
+                            <section class="leaderboard">
+                                <h3 class="section-title">Таблица результатов</h3>
+                                <table class="leaderboard-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Место</th>
+                                            <th>Участник</th>
+                                            <th>Баллы</th>
+                                            <th>Время</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="leaderboard-body">
+                                        <!-- Результаты будут добавлены через JavaScript -->
+                                    </tbody>
+                                </table>
+                            </section>
+                            
+                            <div class="text-center mt-4">
+                                <a href="/" class="btn-action btn-primary">
+                                    <i class="fas fa-home me-2"></i> На главную
+                                </a>
+                                <a href="/history.html" class="btn-action btn-outline">
+                                    <i class="fas fa-history me-2"></i> История тестов
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="footer-links">
+                    <a href="/about.html">О нас</a>
+                    <a href="/contact.html">Контакты</a>
+                    <a href="/terms.html">Условия использования</a>
+                    <a href="/privacy.html">Политика конфиденциальности</a>
+                </div>
+                <div class="social-icons">
+                    <a href="#"><i class="fab fa-telegram"></i></a>
+                    <a href="#"><i class="fab fa-vk"></i></a>
+                    <a href="#"><i class="fab fa-youtube"></i></a>
+                </div>
+            </div>
+            <hr class="mt-3 mb-3" style="border-color: rgba(255,255,255,0.1);">
+            <div class="text-center">
+                <p class="mb-0">&copy; 2025 Royal Test. Все права защищены.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Глобальные переменные
+        let lobbyId = null;
+        let isHost = false;
+        let userId = null;
+        let userResults = null;
+        let allParticipantsResults = null;
+        
+        // Получаем ID лобби из URL
+        function getLobbyIdFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('id');
+        }
+        
+        // Инициализация страницы
+        async function initPage() {
+            lobbyId = getLobbyIdFromUrl();
+            
+            if (!lobbyId) {
+                alert('ID лобби не указан');
+                window.location.href = '/';
+                return;
+            }
+            
+            try {
+                // Получаем результаты теста
+                await fetchTestResults();
+            } catch (error) {
+                console.error('Ошибка при инициализации:', error);
+                alert('Произошла ошибка при загрузке результатов теста. Пожалуйста, попробуйте снова.');
+            }
+        }
+        
+        // Получение результатов теста
+        async function fetchTestResults() {
+            try {
+                const response = await fetch(`/api/lobbies/lobbies/${lobbyId}/results`, {
+                    method: 'GET',
+                    credentials: "include",
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === "ok") {
+                    // Сохраняем данные
+                    userResults = data.data.user_result;
+                    allParticipantsResults = data.data.all_participants;
+                    
+                    // Обновляем интерфейс
+                    updateResultsUI(data.data);
+                } else {
+                    console.error('Ошибка при получении результатов теста:', data.message);
+                    alert('Не удалось загрузить результаты теста: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Ошибка при получении результатов теста:', error);
+                throw error;
+            }
+        }
+        
+        // Обновление интерфейса результатов
+        function updateResultsUI(resultsData) {
+            const userResult = resultsData.user_result;
+            
+            // Обновляем заголовок с общим результатом
+            document.getElementById('user-score').textContent = `${userResult.correct_count}/${userResult.total_questions}`;
+            
+            // Обновляем статус (пройден/не пройден)
+            const resultStatus = document.getElementById('result-status');
+            if (userResult.passing_score) {
+                resultStatus.textContent = 'ТЕСТ ПРОЙДЕН';
+                resultStatus.classList.add('passed');
+                resultStatus.classList.remove('failed');
+            } else {
+                resultStatus.textContent = 'ТЕСТ НЕ ПРОЙДЕН';
+                resultStatus.classList.add('failed');
+                resultStatus.classList.remove('passed');
+            }
+            
+            // Обновляем процент правильных ответов
+            const percentage = document.getElementById('percentage');
+            percentage.textContent = `${userResult.percentage}%`;
+            if (userResult.percentage >= 80) {
+                percentage.classList.add('good');
+                percentage.classList.remove('bad');
+            } else {
+                percentage.classList.add('bad');
+                percentage.classList.remove('good');
+            }
+            
+            // Обновляем продолжительность теста
+            document.getElementById('duration').textContent = userResult.duration_formatted;
+            
+            // Обновляем место в рейтинге
+            document.getElementById('rank').textContent = `${resultsData.user_rank}/${resultsData.total_participants}`;
+            
+            // Добавляем секции с результатами по разделам ПДД
+            const sectionsContainer = document.getElementById('sections-container');
+            sectionsContainer.innerHTML = '';
+            
+            if (userResult.sections && userResult.sections.length > 0) {
+                userResult.sections.forEach(section => {
+                    const sectionPercentage = section.percentage;
+                    
+                    const sectionElement = document.createElement('div');
+                    sectionElement.className = 'mb-3';
+                    sectionElement.innerHTML = `
+                        <div class="mb-2 d-flex justify-content-between align-items-center">
+                            <div>${section.section}</div>
+                            <div class="fw-bold">${section.correct}/${section.total}</div>
+                        </div>
+                        <div class="section-progress">
+                            <div class="section-bar" style="width: ${sectionPercentage}%;"></div>
+                        </div>
+                        <div class="section-stats">
+                            <div>${sectionPercentage}%</div>
+                            <div>${section.correct} из ${section.total} вопросов</div>
+                        </div>
+                    `;
+                    
+                    sectionsContainer.appendChild(sectionElement);
+                });
+            } else {
+                sectionsContainer.innerHTML = '<p class="text-muted text-center">Нет данных по разделам</p>';
+            }
+            
+            // Заполняем таблицу лидеров
+            const leaderboardBody = document.getElementById('leaderboard-body');
+            leaderboardBody.innerHTML = '';
+            
+            if (allParticipantsResults && allParticipantsResults.length > 0) {
+                allParticipantsResults.forEach((participant, index) => {
+                    const isCurrentUser = participant.is_current_user;
+                    const rank = index + 1;
+                    
+                    const row = document.createElement('tr');
+                    row.className = isCurrentUser ? 'current-user' : '';
+                    
+                    // Инициалы для аватара
+                    const userName = `Участник ${participant.user_id.substring(0, 5)}`;
+                    const initials = userName.substring(0, 2).toUpperCase();
+                    
+                    row.innerHTML = `
+                        <td class="leaderboard-rank ${rank <= 3 ? 'rank-' + rank : ''}">${rank}</td>
+                        <td>
+                            <div class="leaderboard-user">
+                                <div class="user-avatar">${initials}</div>
+                                <div class="user-name">
+                                    ${userName}
+                                    ${participant.is_host ? '<span class="host-badge">Создатель</span>' : ''}
+                                    ${isCurrentUser ? ' (Вы)' : ''}
+                                </div>
+                            </div>
+                        </td>
+                        <td class="score-cell">${participant.correct_count}/${participant.total || userResult.total_questions} (${participant.percentage}%)</td>
+                        <td>
+                            ${userResult.duration_formatted}
+                        </td>
+                    `;
+                    
+                    leaderboardBody.appendChild(row);
+                });
+            } else {
+                leaderboardBody.innerHTML = '<tr><td colspan="4" class="text-center">Нет данных об участниках</td></tr>';
+            }
+        }
+        
+        // Запускаем инициализацию при загрузке страницы
+        window.addEventListener('DOMContentLoaded', initPage);
+    </script>
+</body>
+</html> 

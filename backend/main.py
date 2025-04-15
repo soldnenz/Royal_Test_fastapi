@@ -26,6 +26,7 @@ from app.routers import auth, user, reset_password, admin_router, test_router, s
 from app.admin.telegram_2fa import bot, router as telegram_router
 from app.routers import lobby_router
 from app.routers import files_router
+from app.routers import websocket_router
 from app.websocket.lobby_ws import lobby_ws_endpoint, ws_manager
 from app.db.database import db
 
@@ -60,13 +61,14 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(user.router, prefix="/users", tags=["users"])
 app.include_router(reset_password.router, prefix="/reset", tags=["reset-password"])
-app.include_router(admin_router.router)
 app.include_router(test_router.router, prefix="/tests", tags=["tests"])
 app.include_router(subscription_router.router, prefix="/subscriptions")
 app.include_router(referrals_router.router, prefix="/referrals")
 app.include_router(transaction_router.router, prefix="/transactions")
 app.include_router(lobby_router.router, prefix="/lobbies", tags=["lobbies"])
 app.include_router(files_router.router, prefix="/files", tags=["files"])
+app.include_router(websocket_router.router, prefix="/websocket_token", tags=["websocket"])
+
 # WebSocket endpoint для лобби
 @app.websocket("/ws/lobby/{lobby_id}")
 async def websocket_endpoint(
