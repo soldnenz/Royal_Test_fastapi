@@ -277,9 +277,11 @@ async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Qu
                 await websocket.send_json(
                     {"type": "answer_confirmed", "data": {"question_id": qid, "is_correct": is_correct}})
 
+                # Отправляем уведомление всем участникам
                 await ws_manager.send_json(lobby_id, {"type": "answer_received",
                                                       "data": {"user_id": user_id, "question_id": qid,
-                                                               "is_correct": is_correct}})
+                                                               "is_correct": is_correct,
+                                                               "user_name": user_data.get("full_name", "Unknown User")}})
 
                 lobby = await db.lobbies.find_one({"_id": lobby_id})
                 current_index = lobby.get("current_index", 0)
@@ -290,7 +292,16 @@ async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Qu
                 for participant_id in lobby["participants"]:
                     if current_question_id in lobby.get("participants_answers", {}).get(participant_id, {}):
                         answer_correct = lobby["participants_answers"][participant_id][current_question_id]
-                        answered_users.append({"user_id": participant_id, "is_correct": answer_correct})
+                        
+                        # Get user information for better display
+                        user_info = await db.users.find_one({"_id": ObjectId(participant_id)}) if ObjectId.is_valid(participant_id) else None
+                        user_name = user_info.get("full_name", "Unknown") if user_info else "Unknown"
+                        
+                        answered_users.append({
+                            "user_id": participant_id, 
+                            "is_correct": answer_correct,
+                            "user_name": user_name
+                        })
 
                 if lobby_id in ws_manager.connections:
                     for conn in ws_manager.connections[lobby_id]:

@@ -1,595 +1,487 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Результаты теста - Royal Test</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        :root {
-            --primary-color: #2c3e50;
-            --secondary-color: #3498db;
-            --accent-color: #e74c3c;
-            --success-color: #27ae60;
-            --warning-color: #f39c12;
-            --light-color: #ecf0f1;
-            --dark-color: #2c3e50;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f5f7fa;
-            color: var(--dark-color);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .header {
-            background-color: var(--primary-color);
-            color: white;
-            padding: 1rem 0;
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        
-        .navbar-brand {
-            font-weight: 700;
-            color: white;
-        }
-        
-        .main-content {
-            flex-grow: 1;
-            padding: 2rem 0;
-        }
-        
-        .card {
-            border: none;
-            border-radius: 12px;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
-            margin-bottom: 1.5rem;
-            overflow: hidden;
-        }
-        
-        .results-header {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            color: white;
-            padding: 2rem;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .results-header::before {
-            content: '';
-            position: absolute;
-            top: -20px;
-            right: -20px;
-            width: 200px;
-            height: 200px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 50%;
-        }
-        
-        .results-header::after {
-            content: '';
-            position: absolute;
-            bottom: -50px;
-            left: -50px;
-            width: 300px;
-            height: 300px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 50%;
-        }
-        
-        .results-title {
-            font-size: 2.2rem;
-            font-weight: 700;
-            margin-bottom: 1rem;
-            position: relative;
-            z-index: 1;
-        }
-        
-        .results-subtitle {
-            font-size: 1.2rem;
-            font-weight: 500;
-            opacity: 0.9;
-            margin-bottom: 2rem;
-            position: relative;
-            z-index: 1;
-        }
-        
-        .score-circle {
-            width: 180px;
-            height: 180px;
-            border-radius: 50%;
-            background-color: white;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 1.5rem;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
-        }
-        
-        .score-value {
-            font-size: 3.5rem;
-            font-weight: 700;
-            color: var(--primary-color);
-            line-height: 1;
-        }
-        
-        .score-label {
-            font-size: 1rem;
-            color: #95a5a6;
-            margin-top: 0.5rem;
-        }
-        
-        .results-stats {
-            display: flex;
-            justify-content: space-around;
-            margin: 2rem 0;
-        }
-        
-        .stat-item {
-            text-align: center;
-            padding: 1rem;
-        }
-        
-        .stat-value {
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: var(--secondary-color);
-            margin-bottom: 0.5rem;
-        }
-        
-        .stat-label {
-            font-size: 1rem;
-            color: #7f8c8d;
-        }
-        
-        .stat-item:nth-child(1) .stat-value {
-            color: var(--success-color);
-        }
-        
-        .stat-item:nth-child(2) .stat-value {
-            color: var(--accent-color);
-        }
-        
-        .stat-item:nth-child(3) .stat-value {
-            color: var(--warning-color);
-        }
-        
-        .btn-action {
-            padding: 12px 30px;
-            font-weight: 600;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-            margin: 0 10px;
-        }
-        
-        .btn-primary-custom {
-            background-color: var(--secondary-color);
-            border: none;
-            color: white;
-        }
-        
-        .btn-primary-custom:hover {
-            background-color: #2980b9;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
-        }
-        
-        .btn-secondary-custom {
-            background-color: white;
-            border: 2px solid var(--secondary-color);
-            color: var(--secondary-color);
-        }
-        
-        .btn-secondary-custom:hover {
-            background-color: #f8f9fa;
-            color: #2980b9;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.1);
-        }
-        
-        .results-actions {
-            display: flex;
-            justify-content: center;
-            margin-top: 2rem;
-        }
-        
-        .question-list {
-            margin-top: 2rem;
-        }
-        
-        .question-item {
-            padding: 1.5rem;
-            border-bottom: 1px solid #ecf0f1;
-            position: relative;
-        }
-        
-        .question-item:last-child {
-            border-bottom: none;
-        }
-        
-        .question-number {
-            font-size: 1rem;
-            font-weight: 600;
-            color: var(--secondary-color);
-            margin-bottom: 0.5rem;
-        }
-        
-        .question-text {
-            font-size: 1.2rem;
-            font-weight: 500;
-            margin-bottom: 1rem;
-        }
-        
-        .answer-option {
-            padding: 10px 15px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-        }
-        
-        .answer-label {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-            margin-right: 15px;
-            background-color: #e0e0e0;
-            color: #555;
-        }
-        
-        .answer-content {
-            flex-grow: 1;
-        }
-        
-        .answer-option.selected {
-            border: 1px solid var(--secondary-color);
-        }
-        
-        .answer-option.correct {
-            background-color: rgba(39, 174, 96, 0.1);
-            border: 1px solid var(--success-color);
-        }
-        
-        .answer-option.correct .answer-label {
-            background-color: var(--success-color);
-            color: white;
-        }
-        
-        .answer-option.incorrect {
-            background-color: rgba(231, 76, 60, 0.1);
-            border: 1px solid var(--accent-color);
-        }
-        
-        .answer-option.incorrect .answer-label {
-            background-color: var(--accent-color);
-            color: white;
-        }
-        
-        .status-icon {
-            position: absolute;
-            right: 1.5rem;
-            top: 1.5rem;
-            font-size: 1.5rem;
-        }
-        
-        .status-icon.correct {
-            color: var(--success-color);
-        }
-        
-        .status-icon.incorrect {
-            color: var(--accent-color);
-        }
-        
-        .explanation-card {
-            background-color: #f8f9fa;
-            border-left: 4px solid var(--secondary-color);
-            padding: 1rem;
-            margin-top: 1rem;
-            font-size: 0.95rem;
-        }
-        
-        .explanation-header {
-            font-weight: 600;
-            color: var(--secondary-color);
-            margin-bottom: 0.5rem;
-        }
-        
-        .badge-custom {
-            padding: 0.5rem 1rem;
-            border-radius: 50px;
-            font-weight: 600;
-            font-size: 0.9rem;
-            margin-left: 1rem;
-        }
-        
-        .badge-success {
-            background-color: rgba(39, 174, 96, 0.1);
-            color: var(--success-color);
-        }
-        
-        .badge-danger {
-            background-color: rgba(231, 76, 60, 0.1);
-            color: var(--accent-color);
-        }
-        
-        .badge-warning {
-            background-color: rgba(243, 156, 18, 0.1);
-            color: var(--warning-color);
-        }
-        
-        .time-taken {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-top: 1rem;
-            font-size: 1.1rem;
-            color: #7f8c8d;
-        }
-        
-        .time-taken i {
-            margin-right: 0.5rem;
-            color: var(--secondary-color);
-        }
-        
-        @media (max-width: 768px) {
-            .results-stats {
-                flex-direction: column;
-            }
-            
-            .stat-item {
-                padding: 0.5rem;
-            }
-            
-            .results-actions {
-                flex-direction: column;
-            }
-            
-            .btn-action {
-                margin: 10px 0;
-            }
-            
-            .score-circle {
-                width: 150px;
-                height: 150px;
-            }
-            
-            .score-value {
-                font-size: 3rem;
-            }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Результаты теста - Royal Test</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    :root {
+      --primary-color: #2c3e50;
+      --secondary-color: #3498db;
+      --accent-color: #e74c3c;
+      --success-color: #27ae60;
+      --warning-color: #f39c12;
+      --light-color: #ecf0f1;
+      --dark-color: #2c3e50;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f5f7fa;
+      color: var(--dark-color);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .header {
+      background-color: var(--primary-color);
+      color: white;
+      padding: 1rem 0;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .navbar-brand {
+      font-weight: 700;
+      color: white;
+    }
+    .main-content {
+      flex-grow: 1;
+      padding: 2rem 0;
+    }
+    .card {
+      border: none;
+      border-radius: 12px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+    }
+    .results-header {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: white;
+      padding: 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .results-header::before {
+      content: '';
+      position: absolute;
+      top: -20px;
+      right: -20px;
+      width: 200px;
+      height: 200px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+    }
+    .results-header::after {
+      content: '';
+      position: absolute;
+      bottom: -50px;
+      left: -50px;
+      width: 300px;
+      height: 300px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 50%;
+    }
+    .results-title {
+      font-size: 2.2rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      position: relative;
+      z-index: 1;
+    }
+    .results-subtitle {
+      font-size: 1.2rem;
+      font-weight: 500;
+      opacity: 0.9;
+      margin-bottom: 2rem;
+      position: relative;
+      z-index: 1;
+    }
+    .score-circle {
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background-color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.5rem;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+    .score-value {
+      font-size: 3.5rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      line-height: 1;
+    }
+    .score-label {
+      font-size: 1rem;
+      color: #95a5a6;
+      margin-top: 0.5rem;
+    }
+    .results-stats {
+      display: flex;
+      justify-content: space-around;
+      margin: 2rem 0;
+    }
+    .stat-item {
+      text-align: center;
+      padding: 1rem;
+    }
+    .stat-value {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--secondary-color);
+      margin-bottom: 0.5rem;
+    }
+    .stat-label {
+      font-size: 1rem;
+      color: #7f8c8d;
+    }
+    .stat-item:nth-child(1) .stat-value {
+      color: var(--success-color);
+    }
+    .stat-item:nth-child(2) .stat-value {
+      color: var(--accent-color);
+    }
+    .stat-item:nth-child(3) .stat-value {
+      color: var(--warning-color);
+    }
+    .btn-action {
+      padding: 12px 30px;
+      font-weight: 600;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+      margin: 0 10px;
+    }
+    .btn-primary-custom {
+      background-color: var(--secondary-color);
+      border: none;
+      color: white;
+    }
+    .btn-primary-custom:hover {
+      background-color: #2980b9;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+    }
+    .btn-secondary-custom {
+      background-color: white;
+      border: 2px solid var(--secondary-color);
+      color: var(--secondary-color);
+    }
+    .btn-secondary-custom:hover {
+      background-color: #f8f9fa;
+      color: #2980b9;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(52, 152, 219, 0.1);
+    }
+    .results-actions {
+      display: flex;
+      justify-content: center;
+      margin-top: 2rem;
+    }
+    .question-list {
+      margin-top: 2rem;
+    }
+    .question-item {
+      padding: 1.5rem;
+      border-bottom: 1px solid #ecf0f1;
+      position: relative;
+    }
+    .question-item:last-child {
+      border-bottom: none;
+    }
+    .question-number {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--secondary-color);
+      margin-bottom: 0.5rem;
+    }
+    .question-text {
+      font-size: 1.2rem;
+      font-weight: 500;
+      margin-bottom: 1rem;
+    }
+    .answer-option {
+      padding: 10px 15px;
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+    }
+    .answer-label {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      margin-right: 15px;
+      background-color: #e0e0e0;
+      color: #555;
+    }
+    .answer-content {
+      flex-grow: 1;
+    }
+    .answer-option.selected {
+      border: 1px solid var(--secondary-color);
+    }
+    .answer-option.correct {
+      background-color: rgba(39, 174, 96, 0.1);
+      border: 1px solid var(--success-color);
+    }
+    .answer-option.correct .answer-label {
+      background-color: var(--success-color);
+      color: white;
+    }
+    .answer-option.incorrect {
+      background-color: rgba(231, 76, 60, 0.1);
+      border: 1px solid var(--accent-color);
+    }
+    .answer-option.incorrect .answer-label {
+      background-color: var(--accent-color);
+      color: white;
+    }
+    .status-icon {
+      position: absolute;
+      right: 1.5rem;
+      top: 1.5rem;
+      font-size: 1.5rem;
+    }
+    .status-icon.correct {
+      color: var(--success-color);
+    }
+    .status-icon.incorrect {
+      color: var(--accent-color);
+    }
+    .explanation-card {
+      background-color: #f8f9fa;
+      border-left: 4px solid var(--secondary-color);
+      padding: 1rem;
+      margin-top: 1rem;
+      font-size: 0.95rem;
+    }
+    .explanation-header {
+      font-weight: 600;
+      color: var(--secondary-color);
+      margin-bottom: 0.5rem;
+    }
+    .badge-custom {
+      padding: 0.5rem 1rem;
+      border-radius: 50px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-left: 1rem;
+    }
+    .badge-success {
+      background-color: rgba(39, 174, 96, 0.1);
+      color: var(--success-color);
+    }
+    .badge-danger {
+      background-color: rgba(231, 76, 60, 0.1);
+      color: var(--accent-color);
+    }
+    .badge-warning {
+      background-color: rgba(243, 156, 18, 0.1);
+      color: var(--warning-color);
+    }
+    .time-taken {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1rem;
+      font-size: 1.1rem;
+      color: #7f8c8d;
+    }
+    .time-taken i {
+      margin-right: 0.5rem;
+      color: var(--secondary-color);
+    }
+  </style>
 </head>
 <body>
-    <header class="header">
-        <div class="container">
-            <div class="d-flex justify-content-between align-items-center">
-                <a href="/" class="navbar-brand">Royal Test</a>
-            </div>
-        </div>
-    </header>
+  <header class="header">
+    <div class="container">
+      <div class="d-flex justify-content-between align-items-center">
+        <a href="/" class="navbar-brand">Royal Test</a>
+      </div>
+    </div>
+  </header>
 
-    <main class="main-content">
-        <div class="container">
-            <div class="row">
-                <div class="col-lg-10 mx-auto">
-                    <!-- Карточка результатов -->
-                    <div class="card">
-                        <div class="results-header">
-                            <h1 class="results-title">Результаты теста</h1>
-                            <p class="results-subtitle" id="test-title">Загрузка названия теста...</p>
-                            
-                            <div class="score-circle">
-                                <div class="score-value" id="score-percentage">0%</div>
-                                <div class="score-label">Результат</div>
-                            </div>
-                            
-                            <div class="time-taken">
-                                <i class="fas fa-clock"></i>
-                                <span id="time-taken">00:00:00</span>
-                            </div>
-                        </div>
-                        
-                        <div class="card-body p-4">
-                            <div class="results-stats">
-                                <div class="stat-item">
-                                    <div class="stat-value" id="correct-answers">0</div>
-                                    <div class="stat-label">Правильно</div>
-                                </div>
-                                <div class="stat-item">
-                                    <div class="stat-value" id="incorrect-answers">0</div>
-                                    <div class="stat-label">Неправильно</div>
-                                </div>
-                                <div class="stat-item">
-                                    <div class="stat-value" id="unanswered">0</div>
-                                    <div class="stat-label">Без ответа</div>
-                                </div>
-                            </div>
-                            
-                            <div class="results-actions">
-                                <button class="btn btn-primary-custom btn-action" id="btn-home">
-                                    <i class="fas fa-home me-2"></i> На главную
-                                </button>
-                                <button class="btn btn-secondary-custom btn-action" id="btn-retry">
-                                    <i class="fas fa-redo me-2"></i> Пройти снова
-                                </button>
-                            </div>
-                            
-                            <h3 class="mt-5 mb-4">Детали теста</h3>
-                            
-                            <!-- Список вопросов -->
-                            <div class="question-list" id="question-list">
-                                <!-- Вопросы будут добавлены динамически -->
-                            </div>
-                        </div>
-                    </div>
+  <main class="main-content">
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-10 mx-auto">
+          <!-- Карточка результатов -->
+          <div class="card">
+            <div class="results-header">
+              <h1 class="results-title">Результаты теста</h1>
+              <!-- Если title отсутствует, формируем из категорий -->
+              <p class="results-subtitle" id="test-title">Загрузка...</p>
+
+              <div class="score-circle">
+                <div class="score-value" id="score-percentage">0%</div>
+                <div class="score-label">Результат</div>
+              </div>
+
+              <div class="time-taken">
+                <i class="fas fa-clock"></i>
+                <span id="time-taken">00:00:00</span>
+              </div>
+            </div>
+
+            <div class="card-body p-4">
+              <div class="results-stats">
+                <div class="stat-item">
+                  <div class="stat-value" id="correct-answers">0</div>
+                  <div class="stat-label">Правильно</div>
                 </div>
-            </div>
-        </div>
-    </main>
+                <div class="stat-item">
+                  <div class="stat-value" id="incorrect-answers">0</div>
+                  <div class="stat-label">Неправильно</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-value" id="unanswered">0</div>
+                  <div class="stat-label">Без ответа</div>
+                </div>
+              </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Получаем ID лобби из URL параметров
-        const urlParams = new URLSearchParams(window.location.search);
-        const lobbyId = urlParams.get('id');
-        
-        if (!lobbyId) {
-            alert('Не указан ID лобби. Перенаправление на главную страницу...');
-            window.location.href = '/';
-        }
-        
-        // Инициализация при загрузке страницы
-        window.addEventListener('DOMContentLoaded', () => {
-            loadResults();
-            
-            // Обработчики событий
-            document.getElementById('btn-home').addEventListener('click', () => {
-                window.location.href = '/';
+              <div class="results-actions">
+                <button class="btn btn-primary-custom btn-action" id="btn-home">
+                  <i class="fas fa-home me-2"></i> На главную
+                </button>
+                <button class="btn btn-secondary-custom btn-action" id="btn-retry">
+                  <i class="fas fa-redo me-2"></i> Пройти снова
+                </button>
+              </div>
+
+              <h3 class="mt-5 mb-4">Детали теста</h3>
+
+              <!-- Список вопросов -->
+              <div class="question-list" id="question-list">
+                <!-- Вопросы будут добавлены динамически -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Получаем ID лобби из URL параметров
+    const urlParams = new URLSearchParams(window.location.search);
+    const lobbyId = urlParams.get('id');
+    if (!lobbyId) {
+      alert('Не указан ID лобби. Перенаправление на главную страницу...');
+      window.location.href = '/';
+    }
+
+    // При загрузке страницы
+    window.addEventListener('DOMContentLoaded', () => {
+      loadResults();
+      document.getElementById('btn-home').addEventListener('click', () => window.location.href = '/');
+      document.getElementById('btn-retry').addEventListener('click', () => window.location.href = '/create-test');
+    });
+
+    // Функция загрузки результатов
+    async function loadResults() {
+      try {
+        const response = await fetch(`/api/lobbies/lobbies/${lobbyId}/results`);
+        if (!response.ok) throw new Error('Ошибка загрузки результатов');
+        const resultData = await response.json();
+        if (resultData.status !== "ok") throw new Error(resultData.detail || 'Ошибка загрузки результатов');
+
+        const data = resultData.data;
+        // Основная информация берется из user_result
+        const userResult = data.user_result;
+
+        // Если сервера не прислал заголовок теста, можно сформировать его из категорий
+        document.getElementById('test-title').textContent = data.categories ? 'Категории: ' + data.categories.join(', ') : 'Результаты теста';
+        document.getElementById('score-percentage').textContent = `${userResult.percentage}%`;
+        document.getElementById('correct-answers').textContent = userResult.correct_count;
+        document.getElementById('incorrect-answers').textContent = userResult.incorrect_count;
+        document.getElementById('unanswered').textContent = userResult.not_answered_count;
+        // Используем форматированное время, если оно прислано, иначе форматируем duration_seconds
+        document.getElementById('time-taken').textContent = userResult.duration_formatted || formatTime(userResult.duration_seconds);
+
+        // Заполняем список вопросов (детальные ответы)
+        const questionList = document.getElementById('question-list');
+        questionList.innerHTML = '';
+        userResult.detailed_answers.forEach((question, index) => {
+          const questionElement = document.createElement('div');
+          questionElement.className = 'question-item';
+          // Статус: если ответ верный — галочка, иначе крест
+          let statusIcon = question.is_correct
+            ? '<i class="fas fa-check-circle status-icon correct"></i>'
+            : '<i class="fas fa-times-circle status-icon incorrect"></i>';
+
+          // Заголовок вопроса с номером и бейджем
+          let questionTitle = `<div class="question-number">Вопрос ${index + 1}`;
+          questionTitle += question.is_correct
+            ? '<span class="badge-custom badge-success">Правильно</span>'
+            : '<span class="badge-custom badge-danger">Неправильно</span>';
+          questionTitle += '</div>';
+
+          // Текст вопроса
+          const questionText = `<div class="question-text">${question.question_text}</div>`;
+
+          // Если в ответе присутствует массив вариантов – выводим их, иначе показываем корректный ответ
+          let optionsHtml = '';
+          if (question.options && Array.isArray(question.options) && question.options.length > 0) {
+            question.options.forEach((option, optIndex) => {
+              let optionClass = 'answer-option';
+              // Выделяем правильный вариант (сверяем с буквой, например, "A", "B" и т.д.)
+              if (question.correct_answer === String.fromCharCode(65 + optIndex)) {
+                optionClass += ' correct';
+              }
+              optionsHtml += `
+                <div class="${optionClass}">
+                  <div class="answer-label">${String.fromCharCode(65 + optIndex)}</div>
+                  <div class="answer-content">${option}</div>
+                </div>
+              `;
             });
-            
-            document.getElementById('btn-retry').addEventListener('click', () => {
-                // Перенаправление на страницу создания нового теста
-                window.location.href = '/create-test';
-            });
+          } else {
+            // Если вариантов нет, просто выводим правильный ответ в виде строки
+            optionsHtml = `
+              <div class="answer-option correct">
+                <div class="answer-label">${question.correct_answer}</div>
+                <div class="answer-content">Правильный ответ</div>
+              </div>
+            `;
+          }
+
+          // Если есть объяснение, выводим его
+          let explanationHtml = '';
+          if (question.explanation) {
+            explanationHtml = `
+              <div class="explanation-card">
+                <div class="explanation-header">Объяснение:</div>
+                <div>${question.explanation}</div>
+              </div>
+            `;
+          }
+
+          questionElement.innerHTML = `
+            ${statusIcon}
+            ${questionTitle}
+            ${questionText}
+            ${optionsHtml}
+            ${explanationHtml}
+          `;
+          questionList.appendChild(questionElement);
         });
-        
-        // Функция загрузки результатов теста
-        async function loadResults() {
-            try {
-                const response = await fetch(`/api/lobbies/${lobbyId}/results`);
-                if (!response.ok) {
-                    throw new Error('Ошибка загрузки результатов');
-                }
-                
-                const data = await response.json();
-                if (!data.success) {
-                    throw new Error(data.detail || 'Ошибка загрузки результатов');
-                }
-                
-                const results = data.data;
-                
-                // Заполняем информацию о тесте
-                document.getElementById('test-title').textContent = results.test_title;
-                document.getElementById('score-percentage').textContent = `${results.percentage}%`;
-                document.getElementById('correct-answers').textContent = results.correct_answers;
-                document.getElementById('incorrect-answers').textContent = results.incorrect_answers;
-                document.getElementById('unanswered').textContent = results.unanswered;
-                document.getElementById('time-taken').textContent = formatTime(results.time_taken);
-                
-                // Отображаем список вопросов
-                const questionList = document.getElementById('question-list');
-                questionList.innerHTML = '';
-                
-                results.questions.forEach((question, index) => {
-                    const questionElement = document.createElement('div');
-                    questionElement.className = 'question-item';
-                    
-                    // Определяем статус вопроса
-                    let statusIcon = '';
-                    if (question.user_answer !== null) {
-                        if (question.is_correct) {
-                            statusIcon = '<i class="fas fa-check-circle status-icon correct"></i>';
-                        } else {
-                            statusIcon = '<i class="fas fa-times-circle status-icon incorrect"></i>';
-                        }
-                    } else {
-                        statusIcon = '<i class="fas fa-minus-circle status-icon text-secondary"></i>';
-                    }
-                    
-                    // Заголовок вопроса
-                    let questionTitle = `<div class="question-number">Вопрос ${index + 1}`;
-                    if (question.user_answer !== null) {
-                        if (question.is_correct) {
-                            questionTitle += '<span class="badge-custom badge-success">Правильно</span>';
-                        } else {
-                            questionTitle += '<span class="badge-custom badge-danger">Неправильно</span>';
-                        }
-                    } else {
-                        questionTitle += '<span class="badge-custom badge-warning">Без ответа</span>';
-                    }
-                    questionTitle += '</div>';
-                    
-                    // Текст вопроса
-                    const questionText = `<div class="question-text">${question.text}</div>`;
-                    
-                    // Варианты ответов
-                    let optionsHtml = '';
-                    question.options.forEach((option, optIndex) => {
-                        let optionClass = 'answer-option';
-                        
-                        // Если пользователь выбрал этот вариант
-                        if (question.user_answer === optIndex) {
-                            optionClass += ' selected';
-                            if (question.is_correct) {
-                                optionClass += ' correct';
-                            } else {
-                                optionClass += ' incorrect';
-                            }
-                        }
-                        
-                        // Если это правильный вариант и пользователь выбрал другой
-                        if (question.correct_answer === optIndex && question.user_answer !== optIndex) {
-                            optionClass += ' correct';
-                        }
-                        
-                        optionsHtml += `
-                            <div class="${optionClass}">
-                                <div class="answer-label">${String.fromCharCode(65 + optIndex)}</div>
-                                <div class="answer-content">${option}</div>
-                            </div>
-                        `;
-                    });
-                    
-                    // Объяснение (если есть)
-                    let explanationHtml = '';
-                    if (question.explanation) {
-                        explanationHtml = `
-                            <div class="explanation-card">
-                                <div class="explanation-header">Объяснение:</div>
-                                <div>${question.explanation}</div>
-                            </div>
-                        `;
-                    }
-                    
-                    // Собираем все вместе
-                    questionElement.innerHTML = `
-                        ${statusIcon}
-                        ${questionTitle}
-                        ${questionText}
-                        ${optionsHtml}
-                        ${explanationHtml}
-                    `;
-                    
-                    questionList.appendChild(questionElement);
-                });
-                
-            } catch (error) {
-                console.error('Ошибка:', error);
-                alert('Произошла ошибка при загрузке результатов. Пожалуйста, попробуйте снова.');
-            }
-        }
-        
-        // Функция форматирования времени
-        function formatTime(seconds) {
-            const hours = Math.floor(seconds / 3600);
-            const minutes = Math.floor((seconds % 3600) / 60);
-            const secs = seconds % 60;
-            
-            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-        }
-    </script>
+      } catch (error) {
+        console.error('Ошибка:', error);
+        alert('Произошла ошибка при загрузке результатов. Пожалуйста, попробуйте снова.');
+      }
+    }
+
+    // Функция форматирования времени в формате hh:mm:ss
+    function formatTime(seconds) {
+      const hrs = Math.floor(seconds / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+  </script>
 </body>
-</html> 
+</html>

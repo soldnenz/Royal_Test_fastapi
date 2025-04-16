@@ -1,846 +1,803 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Прохождение теста - Royal Test</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        :root {
-            --primary-color: #2c3e50;
-            --secondary-color: #3498db;
-            --accent-color: #e74c3c;
-            --success-color: #27ae60;
-            --warning-color: #f39c12;
-            --light-color: #ecf0f1;
-            --dark-color: #2c3e50;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f5f7fa;
-            color: var(--dark-color);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow-x: hidden;
-        }
-        
-        .header {
-            background-color: var(--primary-color);
-            color: white;
-            padding: 1rem 0;
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        
-        .navbar-brand {
-            font-weight: 700;
-            color: white;
-        }
-        
-        .main-content {
-            flex-grow: 1;
-            padding: 2rem 0;
-        }
-        
-        .card {
-            border: none;
-            border-radius: 12px;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
-            margin-bottom: 1.5rem;
-        }
-        
-        .question-card {
-            margin-top: 1rem;
-        }
-        
-        .question-number {
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: var(--secondary-color);
-            margin-bottom: 0.5rem;
-        }
-        
-        .question-text {
-            font-size: 1.4rem;
-            font-weight: 500;
-            margin-bottom: 1.5rem;
-        }
-        
-        .question-image {
-            max-width: 100%;
-            border-radius: 8px;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        
-        .answer-option {
-            padding: 12px 20px;
-            background-color: white;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            margin-bottom: 12px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-        }
-        
-        .answer-option:hover {
-            border-color: var(--secondary-color);
-            background-color: rgba(52, 152, 219, 0.05);
-        }
-        
-        .answer-option.selected {
-            border-color: var(--secondary-color);
-            background-color: rgba(52, 152, 219, 0.1);
-        }
-        
-        .answer-option.correct {
-            border-color: var(--success-color);
-            background-color: rgba(39, 174, 96, 0.1);
-        }
-        
-        .answer-option.incorrect {
-            border-color: var(--accent-color);
-            background-color: rgba(231, 76, 60, 0.1);
-        }
-        
-        .answer-label {
-            width: 30px;
-            height: 30px;
-            background-color: #e0e0e0;
-            color: #555;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-            margin-right: 15px;
-            transition: all 0.2s ease;
-        }
-        
-        .answer-option:hover .answer-label {
-            background-color: var(--secondary-color);
-            color: white;
-        }
-        
-        .answer-option.selected .answer-label {
-            background-color: var(--secondary-color);
-            color: white;
-        }
-        
-        .answer-option.correct .answer-label {
-            background-color: var(--success-color);
-            color: white;
-        }
-        
-        .answer-option.incorrect .answer-label {
-            background-color: var(--accent-color);
-            color: white;
-        }
-        
-        .answer-content {
-            flex-grow: 1;
-        }
-        
-        .explanation-card {
-            background-color: rgba(52, 152, 219, 0.05);
-            border-left: 4px solid var(--secondary-color);
-            padding: 1rem;
-            margin-top: 1.5rem;
-            display: none;
-        }
-        
-        .explanation-header {
-            font-weight: 600;
-            color: var(--secondary-color);
-            margin-bottom: 0.5rem;
-        }
-        
-        .btn-next {
-            background-color: var(--secondary-color);
-            border: none;
-            padding: 12px 24px;
-            font-weight: 600;
-            border-radius: 8px;
-            color: white;
-            margin-top: 1rem;
-            transition: all 0.3s;
-        }
-        
-        .btn-next:hover {
-            background-color: #2980b9;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
-        }
-        
-        .btn-finish {
-            background-color: var(--accent-color);
-            border: none;
-            padding: 12px 24px;
-            font-weight: 600;
-            border-radius: 8px;
-            color: white;
-            margin-top: 1rem;
-            transition: all 0.3s;
-        }
-        
-        .btn-finish:hover {
-            background-color: #c0392b;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(231, 76, 60, 0.3);
-        }
-        
-        .test-progress {
-            height: 8px;
-            background-color: #e0e0e0;
-            border-radius: 4px;
-            overflow: hidden;
-            margin-bottom: 1rem;
-        }
-        
-        .progress-bar {
-            height: 100%;
-            background: linear-gradient(90deg, var(--secondary-color), var(--success-color));
-            border-radius: 4px;
-            transition: width 0.3s ease;
-        }
-        
-        .test-stats {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 1.5rem;
-        }
-        
-        .stat-item {
-            text-align: center;
-            flex: 1;
-            padding: 0.5rem;
-        }
-        
-        .stat-value {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-bottom: 0.2rem;
-        }
-        
-        .stat-label {
-            font-size: 0.8rem;
-            color: #7f8c8d;
-        }
-        
-        .timer {
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: var(--primary-color);
-            display: flex;
-            align-items: center;
-        }
-        
-        .timer i {
-            margin-right: 8px;
-            color: var(--secondary-color);
-        }
-        
-        .answer-status {
-            display: inline-block;
-            padding: 5px 10px;
-            border-radius: 4px;
-            font-weight: 600;
-            font-size: 0.9rem;
-            margin-top: 1rem;
-        }
-        
-        .answer-status.correct {
-            background-color: rgba(39, 174, 96, 0.1);
-            color: var(--success-color);
-        }
-        
-        .answer-status.incorrect {
-            background-color: rgba(231, 76, 60, 0.1);
-            color: var(--accent-color);
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Прохождение теста - Royal Test</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    :root {
+      --primary-color: #2c3e50;
+      --secondary-color: #3498db;
+      --accent-color: #e74c3c;
+      --success-color: #27ae60;
+      --warning-color: #f39c12;
+      --light-color: #ecf0f1;
+      --dark-color: #2c3e50;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f5f7fa;
+      color: var(--dark-color);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    .header {
+      background-color: var(--primary-color);
+      color: white;
+      padding: 1rem 0;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    .navbar-brand {
+      font-weight: 700;
+      color: white;
+    }
+
+    .main-content {
+      flex-grow: 1;
+      padding: 2rem 0;
+    }
+
+    .card {
+      border: none;
+      border-radius: 12px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+      margin-bottom: 1.5rem;
+    }
+
+    .question-card {
+      margin-top: 1rem;
+    }
+
+    .question-number {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--secondary-color);
+      margin-bottom: 0.5rem;
+    }
+
+    .question-text {
+      font-size: 1.4rem;
+      font-weight: 500;
+      margin-bottom: 1.5rem;
+    }
+
+    .question-image {
+      max-width: 100%;
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .answer-option {
+      padding: 12px 20px;
+      background-color: white;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+    }
+
+    .answer-option:hover {
+      border-color: var(--secondary-color);
+      background-color: rgba(52, 152, 219, 0.05);
+    }
+
+    .answer-option.selected {
+      border-color: var(--secondary-color);
+      background-color: rgba(52, 152, 219, 0.1);
+    }
+
+    .answer-option.correct {
+      border-color: var(--success-color);
+      background-color: rgba(39, 174, 96, 0.1);
+    }
+
+    .answer-option.incorrect {
+      border-color: var(--accent-color);
+      background-color: rgba(231, 76, 60, 0.1);
+    }
+
+    .answer-label {
+      width: 30px;
+      height: 30px;
+      background-color: #e0e0e0;
+      color: #555;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      margin-right: 15px;
+      transition: all 0.2s ease;
+    }
+
+    .answer-option:hover .answer-label {
+      background-color: var(--secondary-color);
+      color: white;
+    }
+
+    .answer-option.selected .answer-label {
+      background-color: var(--secondary-color);
+      color: white;
+    }
+
+    .answer-option.correct .answer-label {
+      background-color: var(--success-color);
+      color: white;
+    }
+
+    .answer-option.incorrect .answer-label {
+      background-color: var(--accent-color);
+      color: white;
+    }
+
+    .answer-content {
+      flex-grow: 1;
+    }
+
+    .explanation-card {
+      background-color: rgba(52, 152, 219, 0.05);
+      border-left: 4px solid var(--secondary-color);
+      padding: 1rem;
+      margin-top: 1.5rem;
+      display: none;
+    }
+
+    .explanation-header {
+      font-weight: 600;
+      color: var(--secondary-color);
+      margin-bottom: 0.5rem;
+    }
+
+    .btn-next {
+      background-color: var(--secondary-color);
+      border: none;
+      padding: 12px 24px;
+      font-weight: 600;
+      border-radius: 8px;
+      color: white;
+      margin-top: 1rem;
+      transition: all 0.3s;
+    }
+
+    .btn-next:hover {
+      background-color: #2980b9;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+    }
+
+    .btn-finish {
+      background-color: var(--accent-color);
+      border: none;
+      padding: 12px 24px;
+      font-weight: 600;
+      border-radius: 8px;
+      color: white;
+      margin-top: 1rem;
+      transition: all 0.3s;
+    }
+
+    .btn-finish:hover {
+      background-color: #c0392b;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(231, 76, 60, 0.3);
+    }
+
+    .test-progress {
+      height: 8px;
+      background-color: #e0e0e0;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--secondary-color), var(--success-color));
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+
+    .test-stats {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+    }
+
+    .stat-item {
+      text-align: center;
+      flex: 1;
+      padding: 0.5rem;
+    }
+
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.2rem;
+    }
+
+    .stat-label {
+      font-size: 0.8rem;
+      color: #7f8c8d;
+    }
+
+    .timer {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--primary-color);
+      display: flex;
+      align-items: center;
+    }
+
+    .timer i {
+      margin-right: 8px;
+      color: var(--secondary-color);
+    }
+
+    .answer-status {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-top: 1rem;
+    }
+
+    .answer-status.correct {
+      background-color: rgba(39, 174, 96, 0.1);
+      color: var(--success-color);
+    }
+
+    .answer-status.incorrect {
+      background-color: rgba(231, 76, 60, 0.1);
+      color: var(--accent-color);
+    }
+  </style>
 </head>
 <body>
-    <header class="header">
-        <div class="container">
-            <div class="d-flex justify-content-between align-items-center">
-                <a href="/" class="navbar-brand">Royal Test</a>
-                <div class="timer">
-                    <i class="fas fa-clock"></i>
-                    <span id="timer-display">00:00:00</span>
-                </div>
-            </div>
+  <header class="header">
+    <div class="container">
+      <div class="d-flex justify-content-between align-items-center">
+        <a href="/" class="navbar-brand">Royal Test</a>
+        <div class="timer">
+          <i class="fas fa-clock"></i>
+          <span id="timer-display">00:00:00</span>
         </div>
-    </header>
-
-    <main class="main-content">
-        <div class="container">
-            <div class="row">
-                <div class="col-lg-9 mx-auto">
-                    <!-- Прогресс теста -->
-                    <div class="card mb-4">
-                        <div class="card-body p-4">
-                            <div class="test-progress">
-                                <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
-                            </div>
-                            <div class="test-stats">
-                                <div class="stat-item">
-                                    <div class="stat-value" id="current-question">1</div>
-                                    <div class="stat-label">Текущий</div>
-                                </div>
-                                <div class="stat-item">
-                                    <div class="stat-value" id="total-questions">40</div>
-                                    <div class="stat-label">Всего</div>
-                                </div>
-                                <div class="stat-item">
-                                    <div class="stat-value" id="correct-answers">0</div>
-                                    <div class="stat-label">Правильно</div>
-                                </div>
-                                <div class="stat-item">
-                                    <div class="stat-value" id="incorrect-answers">0</div>
-                                    <div class="stat-label">Неправильно</div>
-                                </div>
-                                <div class="stat-item">
-                                    <div class="stat-value" id="percentage">0%</div>
-                                    <div class="stat-label">Процент</div>
-                                </div>
-                            </div>
-                            <button id="btn-finish-test" class="btn btn-finish float-end">Завершить тест</button>
-                        </div>
-                    </div>
-                    
-                    <!-- Карточка вопроса -->
-                    <div class="card question-card" id="question-container">
-                        <div class="card-body p-4">
-                            <div class="question-number" id="question-number">Вопрос 1 из 40</div>
-                            <h2 class="question-text" id="question-text">Загрузка вопроса...</h2>
-                            
-                            <!-- Изображение вопроса (если есть) -->
-                            <div id="question-image-container" style="display: none;">
-                                <img src="" id="question-image" class="question-image" alt="Иллюстрация к вопросу" style="display: none;">
-                                <video id="question-video" class="question-image" controls style="display: none;">
-                                    <source src="" type="video/mp4" id="video-source">
-                                    Ваш браузер не поддерживает воспроизведение видео.
-                                </video>
-                            </div>
-                            
-                            <!-- Варианты ответа -->
-                            <div id="answer-options">
-                                <!-- Варианты ответов будут добавлены динамически -->
-                            </div>
-                            
-                            <!-- Статус ответа (правильный/неправильный) -->
-                            <div id="answer-status" style="display: none;"></div>
-                            
-                            <!-- Объяснение ответа -->
-                            <div class="explanation-card" id="explanation-card">
-                                <div class="explanation-header">Объяснение:</div>
-                                <div id="explanation-text"></div>
-                            </div>
-                            
-                            <!-- Кнопка следующего вопроса -->
-                            <button id="btn-next" class="btn btn-next mt-4" style="display: none;">
-                                Следующий вопрос <i class="fas fa-arrow-right ms-2"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </main>
-
-    <!-- Модальное окно подтверждения завершения теста -->
-    <div class="modal fade" id="finish-modal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Завершить тест?</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p>Вы уверены, что хотите завершить тест? Все оставшиеся вопросы будут отмечены как неотвеченные.</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="button" class="btn btn-danger" id="confirm-finish">Завершить тест</button>
-                </div>
-            </div>
-        </div>
+      </div>
     </div>
+  </header>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Получаем ID лобби из URL параметров
-        const urlParams = new URLSearchParams(window.location.search);
-        const lobbyId = urlParams.get('id');
-        
-        if (!lobbyId) {
-            alert('Не указан ID лобби. Перенаправление на главную страницу...');
-            window.location.href = '/';
-        }
-        
-        // Переменные для хранения данных теста
-        let currentQuestionIndex = 0;
-        let totalQuestions = 40;
-        let questions = [];
-        let correctAnswers = 0;
-        let incorrectAnswers = 0;
-        let currentQuestion = null;
-        let answeredQuestions = {};
-        let startTime = new Date();
-        
-        // Инициализация таймера
-        let timerInterval = setInterval(updateTimer, 1000);
-        
-        // Загружаем данные теста и первый вопрос
-        window.addEventListener('DOMContentLoaded', () => {
-            loadQuestion();
-            
-            // Обработчики событий для кнопок
-            document.getElementById('btn-next').addEventListener('click', nextQuestion);
-            document.getElementById('btn-finish-test').addEventListener('click', () => {
-                // Показываем модальное окно подтверждения
-                const finishModal = new bootstrap.Modal(document.getElementById('finish-modal'));
-                finishModal.show();
-            });
-            
-            document.getElementById('confirm-finish').addEventListener('click', finishTest);
-        });
-        
-        // Функция загрузки вопроса
-        async function loadQuestion() {
-            try {
-                // Если вопрос уже был загружен, используем его
-                if (questions[currentQuestionIndex]) {
-                    displayQuestion(questions[currentQuestionIndex]);
-                    return;
-                }
-                
-                // Получаем текущий вопрос по индексу
-                const response = await fetch(`/api/lobbies/lobbies/${lobbyId}/current-question`);
-                if (!response.ok) {
-                    throw new Error('Ошибка загрузки вопроса');
-                }
-                
-                const data = await response.json();
-                if (data.status !== "ok") {
-                    throw new Error(data.message || 'Ошибка загрузки вопроса');
-                }
+  <main class="main-content">
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-9 mx-auto">
+          <!-- Прогресс теста -->
+          <div class="card mb-4">
+            <div class="card-body p-4">
+              <div class="test-progress">
+                <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
+              </div>
+              <div class="test-stats">
+                <div class="stat-item">
+                  <div class="stat-value" id="current-question">1</div>
+                  <div class="stat-label">Текущий</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-value" id="total-questions">40</div>
+                  <div class="stat-label">Всего</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-value" id="correct-answers">0</div>
+                  <div class="stat-label">Правильно</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-value" id="incorrect-answers">0</div>
+                  <div class="stat-label">Неправильно</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-value" id="percentage">0%</div>
+                  <div class="stat-label">Процент</div>
+                </div>
+              </div>
+              <button id="btn-finish-test" class="btn btn-finish float-end">Завершить тест</button>
+            </div>
+          </div>
 
-                
-                currentQuestion = data.data;
-                questions[currentQuestionIndex] = currentQuestion;
-                
-                // Отображаем вопрос
-                displayQuestion(currentQuestion);
-                
-                // Обновляем прогресс
-                updateProgress();
-                
-            } catch (error) {
-                console.error('Ошибка:', error);
-                alert('Произошла ошибка при загрузке вопроса. Пожалуйста, попробуйте снова.');
-            }
+          <!-- Карточка вопроса -->
+          <div class="card question-card" id="question-container">
+            <div class="card-body p-4">
+              <div class="question-number" id="question-number">Вопрос 1 из 40</div>
+              <h2 class="question-text" id="question-text">Загрузка вопроса...</h2>
+
+              <!-- Изображение вопроса (если есть) -->
+              <div id="question-image-container" style="display: none;">
+                <img src="" id="question-image" class="question-image" alt="Иллюстрация к вопросу" style="display: none;">
+                <video id="question-video" class="question-image" controls style="display: none;">
+                  <source src="" type="video/mp4" id="video-source">
+                  Ваш браузер не поддерживает воспроизведение видео.
+                </video>
+              </div>
+
+              <!-- Варианты ответа -->
+              <div id="answer-options">
+                <!-- Варианты ответов будут добавлены динамически -->
+              </div>
+
+              <!-- Статус ответа (правильный/неправильный) -->
+              <div id="answer-status" style="display: none;"></div>
+
+              <!-- Объяснение ответа -->
+              <div class="explanation-card" id="explanation-card">
+                <div class="explanation-header">Объяснение:</div>
+                <div id="explanation-text"></div>
+              </div>
+
+              <!-- Кнопка следующего вопроса -->
+              <button id="btn-next" class="btn btn-next mt-4" style="display: none;">
+                Следующий вопрос <i class="fas fa-arrow-right ms-2"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Модальное окно подтверждения завершения теста -->
+  <div class="modal fade" id="finish-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Завершить тест?</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p>Вы уверены, что хотите завершить тест? Все оставшиеся вопросы будут отмечены как неотвеченные.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="button" class="btn btn-danger" id="confirm-finish">Завершить тест</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Получаем ID лобби из URL параметров
+    const urlParams = new URLSearchParams(window.location.search);
+    const lobbyId = urlParams.get('id');
+
+    if (!lobbyId) {
+      alert('Не указан ID лобби. Перенаправление на главную страницу...');
+      window.location.href = '/';
+    }
+
+    // Переменные для хранения данных теста
+    let currentQuestionIndex = 0;
+    let totalQuestions = 40;
+    let questions = [];
+    let correctAnswers = 0;
+    let incorrectAnswers = 0;
+    let currentQuestion = null;
+    let answeredQuestions = {};
+    let startTime = new Date();
+
+    // Инициализация таймера
+    let timerInterval = setInterval(updateTimer, 1000);
+
+    // Загружаем данные теста и первый вопрос
+    window.addEventListener('DOMContentLoaded', () => {
+      loadQuestion();
+
+      // Обработчики событий для кнопок
+      document.getElementById('btn-next').addEventListener('click', nextQuestion);
+      document.getElementById('btn-finish-test').addEventListener('click', () => {
+        // Показываем модальное окно подтверждения
+        const finishModal = new bootstrap.Modal(document.getElementById('finish-modal'));
+        finishModal.show();
+      });
+
+      document.getElementById('confirm-finish').addEventListener('click', finishTest);
+    });
+
+    // Обновлённая функция загрузки вопроса
+    async function loadQuestion() {
+      try {
+        // Если вопрос уже был загружен, используем его
+        if (questions[currentQuestionIndex]) {
+          displayQuestion(questions[currentQuestionIndex]);
+          return;
         }
-        
-        // Функция отображения вопроса
-        function displayQuestion(question) {
-            document.getElementById('question-number').textContent = `Вопрос ${currentQuestionIndex + 1} из ${totalQuestions}`;
-            document.getElementById('question-text').textContent = question.text;
-            
-            // Отображаем медиа, если оно есть
-            const imageContainer = document.getElementById('question-image-container');
-            const questionImage = document.getElementById('question-image');
-            const questionVideo = document.getElementById('question-video');
-            const videoSource = document.getElementById('video-source');
-            
-            // Сбрасываем предыдущее изображение/видео
-            questionImage.src = '';
-            questionImage.style.display = 'none';
-            videoSource.src = '';
-            questionVideo.style.display = 'none';
-            
-            // Функция обработки ошибок загрузки медиа
-            const handleMediaError = (mediaType) => {
-                console.error(`Ошибка загрузки ${mediaType}:`, question.media_file_id);
-                if (question.media_file_id) {
-                    // Пробуем загрузить как base64, если прямая загрузка не удалась
-                    fetch(`/api/files/files/${question.media_file_id}?as_base64=true`)
-                        .then(response => {
-                            if (!response.ok) {
-                                throw new Error(`Ошибка загрузки ${mediaType} в формате base64`);
-                            }
-                            return response.json();
-                        })
-                        .then(data => {
-                            if (data.success && data.data.media_base64) {
-                                const contentType = data.data.content_type || 'image/jpeg';
-                                const isVideo = data.data.is_video || false;
-                                
-                                if (isVideo) {
-                                    // Обработка видео в формате base64
-                                    const videoBlob = base64ToBlob(data.data.media_base64, contentType);
-                                    const videoUrl = URL.createObjectURL(videoBlob);
-                                    videoSource.src = videoUrl;
-                                    videoSource.type = contentType;
-                                    questionVideo.load();
-                                    questionVideo.style.display = 'block';
-                                    questionImage.style.display = 'none';
-                                    imageContainer.style.display = 'block';
-                                } else {
-                                    // Обработка изображения в формате base64
-                                    questionImage.src = `data:${contentType};base64,${data.data.media_base64}`;
-                                    questionImage.style.display = 'block';
-                                    questionVideo.style.display = 'none';
-                                    imageContainer.style.display = 'block';
-                                }
-                            } else {
-                                imageContainer.style.display = 'none';
-                            }
-                        })
-                        .catch(error => {
-                            console.error(`Ошибка при запросе ${mediaType} в формате base64:`, error);
-                            imageContainer.style.display = 'none';
-                        });
+
+        // Сначала получаем идентификатор текущего вопроса
+        const responseCurrent = await fetch(`/api/lobbies/lobbies/${lobbyId}/current-question`);
+        if (!responseCurrent.ok) {
+          throw new Error('Ошибка загрузки текущего вопроса');
+        }
+        const dataCurrent = await responseCurrent.json();
+        if (dataCurrent.status !== "ok") {
+          throw new Error(dataCurrent.message || 'Ошибка загрузки текущего вопроса');
+        }
+        const questionId = dataCurrent.data.question;
+
+        // Затем запрашиваем полные данные вопроса по идентификатору
+        const responseQuestion = await fetch(`/api/lobbies/lobbies/${lobbyId}/questions/${questionId}`);
+        if (!responseQuestion.ok) {
+          throw new Error('Ошибка загрузки данных вопроса');
+        }
+        const dataQuestion = await responseQuestion.json();
+        if (dataQuestion.status !== "ok") {
+          throw new Error(dataQuestion.message || 'Ошибка загрузки данных вопроса');
+        }
+
+        currentQuestion = dataQuestion.data;
+        questions[currentQuestionIndex] = currentQuestion;
+
+        // Отображаем вопрос с полученными данными
+        displayQuestion(currentQuestion);
+
+        // Обновляем прогресс
+        updateProgress();
+      } catch (error) {
+        console.error('Ошибка:', error);
+        alert('Произошла ошибка при загрузке вопроса. Пожалуйста, попробуйте снова.');
+      }
+    }
+
+    // Функция отображения вопроса
+    function displayQuestion(question) {
+      document.getElementById('question-number').textContent = `Вопрос ${currentQuestionIndex + 1} из ${totalQuestions}`;
+      document.getElementById('question-text').textContent = question.text;
+
+      // Обработка медиа (изображение/видео)
+      const imageContainer = document.getElementById('question-image-container');
+      const questionImage = document.getElementById('question-image');
+      const questionVideo = document.getElementById('question-video');
+      const videoSource = document.getElementById('video-source');
+
+      // Сбрасываем предыдущее медиа
+      questionImage.src = '';
+      questionImage.style.display = 'none';
+      videoSource.src = '';
+      questionVideo.style.display = 'none';
+
+      // Функция обработки ошибок загрузки медиа
+      const handleMediaError = (mediaType) => {
+        console.error(`Ошибка загрузки ${mediaType}:`, question.media_file_id);
+        if (question.media_file_id) {
+          fetch(`/api/files/files/${question.media_file_id}?as_base64=true`)
+            .then(response => {
+              if (!response.ok) {
+                throw new Error(`Ошибка загрузки ${mediaType} в формате base64`);
+              }
+              return response.json();
+            })
+            .then(data => {
+              if (data.success && data.data.media_base64) {
+                const contentType = data.data.content_type || 'image/jpeg';
+                const isVideo = data.data.is_video || false;
+                if (isVideo) {
+                  const videoBlob = base64ToBlob(data.data.media_base64, contentType);
+                  const videoUrl = URL.createObjectURL(videoBlob);
+                  videoSource.src = videoUrl;
+                  videoSource.type = contentType;
+                  questionVideo.load();
+                  questionVideo.style.display = 'block';
+                  questionImage.style.display = 'none';
+                  imageContainer.style.display = 'block';
                 } else {
-                    imageContainer.style.display = 'none';
+                  questionImage.src = `data:${contentType};base64,${data.data.media_base64}`;
+                  questionImage.style.display = 'block';
+                  questionVideo.style.display = 'none';
+                  imageContainer.style.display = 'block';
                 }
-            };
-            
-            if (question.media_base64 && question.content_type) {
-                // Если есть встроенное base64 изображение с указанием типа
-                try {
-                    const isVideo = question.content_type.startsWith('video/');
-                    
-                    if (isVideo) {
-                        // Обработка видео в формате base64
-                        const videoBlob = base64ToBlob(question.media_base64, question.content_type);
-                        const videoUrl = URL.createObjectURL(videoBlob);
-                        videoSource.src = videoUrl;
-                        videoSource.type = question.content_type;
-                        questionVideo.load();
-                        questionVideo.style.display = 'block';
-                        questionImage.style.display = 'none';
-                    } else {
-                        // Обработка изображения в формате base64
-                        questionImage.src = `data:${question.content_type};base64,${question.media_base64}`;
-                        questionImage.style.display = 'block';
-                        questionVideo.style.display = 'none';
-                    }
-                    imageContainer.style.display = 'block';
-                } catch (error) {
-                    console.error('Ошибка при загрузке base64 медиа:', error);
-                    imageContainer.style.display = 'none';
-                }
-            } else if (question.media_base64) {
-                // Если есть встроенное base64 изображение без указания типа (считаем изображением)
-                try {
-                    questionImage.src = `data:image/jpeg;base64,${question.media_base64}`;
-                    questionImage.style.display = 'block';
-                    questionVideo.style.display = 'none';
-                    imageContainer.style.display = 'block';
-                } catch (error) {
-                    console.error('Ошибка при загрузке base64 изображения:', error);
-                    imageContainer.style.display = 'none';
-                }
-            } else if (question.media_file_id) {
-                // Запрашиваем информацию о типе файла
-                fetch(`/api/files/files/${question.media_file_id}?as_base64=true`)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Ошибка получения информации о медиафайле');
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.success && data.data.media_base64) {
-                            const isVideo = data.data.is_video || false;
-                            const contentType = data.data.content_type || 'image/jpeg';
-                            
-                            if (isVideo) {
-                                // Показываем видео
-                                const videoBlob = base64ToBlob(data.data.media_base64, contentType);
-                                const videoUrl = URL.createObjectURL(videoBlob);
-                                videoSource.src = videoUrl;
-                                videoSource.type = contentType;
-                                questionVideo.load();
-                                questionVideo.style.display = 'block';
-                                questionImage.style.display = 'none';
-                                imageContainer.style.display = 'block';
-                            } else {
-                                // Показываем изображение из base64
-                                questionImage.src = `data:${contentType};base64,${data.data.media_base64}`;
-                                questionImage.style.display = 'block';
-                                questionVideo.style.display = 'none';
-                                imageContainer.style.display = 'block';
-                            }
-                        } else {
-                            // Прямое обращение по URL
-                            if (data.data && data.data.is_video) {
-                                // Это видео, используем видео-элемент
-                                videoSource.src = `/api/files/files/${question.media_file_id}`;
-                                videoSource.type = data.data.content_type || 'video/mp4';
-                                questionVideo.load();
-                                questionVideo.style.display = 'block';
-                                questionImage.style.display = 'none';
-                                
-                                // Обработчик ошибок для видео
-                                questionVideo.onerror = () => handleMediaError('видео');
-                            } else {
-                                // Это изображение, используем img
-                                questionImage.src = `/api/files/files/${question.media_file_id}`;
-                                questionImage.style.display = 'block';
-                                questionVideo.style.display = 'none';
-                                
-                                // Обработчик ошибок для изображения
-                                questionImage.onerror = () => handleMediaError('изображения');
-                            }
-                            imageContainer.style.display = 'block';
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Ошибка запроса информации о медиафайле:', error);
-                        
-                        // Пробуем напрямую загрузить как изображение
-                        questionImage.src = `/api/files/files/${question.media_file_id}`;
-                        questionImage.style.display = 'block';
-                        questionVideo.style.display = 'none';
-                        imageContainer.style.display = 'block';
-                        
-                        // Обработчик ошибок для изображения
-                        questionImage.onerror = () => handleMediaError('медиафайла');
-                    });
-            } else {
-                // Нет медиафайла
+              } else {
                 imageContainer.style.display = 'none';
-            }
-            
-            // Создаем варианты ответа
-            const optionsContainer = document.getElementById('answer-options');
-            optionsContainer.innerHTML = '';
-            
-            question.options.forEach((option, index) => {
-                const optionElement = document.createElement('div');
-                optionElement.className = 'answer-option';
-                optionElement.dataset.index = index;
-                optionElement.innerHTML = `
-                    <div class="answer-label">${option.label}</div>
-                    <div class="answer-content">${option.text}</div>
-                `;
-
-                
-                // Если вопрос уже отвечен, применяем соответствующие стили
-                if (answeredQuestions[question.id]) {
-                    if (answeredQuestions[question.id].selected === index) {
-                        if (answeredQuestions[question.id].correct) {
-                            optionElement.classList.add('correct');
-                        } else {
-                            optionElement.classList.add('incorrect');
-                        }
-                    }
-                } else {
-                    // Добавляем обработчик клика только для неотвеченных вопросов
-                    optionElement.addEventListener('click', () => selectAnswer(index));
-                }
-                
-                optionsContainer.appendChild(optionElement);
+              }
+            })
+            .catch(error => {
+              console.error(`Ошибка при запросе ${mediaType} в формате base64:`, error);
+              imageContainer.style.display = 'none';
             });
-            
-            // Если вопрос уже был отвечен, показываем объяснение и кнопку "Далее"
-            if (answeredQuestions[question.id]) {
-                showExplanation(question.explanation);
-                document.getElementById('btn-next').style.display = 'block';
-                
-                // Показываем статус ответа
-                const statusElement = document.getElementById('answer-status');
-                if (answeredQuestions[question.id].correct) {
-                    statusElement.className = 'answer-status correct';
-                    statusElement.textContent = 'Правильно!';
-                } else {
-                    statusElement.className = 'answer-status incorrect';
-                    statusElement.textContent = 'Неправильно!';
-                }
-                statusElement.style.display = 'inline-block';
+        } else {
+          imageContainer.style.display = 'none';
+        }
+      };
+
+      if (question.media_base64 && question.content_type) {
+        try {
+          const isVideo = question.content_type.startsWith('video/');
+          if (isVideo) {
+            const videoBlob = base64ToBlob(question.media_base64, question.content_type);
+            const videoUrl = URL.createObjectURL(videoBlob);
+            videoSource.src = videoUrl;
+            videoSource.type = question.content_type;
+            questionVideo.load();
+            questionVideo.style.display = 'block';
+            questionImage.style.display = 'none';
+          } else {
+            questionImage.src = `data:${question.content_type};base64,${question.media_base64}`;
+            questionImage.style.display = 'block';
+            questionVideo.style.display = 'none';
+          }
+          imageContainer.style.display = 'block';
+        } catch (error) {
+          console.error('Ошибка при загрузке base64 медиа:', error);
+          imageContainer.style.display = 'none';
+        }
+      } else if (question.media_base64) {
+        try {
+          questionImage.src = `data:image/jpeg;base64,${question.media_base64}`;
+          questionImage.style.display = 'block';
+          questionVideo.style.display = 'none';
+          imageContainer.style.display = 'block';
+        } catch (error) {
+          console.error('Ошибка при загрузке base64 изображения:', error);
+          imageContainer.style.display = 'none';
+        }
+      } else if (question.media_file_id) {
+        fetch(`/api/files/files/${question.media_file_id}?as_base64=true`)
+          .then(response => {
+            if (!response.ok) {
+              throw new Error('Ошибка получения информации о медиафайле');
+            }
+            return response.json();
+          })
+          .then(data => {
+            if (data.success && data.data.media_base64) {
+              const isVideo = data.data.is_video || false;
+              const contentType = data.data.content_type || 'image/jpeg';
+
+              if (isVideo) {
+                const videoBlob = base64ToBlob(data.data.media_base64, contentType);
+                const videoUrl = URL.createObjectURL(videoBlob);
+                videoSource.src = videoUrl;
+                videoSource.type = contentType;
+                questionVideo.load();
+                questionVideo.style.display = 'block';
+                questionImage.style.display = 'none';
+                imageContainer.style.display = 'block';
+              } else {
+                questionImage.src = `data:${contentType};base64,${data.data.media_base64}`;
+                questionImage.style.display = 'block';
+                questionVideo.style.display = 'none';
+                imageContainer.style.display = 'block';
+              }
             } else {
-                // Скрываем объяснение и кнопку "Далее" для новых вопросов
-                document.getElementById('explanation-card').style.display = 'none';
-                document.getElementById('btn-next').style.display = 'none';
-                document.getElementById('answer-status').style.display = 'none';
+              if (data.data && data.data.is_video) {
+                videoSource.src = `/api/files/files/${question.media_file_id}`;
+                videoSource.type = data.data.content_type || 'video/mp4';
+                questionVideo.load();
+                questionVideo.style.display = 'block';
+                questionImage.style.display = 'none';
+                questionVideo.onerror = () => handleMediaError('видео');
+              } else {
+                questionImage.src = `/api/files/files/${question.media_file_id}`;
+                questionImage.style.display = 'block';
+                questionVideo.style.display = 'none';
+                questionImage.onerror = () => handleMediaError('изображения');
+              }
+              imageContainer.style.display = 'block';
             }
-        }
-        
-        // Функция выбора ответа
-        async function selectAnswer(index) {
-            if (answeredQuestions[currentQuestion.id]) {
-                return;
-            }
+          })
+          .catch(error => {
+            console.error('Ошибка запроса информации о медиафайле:', error);
+            questionImage.src = `/api/files/files/${question.media_file_id}`;
+            questionImage.style.display = 'block';
+            questionVideo.style.display = 'none';
+            imageContainer.style.display = 'block';
+            questionImage.onerror = () => handleMediaError('медиафайла');
+          });
+      } else {
+        imageContainer.style.display = 'none';
+      }
 
-            try {
-                const response = await fetch(`/api/lobbies/lobbies/${lobbyId}/answer`, {
-                    method: 'POST',
-                    credentials: 'include', // обязательно
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        question_id: currentQuestion.id,
-                        answer_index: index
-                    })
-                });
+      // Создаём варианты ответа
+      const optionsContainer = document.getElementById('answer-options');
+      optionsContainer.innerHTML = '';
 
-                const data = await response.json();
+      question.options.forEach((option, index) => {
+        const optionElement = document.createElement('div');
+        optionElement.className = 'answer-option';
+        optionElement.dataset.index = index;
+        optionElement.innerHTML = `
+          <div class="answer-label">${option.label}</div>
+          <div class="answer-content">${option.text}</div>
+        `;
 
-                if (data.status !== "ok") {
-                    throw new Error(data.message || data.detail || 'Ошибка отправки ответа');
-                }
-
-                const isCorrect = data.data.is_correct;
-                const explanation = data.data.explanation || "N/A";
-                const correctAnswer = data.data.correct_answer || "N/A";
-
-                // сохраняем в объект текущего вопроса
-                currentQuestion.explanation = explanation;
-                currentQuestion.correct_answer_text = correctAnswer;
-
-                if (isCorrect) {
-                    correctAnswers++;
-                    document.getElementById('correct-answers').textContent = correctAnswers;
-                } else {
-                    incorrectAnswers++;
-                    document.getElementById('incorrect-answers').textContent = incorrectAnswers;
-                }
-
-
-                const answered = correctAnswers + incorrectAnswers;
-                const percentage = answered > 0 ? Math.round((correctAnswers / answered) * 100) : 0;
-                document.getElementById('percentage').textContent = `${percentage}%`;
-
-                answeredQuestions[currentQuestion.id] = {
-                    selected: index,
-                    correct: isCorrect
-                };
-
-                const options = document.querySelectorAll('.answer-option');
-                options.forEach(opt => {
-                    const optIndex = parseInt(opt.dataset.index);
-                    if (optIndex === index) {
-                        opt.classList.add(isCorrect ? 'correct' : 'incorrect');
-                    }
-                    opt.replaceWith(opt.cloneNode(true));
-                });
-
-                const statusElement = document.getElementById('answer-status');
-                statusElement.className = isCorrect ? 'answer-status correct' : 'answer-status incorrect';
-                statusElement.textContent = isCorrect ? 'Правильно!' : 'Неправильно!';
-                statusElement.style.display = 'inline-block';
-
-                showExplanation(currentQuestion.explanation);
-                document.getElementById('btn-next').style.display = 'block';
-                updateProgress();
-
-            } catch (error) {
-                console.error('Ошибка:', error);
-                alert('Произошла ошибка при отправке ответа. Пожалуйста, попробуйте снова.');
-            }
+        if (answeredQuestions[question.id]) {
+          if (answeredQuestions[question.id].selected === index) {
+            optionElement.classList.add(answeredQuestions[question.id].correct ? 'correct' : 'incorrect');
+          }
+        } else {
+          optionElement.addEventListener('click', () => selectAnswer(index));
         }
 
-        
-        // Функция показа объяснения
-        function showExplanation(explanation) {
-            const explanationCard = document.getElementById('explanation-card');
-            document.getElementById('explanation-text').textContent = explanation;
-            explanationCard.style.display = 'block';
-        }
-        
-        // Функция перехода к следующему вопросу
-        function nextQuestion() {
-            // Проверяем, есть ли следующий вопрос
-            if (currentQuestionIndex < totalQuestions - 1) {
-                currentQuestionIndex++;
-                document.getElementById('current-question').textContent = currentQuestionIndex + 1;
-                loadQuestion();
-            } else {
-                // Если это был последний вопрос, завершаем тест
-                finishTest();
-            }
-        }
-        
-        // Функция обновления прогресса
-        function updateProgress() {
-            const answered = Object.keys(answeredQuestions).length;
-            const progressPercent = (answered / totalQuestions) * 100;
-            document.getElementById('progress-bar').style.width = `${progressPercent}%`;
-        }
-        
-        // Функция завершения теста
-       async function finishTest() {
-            try {
-                clearInterval(timerInterval);
+        optionsContainer.appendChild(optionElement);
+      });
 
-                // Отправляем запрос на завершение теста
-                const response = await fetch(`/api/lobbies/lobbies/${lobbyId}/finish`, {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
+      // Показываем объяснение и статус, если вопрос уже отвечен
+      if (answeredQuestions[question.id]) {
+        showExplanation(question.explanation);
+        document.getElementById('btn-next').style.display = 'block';
 
-                const data = await response.json();
+        const statusElement = document.getElementById('answer-status');
+        statusElement.className = answeredQuestions[question.id].correct ? 'answer-status correct' : 'answer-status incorrect';
+        statusElement.textContent = answeredQuestions[question.id].correct ? 'Правильно!' : 'Неправильно!';
+        statusElement.style.display = 'inline-block';
+      } else {
+        document.getElementById('explanation-card').style.display = 'none';
+        document.getElementById('btn-next').style.display = 'none';
+        document.getElementById('answer-status').style.display = 'none';
+      }
+    }
 
-                if (data.status === "ok") {
-                    // Всё успешно — переходим к результатам
-                    window.location.href = `/results?id=${lobbyId}`;
-                } else {
-                    throw new Error(data.message || data.detail || 'Ошибка завершения теста');
-                }
+    // Функция выбора ответа
+    async function selectAnswer(index) {
+      if (answeredQuestions[currentQuestion.id]) {
+        return;
+      }
 
-            } catch (error) {
-                console.error('Ошибка:', error);
-                alert('Произошла ошибка при завершении теста. Пожалуйста, попробуйте снова.');
-            }
+      try {
+        const response = await fetch(`/api/lobbies/lobbies/${lobbyId}/answer`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            question_id: currentQuestion.id,
+            answer_index: index
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.status !== "ok") {
+          throw new Error(data.message || data.detail || 'Ошибка отправки ответа');
         }
 
-        
-        // Функция обновления таймера
-        function updateTimer() {
-            const now = new Date();
-            const diff = now - startTime;
-            
-            const hours = Math.floor(diff / (1000 * 60 * 60));
-            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-            
-            document.getElementById('timer-display').textContent = 
-                `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        const isCorrect = data.data.is_correct;
+        const explanation = data.data.explanation || "N/A";
+        const correctAnswer = data.data.correct_answer || "N/A";
+
+        currentQuestion.explanation = explanation;
+        currentQuestion.correct_answer_text = correctAnswer;
+
+        if (isCorrect) {
+          correctAnswers++;
+          document.getElementById('correct-answers').textContent = correctAnswers;
+        } else {
+          incorrectAnswers++;
+          document.getElementById('incorrect-answers').textContent = incorrectAnswers;
         }
-        
-        // Функция для преобразования base64 в Blob
-        function base64ToBlob(base64, contentType) {
-            const byteCharacters = atob(base64);
-            const byteArrays = [];
-            
-            for (let offset = 0; offset < byteCharacters.length; offset += 512) {
-                const slice = byteCharacters.slice(offset, offset + 512);
-                
-                const byteNumbers = new Array(slice.length);
-                for (let i = 0; i < slice.length; i++) {
-                    byteNumbers[i] = slice.charCodeAt(i);
-                }
-                
-                const byteArray = new Uint8Array(byteNumbers);
-                byteArrays.push(byteArray);
-            }
-            
-            return new Blob(byteArrays, {type: contentType});
+
+        const answered = correctAnswers + incorrectAnswers;
+        const percentage = answered > 0 ? Math.round((correctAnswers / answered) * 100) : 0;
+        document.getElementById('percentage').textContent = `${percentage}%`;
+
+        answeredQuestions[currentQuestion.id] = {
+          selected: index,
+          correct: isCorrect
+        };
+
+        const options = document.querySelectorAll('.answer-option');
+        options.forEach(opt => {
+          const optIndex = parseInt(opt.dataset.index);
+          if (optIndex === index) {
+            opt.classList.add(isCorrect ? 'correct' : 'incorrect');
+          }
+          opt.replaceWith(opt.cloneNode(true));
+        });
+
+        const statusElement = document.getElementById('answer-status');
+        statusElement.className = isCorrect ? 'answer-status correct' : 'answer-status incorrect';
+        statusElement.textContent = isCorrect ? 'Правильно!' : 'Неправильно!';
+        statusElement.style.display = 'inline-block';
+
+        showExplanation(currentQuestion.explanation);
+        document.getElementById('btn-next').style.display = 'block';
+        updateProgress();
+      } catch (error) {
+        console.error('Ошибка:', error);
+        alert('Произошла ошибка при отправке ответа. Пожалуйста, попробуйте снова.');
+      }
+    }
+
+    // Функция показа объяснения
+    function showExplanation(explanation) {
+      const explanationCard = document.getElementById('explanation-card');
+      document.getElementById('explanation-text').textContent = explanation;
+      explanationCard.style.display = 'block';
+    }
+
+    // Функция перехода к следующему вопросу
+    function nextQuestion() {
+      if (currentQuestionIndex < totalQuestions - 1) {
+        currentQuestionIndex++;
+        document.getElementById('current-question').textContent = currentQuestionIndex + 1;
+        loadQuestion();
+      } else {
+        finishTest();
+      }
+    }
+
+    // Функция обновления прогресса
+    function updateProgress() {
+      const answered = Object.keys(answeredQuestions).length;
+      const progressPercent = (answered / totalQuestions) * 100;
+      document.getElementById('progress-bar').style.width = `${progressPercent}%`;
+    }
+
+    // Функция завершения теста
+    async function finishTest() {
+      try {
+        clearInterval(timerInterval);
+
+        const response = await fetch(`/api/lobbies/lobbies/${lobbyId}/finish`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const data = await response.json();
+
+        if (data.status === "ok") {
+          window.location.href = `/results?id=${lobbyId}`;
+        } else {
+          throw new Error(data.message || data.detail || 'Ошибка завершения теста');
         }
-    </script>
+      } catch (error) {
+        console.error('Ошибка:', error);
+        alert('Произошла ошибка при завершении теста. Пожалуйста, попробуйте снова.');
+      }
+    }
+
+    // Функция обновления таймера
+    function updateTimer() {
+      const now = new Date();
+      const diff = now - startTime;
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      document.getElementById('timer-display').textContent =
+        `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    // Функция для преобразования base64 в Blob
+    function base64ToBlob(base64, contentType) {
+      const byteCharacters = atob(base64);
+      const byteArrays = [];
+
+      for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+        const slice = byteCharacters.slice(offset, offset + 512);
+        const byteNumbers = new Array(slice.length);
+        for (let i = 0; i < slice.length; i++) {
+          byteNumbers[i] = slice.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        byteArrays.push(byteArray);
+      }
+
+      return new Blob(byteArrays, {type: contentType});
+    }
+  </script>
 </body>
-</html> 
+</html>
