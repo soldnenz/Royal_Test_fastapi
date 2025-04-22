@@ -33,7 +33,7 @@ const DashboardLayout = () => {
         }
 
         const data = await response.json();
-        if (data.success) {
+        if (data.status === "ok") {
           setProfileData(data.data);
         } else {
           throw new Error(data.message || 'Unknown error');
