@@ -5,6 +5,7 @@ import MainLayout from './layouts/MainLayout';
 import CleLayout from './layouts/cleLayout';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
+import RegistrationPage from './pages/RegistrationPage';
 import './App.css';
 
 function App() {
@@ -16,9 +17,11 @@ function App() {
             <Route path="login" element={<CleLayout />}>
               <Route index element={<LoginPage />} />
             </Route>
+            <Route path="registration" element={<CleLayout />}>
+              <Route index element={<RegistrationPage />} />
+            </Route>
             <Route path="/" element={<MainLayout />}>
               <Route index element={<HomePage />} />
-              <Route path="registration" element={<div className="container-custom py-12 text-center"><h1 className="text-2xl font-bold">Страница регистрации</h1><p>Страница в разработке</p></div>} />
             </Route>
           </Routes>
         </Router>

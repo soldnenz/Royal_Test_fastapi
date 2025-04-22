@@ -276,6 +276,25 @@ export const translations = {
     noAdsFeature: "Без рекламы",
     emailSupportFeature: "Поддержка по email",
     prioritySupportFeature: "Приоритетная поддержка",
+    
+    // RegistrationPage
+    fullName: "ФИО",
+    iin: "ИИН",
+    phone: "Телефон",
+    email: "Email",
+    confirmPassword: "Подтвердите пароль",
+    referralCode: "Код приглашения (необязательно)",
+    alreadyHaveAccount: "Уже есть аккаунт? Войти",
+    registerButton: "Зарегистрироваться",
+    loading: "Загрузка...",
+    
+    // Validation messages
+    fullNameRequired: "ФИО должно содержать минимум 2 символа",
+    iinInvalid: "ИИН должен состоять ровно из 12 цифр",
+    phoneInvalid: "Телефон должен быть в формате +7XXXXXXXXXX",
+    emailInvalid: "Введите корректный email",
+    passwordMin: "Пароль должен содержать минимум 6 символов",
+    passwordMismatch: "Пароли не совпадают",
   },
   
   kz: {
@@ -555,6 +574,25 @@ export const translations = {
     noAdsFeature: "Жарнамасыз",
     emailSupportFeature: "Email арқылы қолдау",
     prioritySupportFeature: "Басымдық қолдау",
+    
+    // RegistrationPage
+    fullName: "Аты-жөні",
+    iin: "ЖСН",
+    phone: "Телефон",
+    email: "Email",
+    confirmPassword: "Құпия сөзді растаңыз",
+    referralCode: "Шақыру коды (міндетті емес)",
+    alreadyHaveAccount: "Тіркелгіңіз бар ма? Кіру",
+    registerButton: "Тіркелу",
+    loading: "Жүктелуде...",
+    
+    // Validation messages
+    fullNameRequired: "Аты-жөні кемінде 2 таңбадан тұруы керек",
+    iinInvalid: "ЖСН дәл 12 саннан тұруы керек",
+    phoneInvalid: "Телефон +7XXXXXXXXXX форматында болуы керек",
+    emailInvalid: "Дұрыс email енгізіңіз",
+    passwordMin: "Құпия сөз кемінде 6 таңбадан тұруы керек",
+    passwordMismatch: "Құпия сөздер сәйкес келмейді",
   },
   
   en: {
@@ -834,5 +872,24 @@ export const translations = {
     noAdsFeature: "No ads",
     emailSupportFeature: "Email support",
     prioritySupportFeature: "Priority support",
+    
+    // RegistrationPage
+    fullName: "Full Name",
+    iin: "IIN",
+    phone: "Phone",
+    email: "Email",
+    confirmPassword: "Confirm Password",
+    referralCode: "Invitation Code (optional)",
+    alreadyHaveAccount: "Already have an account? Log in",
+    registerButton: "Register",
+    loading: "Loading...",
+    
+    // Validation messages
+    fullNameRequired: "Full name must contain at least 2 characters",
+    iinInvalid: "IIN must be exactly 12 digits",
+    phoneInvalid: "Phone must be in the format +7XXXXXXXXXX",
+    emailInvalid: "Enter a valid email",
+    passwordMin: "Password must contain at least 6 characters",
+    passwordMismatch: "Passwords do not match",
   }
 }; 
