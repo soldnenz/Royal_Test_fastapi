@@ -9,6 +9,17 @@ export const translations = {
     russian: "Русский",
     kazakh: "Қазақша",
     english: "English",
+    back: "Назад",
+    
+    // LoginPage
+    iinOrEmail: "ИИН или Email",
+    password: "Пароль",
+    forgotPassword: "Забыли пароль?",
+    loginButton: "Войти",
+    usernameInvalid: "Введите корректный ИИН или Email",
+    passwordRequired: "Введите пароль",
+    dontHaveAccount: "Нет аккаунта?",
+    signUp: "Зарегистрироваться",
     
     // HomePage
     heroTitle: "Подготовка к экзаменам ПДД в Казахстане",
@@ -277,6 +288,17 @@ export const translations = {
     russian: "Русский",
     kazakh: "Қазақша",
     english: "English",
+    back: "Артқа",
+    
+    // LoginPage
+    iinOrEmail: "ЖСН немесе Email",
+    password: "Құпия сөз",
+    forgotPassword: "Құпия сөзді ұмыттыңыз ба?",
+    loginButton: "Кіру",
+    usernameInvalid: "Дұрыс ЖСН немесе Email енгізіңіз",
+    passwordRequired: "Құпия сөзді енгізіңіз",
+    dontHaveAccount: "Тіркелгі жоқ па?",
+    signUp: "Тіркелу",
     
     // HomePage
     heroTitle: "Қазақстандағы ЖҚЕ емтихандарына дайындық",
@@ -545,6 +567,17 @@ export const translations = {
     russian: "Русский",
     kazakh: "Қазақша",
     english: "English",
+    back: "Back",
+    
+    // LoginPage
+    iinOrEmail: "IIN or Email",
+    password: "Password",
+    forgotPassword: "Forgot password?",
+    loginButton: "Log in",
+    usernameInvalid: "Please enter a valid IIN or Email",
+    passwordRequired: "Please enter password",
+    dontHaveAccount: "Don't have an account?",
+    signUp: "Sign Up",
     
     // HomePage
     heroTitle: "Preparation for Traffic Rules Exams in Kazakhstan",
