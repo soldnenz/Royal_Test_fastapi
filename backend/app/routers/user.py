@@ -28,7 +28,6 @@ async def get_current_profile(actor = Depends(get_current_actor)):
     """
     if actor["type"] == "user":
         profile = {
-            "role": actor["role"],           # ← всегда 'user'
             "full_name": actor["full_name"],
             "email": actor["email"],
             "phone": actor["phone"],

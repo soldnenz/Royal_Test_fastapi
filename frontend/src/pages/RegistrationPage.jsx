@@ -118,8 +118,8 @@ const RegistrationPage = () => {
       // Clear referral code from localStorage after successful registration
       clearReferralCode();
       
-      // Redirect on success
-      window.location.href = '/';
+      // Redirect to dashboard on success
+      window.location.href = '/dashboard';
     } catch (err) {
       setServerError(err.message || 'Ошибка сервера');
     } finally {

@@ -48,8 +48,8 @@ const LoginPage = () => {
       if (!response.ok) {
         throw new Error(data.message || data.details?.message || 'Произошла ошибка при входе');
       }
-      // Redirect on success
-      window.location.href = '/';
+      // Redirect to dashboard on success
+      window.location.href = '/dashboard';
     } catch (err) {
       setServerError(err.message || 'Ошибка сервера');
     } finally {
