@@ -20,6 +20,7 @@ from app.schemas.admin_schemas import AdminToken
 from app.admin.telegram_2fa import send_2fa_request
 from app.admin.utils import create_token, get_ip, get_user_agent
 from app.admin.utils import decode_token
+from app.admin.permissions import get_current_admin_user
 import string
 import secrets
 from app.core.response import success
@@ -109,7 +110,7 @@ async def unified_login(data: AuthRequest, request: Request):
                 detail={"message": "Подтвердите вход в приложение 2FA"}
             )
 
-        token = create_token({"sub": str(admin["_id"]), "role": admin["role"]})
+        token = create_token(str(admin["_id"]), admin["role"])
 
         await db.admins.update_one({"_id": admin["_id"]}, {"$set": {
             "active_session": {"ip": ip, "user_agent": ua, "token": token},
@@ -366,3 +367,20 @@ async def logout_user(request: Request):
 
     logger.info(f"[LOGOUT][{request.client.host}] Успешный выход: admin_id={user_id}, role={role}")
     return response
+
+
+# --------------------------------------------------------------------------- #
+# /validate-admin  (для Nginx auth_request)
+# --------------------------------------------------------------------------- #
+@router.get("/validate-admin", include_in_schema=False)
+async def validate_admin(admin = Depends(get_current_admin_user)):
+    """
+    204 → JWT валиден и роль = admin|moderator.
+    Используется Nginx‑ом в auth_request.
+    """
+    if admin["role"] not in ["admin", "moderator", "super_admin"]:
+        logger.warning(f"[VALIDATE-ADMIN] Недостаточно прав: user_id={admin['_id']}, role={admin['role']}")
+        return Response(status_code=404)
+    
+    logger.info(f"[VALIDATE-ADMIN] Успешная валидация: user_id={admin['_id']}, role={admin['role']}")
+    return Response(status_code=204)

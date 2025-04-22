@@ -1,0 +1,1878 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Страница не найдена</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .error-message {
+            position: absolute;
+            top: 30px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            z-index: 50;
+        }
+
+        .title {
+            font-size: 5em;
+            margin: 0;
+            background: linear-gradient(45deg, #ff4081, #3f51b5, #00bcd4, #4caf50);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: gradient 5s ease infinite;
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            margin-top: 10px;
+            color: #cccccc;
+        }
+
+        .back-button {
+            margin-top: 20px;
+            padding: 12px 30px;
+            background: linear-gradient(45deg, #ff4081, #3f51b5);
+            border: none;
+            border-radius: 30px;
+            color: white;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .back-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(255, 64, 129, 0.5);
+        }
+
+        .countdown {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            font-size: 18px;
+            color: #cccccc;
+            z-index: 50;
+        }
+
+        /* Игровое поле */
+        .game-container {
+            position: absolute;
+            width: 100%;
+            max-width: 500px; /* Ограничиваем ширину для ПК */
+            height: 100%;
+            background-color: #1a1a1a;
+            overflow: hidden;
+            perspective: 800px;
+            left: 50%;
+            transform: translateX(-50%); /* Центрируем игровое поле */
+        }
+
+        /* Дорога */
+        .road {
+            position: absolute;
+            width: 100%;
+            height: 200%;
+            background: repeating-linear-gradient(
+                to bottom,
+                #333 0px,
+                #333 50px,
+                #3a3a3a 50px,
+                #3a3a3a 100px
+            );
+            transform-origin: center top;
+            transform-style: preserve-3d;
+            transform: rotateX(70deg);
+            top: -50%;
+            animation: roadMovement 0.5s linear infinite;
+        }
+
+        /* Полосы движения */
+        .lane-markers {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+        }
+
+        .lane-marker {
+            position: absolute;
+            height: 100%;
+            width: 10px;
+            top: 0;
+            background: repeating-linear-gradient(
+                to bottom,
+                rgba(255, 255, 255, 0.8) 0px,
+                rgba(255, 255, 255, 0.8) 30px,
+                transparent 30px,
+                transparent 60px
+            );
+        }
+
+        .lane-marker-1 {
+            left: 25%;
+            transform: translateX(-50%);
+        }
+
+        .lane-marker-2 {
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .lane-marker-3 {
+            left: 75%;
+            transform: translateX(-50%);
+        }
+
+        .road-divider {
+            position: absolute;
+            width: 10px;
+            height: 100%;
+            background: repeating-linear-gradient(
+                to bottom,
+                #fff 0px,
+                #fff 30px,
+                transparent 30px,
+                transparent 60px
+            );
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .road-side {
+            position: absolute;
+            width: 30px;
+            height: 100%;
+            background-color: #555;
+            top: 0;
+        }
+
+        .road-side-left {
+            left: 0;
+        }
+
+        .road-side-right {
+            right: 0;
+        }
+
+        /* Панель приборов */
+        .dashboard {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100px;
+            background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.8));
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 30;
+        }
+
+        .dashboard-item {
+            text-align: center;
+        }
+
+        .dashboard-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .dashboard-label {
+            font-size: 14px;
+            color: #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dashboard-label-icon {
+            width: 16px;
+            height: 16px;
+            margin-right: 5px;
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+
+        .fuel-icon {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234caf50"><path d="M6 22h12v-2H6v2zM18 9h-3V4h-2v5h-3l4 4 4-4zM3 13h2v-2H3v2zM5 9h2V7H5v2zM7 5h2V3H7v2zM19 13h2v-2h-2v2zM17 9h2V7h-2v2zM15 5h2V3h-2v2z"/></svg>');
+        }
+
+        .score-icon {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ffc107"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/></svg>');
+        }
+
+        .lives-icon {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23f44336"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>');
+        }
+
+        .speed-icon {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%232196f3"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>');
+        }
+
+        .speedometer {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background-color: rgba(0, 0, 0, 0.5);
+            position: relative;
+            border: 2px solid #444;
+        }
+
+        .speedometer-needle {
+            position: absolute;
+            width: 2px;
+            height: 30px;
+            background-color: #ff4081;
+            bottom: 40px;
+            left: 39px;
+            transform-origin: bottom center;
+            transform: rotate(0deg);
+            transition: transform 0.3s ease;
+        }
+
+        .fuel-gauge {
+            width: 100px;
+            height: 10px;
+            background-color: #333;
+            border-radius: 5px;
+        }
+
+        /* Автомобиль игрока */
+        .player-car {
+            position: absolute;
+            width: 60px;
+            height: 120px;
+            bottom: 120px;
+            left: calc(50% - 30px);
+            z-index: 10;
+            transition: left 0.05s linear;
+        }
+
+        .car-body {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #3f51b5, #5c6bc0);
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(63, 81, 181, 0.7);
+        }
+
+        .car-roof {
+            position: absolute;
+            width: 70%;
+            height: 40%;
+            top: 15%;
+            left: 15%;
+            background: linear-gradient(to bottom, #7986cb, #9fa8da);
+            border-radius: 8px 8px 0 0;
+        }
+
+        .car-hood {
+            position: absolute;
+            width: 80%;
+            height: 25%;
+            top: 5%;
+            left: 10%;
+            background: linear-gradient(to bottom, #3949ab, #5c6bc0);
+            border-radius: 10px 10px 0 0;
+        }
+
+        .car-trunk {
+            position: absolute;
+            width: 80%;
+            height: 15%;
+            bottom: 5%;
+            left: 10%;
+            background: linear-gradient(to top, #283593, #3949ab);
+            border-radius: 0 0 10px 10px;
+        }
+
+        .car-window {
+            position: absolute;
+            width: 60%;
+            height: 15%;
+            top: 22%;
+            left: 20%;
+            background-color: #bbdefb;
+            border-radius: 6px 6px 0 0;
+        }
+
+        .car-light {
+            position: absolute;
+            width: 15px;
+            height: 8px;
+            background-color: #ffeb3b;
+            border-radius: 4px;
+        }
+
+        .car-light-left {
+            left: 5px;
+            bottom: 15px;
+        }
+
+        .car-light-right {
+            right: 5px;
+            bottom: 15px;
+        }
+
+        .car-wheel {
+            position: absolute;
+            width: 18px;
+            height: 30px;
+            background-color: #212121;
+            border-radius: 5px;
+            box-shadow: inset 0 0 5px rgba(255, 255, 255, 0.2);
+        }
+
+        .car-wheel-left-front {
+            left: -5px;
+            top: 25px;
+        }
+
+        .car-wheel-right-front {
+            right: -5px;
+            top: 25px;
+        }
+
+        .car-wheel-left-back {
+            left: -5px;
+            bottom: 25px;
+        }
+
+        .car-wheel-right-back {
+            right: -5px;
+            bottom: 25px;
+        }
+
+        /* Эффекты */
+        .speed-lines {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: 5;
+            opacity: 0;
+            transition: opacity 0.5s;
+            pointer-events: none;
+        }
+        
+        .speed-line {
+            position: absolute;
+            height: 100%;
+            width: 2px;
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Препятствия */
+        .obstacle {
+            position: absolute;
+            width: 50px;
+            height: 90px;
+            z-index: 5;
+            transform-origin: center bottom;
+            transform: rotateX(10deg);
+        }
+
+        .obstacle-car {
+            background: linear-gradient(to bottom, #e53935, #c62828);
+            border-radius: 8px;
+        }
+
+        .obstacle-truck {
+            width: 60px;
+            height: 140px;
+            background: linear-gradient(to bottom, #5d4037, #3e2723);
+            border-radius: 8px;
+        }
+
+        .obstacle-motorcycle {
+            width: 30px;
+            height: 60px;
+            background: linear-gradient(to bottom, #ffc107, #ff8f00);
+            border-radius: 6px;
+        }
+
+        .obstacle-barrier {
+            width: 80px;
+            height: 40px;
+            background: repeating-linear-gradient(
+                45deg,
+                #ffeb3b,
+                #ffeb3b 10px,
+                #212121 10px,
+                #212121 20px
+            );
+        }
+
+        /* Бонусы */
+        .bonus {
+            position: absolute;
+            z-index: 5;
+            transform-origin: center bottom;
+            transform: rotateX(10deg) rotate(0deg);
+            animation: rotateBonus 2s linear infinite;
+        }
+
+        .bonus-fuel {
+            width: 30px;
+            height: 40px;
+            background: linear-gradient(to bottom, #4caf50, #2e7d32);
+            border-radius: 5px;
+        }
+
+        .bonus-turbo {
+            width: 35px;
+            height: 35px;
+            background: linear-gradient(to bottom, #2196f3, #1565c0);
+            border-radius: 50%;
+        }
+
+        .bonus-shield {
+            width: 35px;
+            height: 35px;
+            background: linear-gradient(to bottom, #9c27b0, #6a1b9a);
+            border-radius: 50%;
+        }
+
+        .bonus-coin {
+            width: 25px;
+            height: 25px;
+            background: linear-gradient(to bottom, #ffc107, #ff8f00);
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(255, 193, 7, 0.5);
+        }
+
+        /* Эффекты игрока */
+        .shield-effect {
+            position: absolute;
+            width: 80px;
+            height: 140px;
+            border-radius: 15px;
+            background: radial-gradient(ellipse at center, rgba(156, 39, 176, 0.2), rgba(156, 39, 176, 0));
+            border: 2px solid rgba(156, 39, 176, 0.5);
+            box-shadow: 0 0 15px rgba(156, 39, 176, 0.5);
+            z-index: 9;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .turbo-effect {
+            position: absolute;
+            width: 30px;
+            height: 60px;
+            bottom: -60px;
+            left: 15px;
+            background: linear-gradient(to top, rgba(33, 150, 243, 0), rgba(33, 150, 243, 0.8));
+            z-index: 8;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        /* Интерфейс и экраны */
+        .game-over {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s;
+        }
+
+        .game-over.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .game-over h2 {
+            font-size: 3em;
+            color: #ff4081;
+            margin-bottom: 20px;
+        }
+
+        .game-over p {
+            font-size: 1.5em;
+            color: white;
+            margin-bottom: 20px;
+        }
+
+        .restart-button {
+            padding: 12px 30px;
+            background: linear-gradient(45deg, #ff4081, #3f51b5);
+            border: none;
+            border-radius: 30px;
+            color: white;
+            font-size: 1.2em;
+            cursor: pointer;
+        }
+
+        /* Кнопки управления */
+        .controls {
+            position: fixed;
+            bottom: 120px;
+            width: 100%;
+            max-width: 500px; /* Учитываем максимальную ширину игры */
+            display: flex;
+            justify-content: space-between;
+            padding: 0 50px;
+            box-sizing: border-box;
+            z-index: 40;
+            pointer-events: none;
+            left: 50%;
+            transform: translateX(-50%); /* Центрируем элементы управления */
+        }
+
+        .control-button {
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 30px;
+            color: white;
+            cursor: pointer;
+            user-select: none;
+            pointer-events: auto;
+            transition: all 0.2s ease;
+        }
+
+        .control-button:active {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+
+        /* Полоса уведомлений */
+        .notification {
+            position: fixed;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 20px;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        /* Анимации */
+        @keyframes gradient {
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        @keyframes roadMovement {
+            from {
+                background-position: 0 0;
+            }
+            to {
+                background-position: 0 100px;
+            }
+        }
+
+        @keyframes rotateBonus {
+            from {
+                transform: rotateX(10deg) rotate(0deg);
+            }
+            to {
+                transform: rotateX(10deg) rotate(360deg);
+            }
+        }
+
+        @keyframes flash {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.3;
+            }
+        }
+
+        /* Адаптивность */
+        @media (max-width: 768px) {
+            .title {
+                font-size: 3em;
+            }
+            
+            .subtitle {
+                font-size: 1em;
+            }
+            
+            .controls {
+                padding: 0 30px;
+                bottom: 110px; /* Опускаем кнопки управления ниже на мобильных */
+            }
+            
+            .control-button {
+                width: 70px;
+                height: 70px;
+            }
+            
+            .dashboard {
+                height: 80px;
+            }
+            
+            .dashboard-value {
+                font-size: 20px;
+            }
+            
+            .speedometer {
+                width: 60px;
+                height: 60px;
+            }
+            
+            .speedometer-needle {
+                height: 25px;
+                left: 29px;
+            }
+            
+            /* Убираем ограничение ширины на мобильных */
+            .game-container {
+                max-width: 100%;
+            }
+        }
+
+        /* Дополнительные адаптации для мобильных устройств */
+        @media (max-width: 480px) {
+            .error-message {
+                top: 15px;
+            }
+            
+            .title {
+                font-size: 2.5em;
+            }
+            
+            .subtitle {
+                font-size: 0.9em;
+            }
+            
+            .controls {
+                padding: 0 20px;
+                bottom: 100px;
+            }
+            
+            .control-button {
+                width: 60px;
+                height: 60px;
+                font-size: 20px;
+            }
+            
+            .dashboard {
+                height: 70px;
+            }
+            
+            .dashboard-item {
+                padding: 0 5px;
+            }
+            
+            .dashboard-value {
+                font-size: 16px;
+            }
+            
+            .dashboard-label {
+                font-size: 12px;
+            }
+            
+            .speedometer {
+                width: 50px;
+                height: 50px;
+            }
+            
+            .speedometer-needle {
+                height: 20px;
+                left: 24px;
+            }
+            
+            .fuel-gauge {
+                width: 80px;
+            }
+            
+            .player-car {
+                width: 40px;
+                height: 80px;
+            }
+        }
+
+        /* Портретная ориентация на телефоне */
+        @media (max-height: 640px) {
+            .error-message {
+                top: 10px;
+            }
+            
+            .title {
+                font-size: 2em;
+            }
+            
+            .subtitle {
+                display: none;
+            }
+            
+            .back-button {
+                margin-top: 10px;
+                padding: 8px 20px;
+                font-size: 0.9em;
+            }
+            
+            .controls {
+                bottom: 90px;
+            }
+            
+            .dashboard {
+                height: 60px;
+            }
+        }
+
+        /* Начальный экран */
+        .start-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            transition: opacity 0.5s;
+        }
+
+        .start-screen h2 {
+            font-size: 3em;
+            color: #ff4081;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .start-screen p {
+            font-size: 1.2em;
+            color: white;
+            margin-bottom: 15px;
+            text-align: center;
+            max-width: 80%;
+        }
+
+        .start-screen .instruction {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .start-screen .instruction-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-right: 15px;
+            font-size: 20px;
+        }
+
+        .start-screen .instruction-text {
+            color: #ccc;
+        }
+
+        .start-screen .play-button {
+            margin-top: 30px;
+            padding: 12px 30px;
+            background: linear-gradient(45deg, #ff4081, #3f51b5);
+            border: none;
+            border-radius: 30px;
+            color: white;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .start-screen .play-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(255, 64, 129, 0.5);
+        }
+
+        /* Подсказки и индикаторы */
+        .indicators {
+            position: absolute;
+            bottom: 120px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            z-index: 30;
+        }
+
+        .indicator {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 5px 10px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 14px;
+            color: white;
+        }
+
+        .indicator-icon {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+        }
+
+        .indicator-fuel .indicator-icon {
+            background: linear-gradient(to right, #f44336, #ffeb3b, #4caf50);
+        }
+
+        .indicator-shield .indicator-icon {
+            background: #9c27b0;
+        }
+
+        .indicator-turbo .indicator-icon {
+            background: #2196f3;
+        }
+
+        /* Стилизация полос здоровья и топлива */
+        .health-bar {
+            width: 100px;
+            height: 10px;
+            background-color: #333;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .health-level {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to right, #f44336, #ff9800, #4caf50);
+            border-radius: 5px;
+            transition: width 0.3s;
+        }
+
+        /* Текущая полоса и скорость */
+        .current-lane {
+            position: fixed;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.6);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 16px;
+            color: white;
+            z-index: 40;
+        }
+
+        /* Спидометр более наглядный */
+        .speed-boost-indicator {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            animation: none;
+        }
+
+        .speed-boost-active {
+            border-color: #ff4081;
+            animation: pulse 1s infinite alternate;
+        }
+
+    </style>
+    <script>
+        // Редирект на главную через 5 минут
+        setTimeout(function() {
+            window.location.href = '/';
+        }, 300000);
+        
+        // Инициализация игры при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            const gameContainer = document.getElementById('gameContainer');
+            const road = document.getElementById('road');
+            const playerCar = document.getElementById('playerCar');
+            const speedLines = document.getElementById('speedLines');
+            const speedNeedle = document.getElementById('speedNeedle');
+            const speedValue = document.getElementById('speedValue');
+            const scoreDisplay = document.getElementById('scoreDisplay');
+            const livesDisplay = document.getElementById('livesDisplay');
+            const fuelLevel = document.getElementById('fuelLevel');
+            const healthLevel = document.getElementById('healthLevel');
+            const countdown = document.getElementById('countdown');
+            const gameOverScreen = document.getElementById('gameOver');
+            const startScreen = document.getElementById('startScreen');
+            const playButton = document.getElementById('playButton');
+            const finalScore = document.getElementById('finalScore');
+            const restartButton = document.getElementById('restartButton');
+            const leftButton = document.getElementById('leftButton');
+            const rightButton = document.getElementById('rightButton');
+            const notification = document.getElementById('notification');
+            const shieldEffect = document.getElementById('shieldEffect');
+            const turboEffect = document.getElementById('turboEffect');
+            const shieldIndicator = document.getElementById('shieldIndicator');
+            const turboIndicator = document.getElementById('turboIndicator');
+            const currentLaneDisplay = document.getElementById('currentLaneDisplay');
+            const speedBoostIndicator = document.getElementById('speedBoostIndicator');
+            
+            // Игровые переменные
+            let gameActive = false; // Игра не запущена по умолчанию
+            let score = 0;
+            let lives = 3;
+            let fuel = 100;
+            let speedFactor = 1;
+            let roadSpeed = 7; // Уменьшаем базовую скорость дороги
+            let baseSpeed = 60;
+            let currentSpeed = baseSpeed;
+            let carPosition = window.innerWidth / 2;
+            let carWidth = playerCar.offsetWidth;
+            let gameContainerWidth = gameContainer.offsetWidth;
+            let lastObstacleTime = 0;
+            let lastBonusTime = 0;
+            let obstacleFrequency = 2500; // Увеличиваем интервал между препятствиями
+            let bonusFrequency = 3000;
+            let animationFrameId;
+            let remainingSeconds = 300; // 5 минут
+            let keysPressed = {};
+            let obstacles = [];
+            let bonuses = [];
+            let hasShield = false;
+            let hasTurbo = false;
+            let turboTime = 0;
+            let shieldTime = 0;
+            let currentLane = 2; // Начинаем в средней полосе (из 4 полос: 0, 1, 2, 3)
+            let totalLanes = 4; // Всего 4 полосы движения
+            let gameTime = 0; // Время игры в секундах
+            let lastSpeedIncrease = 0; // Последнее время увеличения скорости
+            let lanePositions = []; // Позиции полос
+            let gameTimeInterval;
+            
+            // Настраиваем скоростные полосы
+            function setupSpeedLines() {
+                for (let i = 0; i < 20; i++) {
+                    const line = document.createElement('div');
+                    line.className = 'speed-line';
+                    line.style.left = `${Math.random() * 100}%`;
+                    line.style.height = `${50 + Math.random() * 50}%`;
+                    line.style.top = `${Math.random() * 50}%`;
+                    line.style.animationDuration = `${0.5 + Math.random() * 1}s`;
+                    speedLines.appendChild(line);
+                }
+            }
+            
+            // Настройка дороги
+            function setupRoad() {
+                road.style.animationDuration = `${1/speedFactor}s`;
+            }
+            
+            // Настройка начальной позиции игрока
+            function setupPlayerCar() {
+                carPosition = gameContainerWidth / 2;
+                carWidth = playerCar.offsetWidth;
+                playerCar.style.left = `${carPosition - carWidth / 2}px`;
+            }
+            
+            // Обработка нажатий клавиш
+            window.addEventListener('keydown', (e) => {
+                keysPressed[e.key] = true;
+                
+                // Быстрое переключение полос для "шашек"
+                if (e.key === 'ArrowLeft' && e.altKey) {
+                    switchToLane(currentLane - 1);
+                    e.preventDefault(); // Предотвращаем стандартное поведение браузера
+                } else if (e.key === 'ArrowRight' && e.altKey) {
+                    switchToLane(currentLane + 1);
+                    e.preventDefault(); // Предотвращаем стандартное поведение браузера
+                }
+                
+                // Повышаем/понижаем передачу
+                if (e.key === 'ArrowUp' && currentSpeed < baseSpeed * 2) {
+                    currentSpeed += 10;
+                    updateSpeedometer();
+                } else if (e.key === 'ArrowDown' && currentSpeed > baseSpeed / 2) {
+                    currentSpeed -= 10;
+                    updateSpeedometer();
+                }
+            });
+            
+            window.addEventListener('keyup', (e) => {
+                keysPressed[e.key] = false;
+            });
+            
+            // Кнопки управления для мобильных устройств
+            leftButton.addEventListener('touchstart', () => {
+                keysPressed['ArrowLeft'] = true;
+            });
+            
+            leftButton.addEventListener('touchend', () => {
+                keysPressed['ArrowLeft'] = false;
+            });
+            
+            rightButton.addEventListener('touchstart', () => {
+                keysPressed['ArrowRight'] = true;
+            });
+            
+            rightButton.addEventListener('touchend', () => {
+                keysPressed['ArrowRight'] = false;
+            });
+            
+            // Обработка мыши
+            leftButton.addEventListener('mousedown', () => {
+                keysPressed['ArrowLeft'] = true;
+            });
+            
+            leftButton.addEventListener('mouseup', () => {
+                keysPressed['ArrowLeft'] = false;
+            });
+            
+            leftButton.addEventListener('mouseleave', () => {
+                keysPressed['ArrowLeft'] = false;
+            });
+            
+            rightButton.addEventListener('mousedown', () => {
+                keysPressed['ArrowRight'] = true;
+            });
+            
+            rightButton.addEventListener('mouseup', () => {
+                keysPressed['ArrowRight'] = false;
+            });
+            
+            rightButton.addEventListener('mouseleave', () => {
+                keysPressed['ArrowRight'] = false;
+            });
+            
+            // Обновление таймера обратного отсчета
+            function updateCountdown() {
+                const minutes = Math.floor(remainingSeconds / 60);
+                const seconds = remainingSeconds % 60;
+                countdown.textContent = `${minutes}:${seconds < 10 ? '0' + seconds : seconds}`;
+                remainingSeconds--;
+                
+                if (remainingSeconds < 0) {
+                    clearInterval(countdownInterval);
+                }
+            }
+            
+            // Перемещение машины
+            function movePlayerCar() {
+                const moveSpeed = 8 * speedFactor; // Увеличиваем скорость перемещения для лучшей отзывчивости
+                
+                if (keysPressed['ArrowLeft']) {
+                    carPosition = Math.max(40, carPosition - moveSpeed);
+                }
+                
+                if (keysPressed['ArrowRight']) {
+                    carPosition = Math.min(gameContainerWidth - 40, carPosition + moveSpeed);
+                }
+                
+                playerCar.style.left = `${carPosition - carWidth / 2}px`;
+                
+                // Обновляем текущую полосу
+                updateCurrentLane();
+            }
+            
+            // Обновление спидометра
+            function updateSpeedometer() {
+                const maxAngle = 180;
+                const maxSpeed = baseSpeed * 2;
+                const angle = (currentSpeed / maxSpeed) * maxAngle - 90;
+                
+                speedNeedle.style.transform = `rotate(${angle}deg)`;
+                speedValue.textContent = Math.round(currentSpeed);
+                
+                // Обновление скоростного фактора
+                speedFactor = currentSpeed / baseSpeed;
+                
+                // Обновление анимации дороги
+                road.style.animationDuration = `${1/speedFactor}s`;
+                
+                // Обновление видимости скоростных линий
+                if (speedFactor > 1.5) {
+                    speedLines.style.opacity = Math.min((speedFactor - 1.5) * 2, 1);
+                } else {
+                    speedLines.style.opacity = 0;
+                }
+            }
+            
+            // Обновление уровня топлива
+            function updateFuel() {
+                // Расход топлива зависит от скорости, но уменьшен
+                fuel -= 0.02 * speedFactor; // Уменьшаем расход топлива с 0.05 до 0.02
+                
+                if (fuel <= 0) {
+                    fuel = 0;
+                    currentSpeed = Math.max(currentSpeed - 0.5, baseSpeed / 2);
+                    updateSpeedometer();
+                    
+                    if (currentSpeed <= baseSpeed / 2) {
+                        gameOver('Закончилось топливо');
+                    }
+                }
+                
+                fuelLevel.style.width = `${fuel}%`;
+                
+                // Изменение цвета индикатора в зависимости от уровня
+                if (fuel < 30) {
+                    fuelLevel.style.background = '#f44336';
+                } else if (fuel < 70) {
+                    fuelLevel.style.background = '#ffeb3b';
+                } else {
+                    fuelLevel.style.background = '#4caf50';
+                }
+            }
+            
+            // Создание препятствия
+            function createObstacle() {
+                const currentTime = Date.now();
+                
+                if (currentTime - lastObstacleTime > obstacleFrequency / speedFactor) {
+                    // Случайная полоса, но не та, в которой находится игрок
+                    let lane;
+                    do {
+                        lane = Math.floor(Math.random() * totalLanes);
+                    } while (lane === currentLane && Math.random() < 0.7); // 70% шанс, что препятствие будет в другой полосе
+                    
+                    const obstacleType = Math.floor(Math.random() * 4); // 4 типа препятствий
+                    
+                    const obstacle = document.createElement('div');
+                    obstacle.className = 'obstacle';
+                    
+                    let obstacleWidth, obstacleHeight;
+                    
+                    switch(obstacleType) {
+                        case 0:
+                            obstacle.classList.add('obstacle-car');
+                            obstacleWidth = 50;
+                            obstacleHeight = 90;
+                            break;
+                        case 1:
+                            obstacle.classList.add('obstacle-truck');
+                            obstacleWidth = 60;
+                            obstacleHeight = 140;
+                            break;
+                        case 2:
+                            obstacle.classList.add('obstacle-motorcycle');
+                            obstacleWidth = 30;
+                            obstacleHeight = 60;
+                            break;
+                        case 3:
+                            obstacle.classList.add('obstacle-barrier');
+                            obstacleWidth = 80;
+                            obstacleHeight = 40;
+                            break;
+                    }
+                    
+                    // Позиционирование по полосам
+                    const lanePosition = lanePositions[lane];
+                    
+                    obstacle.style.left = `${lanePosition - obstacleWidth / 2}px`;
+                    obstacle.style.top = '-150px';
+                    obstacle.style.width = `${obstacleWidth}px`;
+                    obstacle.style.height = `${obstacleHeight}px`;
+                    
+                    gameContainer.appendChild(obstacle);
+                    
+                    obstacles.push({
+                        element: obstacle,
+                        width: obstacleWidth,
+                        height: obstacleHeight,
+                        speed: roadSpeed * (0.5 + Math.random() * 0.5), // Разная скорость движения
+                        lane: lane // Сохраняем полосу препятствия
+                    });
+                    
+                    lastObstacleTime = currentTime;
+                    
+                    // Адаптация частоты появления препятствий в зависимости от счета
+                    obstacleFrequency = Math.max(2000 - score/20, 1000);
+                }
+            }
+            
+            // Создание бонуса
+            function createBonus() {
+                const currentTime = Date.now();
+                
+                if (currentTime - lastBonusTime > bonusFrequency) {
+                    const bonusType = Math.floor(Math.random() * 4); // 4 типа бонусов
+                    
+                    // Увеличиваем вероятность появления топлива когда его мало
+                    const actualBonusType = (fuel < 30 && Math.random() < 0.6) ? 0 : bonusType;
+                    
+                    const bonus = document.createElement('div');
+                    bonus.className = 'bonus';
+                    
+                    let bonusWidth, bonusHeight, bonusValue;
+                    
+                    switch(actualBonusType) {
+                        case 0:
+                            bonus.classList.add('bonus-fuel');
+                            bonusWidth = 30;
+                            bonusHeight = 40;
+                            bonusValue = 'fuel';
+                            break;
+                        case 1:
+                            bonus.classList.add('bonus-turbo');
+                            bonusWidth = 35;
+                            bonusHeight = 35;
+                            bonusValue = 'turbo';
+                            break;
+                        case 2:
+                            bonus.classList.add('bonus-shield');
+                            bonusWidth = 35;
+                            bonusHeight = 35;
+                            bonusValue = 'shield';
+                            break;
+                        case 3:
+                            bonus.classList.add('bonus-coin');
+                            bonusWidth = 25;
+                            bonusHeight = 25;
+                            bonusValue = 'coin';
+                            break;
+                    }
+                    
+                    // Ограничиваем позицию бонусов шириной дороги
+                    const gameWidth = gameContainer.offsetWidth;
+                    const randomXPosition = Math.random() * (gameWidth - 100) + 50;
+                    
+                    bonus.style.left = `${randomXPosition - bonusWidth / 2}px`;
+                    bonus.style.top = '-50px';
+                    bonus.style.width = `${bonusWidth}px`;
+                    bonus.style.height = `${bonusHeight}px`;
+                    
+                    gameContainer.appendChild(bonus);
+                    
+                    bonuses.push({
+                        element: bonus,
+                        width: bonusWidth,
+                        height: bonusHeight,
+                        value: bonusValue,
+                        speed: roadSpeed
+                    });
+                    
+                    lastBonusTime = currentTime;
+                }
+            }
+            
+            // Движение объектов
+            function moveObjects() {
+                // Движение препятствий
+                obstacles.forEach((obstacle, index) => {
+                    const obstacleElement = obstacle.element;
+                    const newTop = obstacleElement.offsetTop + obstacle.speed * speedFactor;
+                    
+                    if (newTop > window.innerHeight) {
+                        // Удаляем элемент и увеличиваем счет, если препятствие вышло за пределы экрана
+                        obstacleElement.remove();
+                        obstacles.splice(index, 1);
+                        score += 10;
+                        scoreDisplay.textContent = score;
+                    } else {
+                        obstacleElement.style.top = `${newTop}px`;
+                        
+                        // Проверка столкновения, только если препятствие видимо на экране
+                        if (newTop > 0) {
+                            checkCollision(obstacle);
+                        }
+                    }
+                });
+                
+                // Движение бонусов
+                bonuses.forEach((bonus, index) => {
+                    const bonusElement = bonus.element;
+                    const newTop = bonusElement.offsetTop + bonus.speed * speedFactor;
+                    
+                    if (newTop > window.innerHeight) {
+                        // Удаляем элемент, если бонус вышел за пределы экрана
+                        bonusElement.remove();
+                        bonuses.splice(index, 1);
+                    } else {
+                        bonusElement.style.top = `${newTop}px`;
+                        
+                        // Проверка сбора бонуса, только если бонус видим на экране
+                        if (newTop > 0) {
+                            checkBonusCollected(bonus);
+                        }
+                    }
+                });
+            }
+            
+            // Проверка столкновения с препятствием
+            function checkCollision(obstacle) {
+                if (!gameActive) return;
+                
+                const playerRect = playerCar.getBoundingClientRect();
+                const obstacleRect = obstacle.element.getBoundingClientRect();
+                
+                // Уменьшаем хитбокс для более точного определения столкновений
+                const playerHitbox = {
+                    left: playerRect.left + 10,
+                    right: playerRect.right - 10,
+                    top: playerRect.top + 10,
+                    bottom: playerRect.bottom - 10
+                };
+                
+                const obstacleHitbox = {
+                    left: obstacleRect.left + 5,
+                    right: obstacleRect.right - 5,
+                    top: obstacleRect.top + 5,
+                    bottom: obstacleRect.bottom - 5
+                };
+                
+                if (
+                    playerHitbox.left < obstacleHitbox.right &&
+                    playerHitbox.right > obstacleHitbox.left &&
+                    playerHitbox.top < obstacleHitbox.bottom &&
+                    playerHitbox.bottom > obstacleHitbox.top
+                ) {
+                    if (hasShield) {
+                        // Если есть щит, просто уничтожаем препятствие
+                        showNotification("Щит активирован!");
+                        obstacle.element.remove();
+                        obstacles.splice(obstacles.indexOf(obstacle), 1);
+                        score += 5;
+                        scoreDisplay.textContent = score;
+                        
+                        // Анимация щита
+                        shieldEffect.style.boxShadow = '0 0 30px rgba(156, 39, 176, 0.7)';
+                        setTimeout(() => {
+                            shieldEffect.style.boxShadow = '0 0 15px rgba(156, 39, 176, 0.5)';
+                        }, 300);
+                    } else {
+                        // Столкновение
+                        lives--;
+                        livesDisplay.textContent = lives;
+                        showNotification("Столкновение! -1 жизнь");
+                        
+                        // Удаляем препятствие
+                        obstacle.element.remove();
+                        obstacles.splice(obstacles.indexOf(obstacle), 1);
+                        
+                        // Визуальный эффект столкновения
+                        playerCar.style.animation = "flash 0.5s";
+                        setTimeout(() => {
+                            playerCar.style.animation = "";
+                        }, 500);
+                        
+                        // Проверка конца игры
+                        if (lives <= 0) {
+                            gameOver("Все жизни потеряны");
+                        }
+                    }
+                }
+            }
+            
+            // Проверка сбора бонуса
+            function checkBonusCollected(bonus) {
+                if (!gameActive) return;
+                
+                const playerRect = playerCar.getBoundingClientRect();
+                const bonusRect = bonus.element.getBoundingClientRect();
+                
+                if (
+                    playerRect.left < bonusRect.right &&
+                    playerRect.right > bonusRect.left &&
+                    playerRect.top < bonusRect.bottom &&
+                    playerRect.bottom > bonusRect.top
+                ) {
+                    // Собрали бонус
+                    switch(bonus.value) {
+                        case 'fuel':
+                            fuel = Math.min(fuel + 40, 100); // Увеличиваем получаемое топливо с 30 до 40
+                            showNotification("Топливо +40%");
+                            break;
+                        case 'turbo':
+                            activateTurbo();
+                            showNotification("Турбо активировано!");
+                            break;
+                        case 'shield':
+                            activateShield();
+                            showNotification("Щит активирован!");
+                            break;
+                        case 'coin':
+                            score += 50;
+                            scoreDisplay.textContent = score;
+                            showNotification("Монета! +50 очков");
+                            break;
+                    }
+                    
+                    // Удаляем бонус
+                    bonus.element.remove();
+                    bonuses.splice(bonuses.indexOf(bonus), 1);
+                }
+            }
+            
+            // Активация турбо-режима
+            function activateTurbo() {
+                hasTurbo = true;
+                turboTime = Date.now() + 5000; // 5 секунд турбо
+                currentSpeed = baseSpeed * 2;
+                updateSpeedometer();
+                
+                // Визуальный эффект
+                turboEffect.style.opacity = 1;
+            }
+            
+            // Активация щита
+            function activateShield() {
+                hasShield = true;
+                shieldTime = Date.now() + 10000; // 10 секунд щита
+                
+                // Визуальный эффект
+                shieldEffect.style.opacity = 1;
+            }
+            
+            // Обновление статуса бонусов в интерфейсе
+            function updateBonusIndicators() {
+                // Индикатор щита
+                if (hasShield) {
+                    shieldIndicator.style.display = 'flex';
+                    const remainingTime = Math.max(0, Math.ceil((shieldTime - Date.now()) / 1000));
+                    shieldIndicator.querySelector('.indicator-time').textContent = remainingTime + 'с';
+                } else {
+                    shieldIndicator.style.display = 'none';
+                }
+                
+                // Индикатор турбо
+                if (hasTurbo) {
+                    turboIndicator.style.display = 'flex';
+                    const remainingTime = Math.max(0, Math.ceil((turboTime - Date.now()) / 1000));
+                    turboIndicator.querySelector('.indicator-time').textContent = remainingTime + 'с';
+                } else {
+                    turboIndicator.style.display = 'none';
+                }
+            }
+            
+            // Проверка и обновление действия бонусов
+            function updateBonusEffects() {
+                const currentTime = Date.now();
+                
+                // Проверка турбо
+                if (hasTurbo && currentTime > turboTime) {
+                    hasTurbo = false;
+                    currentSpeed = baseSpeed;
+                    updateSpeedometer();
+                    turboEffect.style.opacity = 0;
+                    showNotification("Действие турбо закончилось");
+                }
+                
+                // Проверка щита
+                if (hasShield && currentTime > shieldTime) {
+                    hasShield = false;
+                    shieldEffect.style.opacity = 0;
+                    showNotification("Действие щита закончилось");
+                }
+                
+                // Обновляем индикаторы бонусов
+                updateBonusIndicators();
+            }
+            
+            // Функция для отображения уведомлений
+            function showNotification(message) {
+                notification.textContent = message;
+                notification.style.opacity = 1;
+                
+                setTimeout(() => {
+                    notification.style.opacity = 0;
+                }, 2000);
+            }
+            
+            // Функция завершения игры
+            function gameOver(reason) {
+                gameActive = false;
+                cancelAnimationFrame(animationFrameId);
+                
+                // Останавливаем таймер игры
+                clearInterval(gameTimeInterval);
+                
+                finalScore.textContent = score;
+                gameOverScreen.classList.add('active');
+                
+                // Дополнительное сообщение о причине окончания игры
+                const reasonElement = document.createElement('p');
+                reasonElement.textContent = reason || "Игра окончена";
+                reasonElement.style.fontSize = "1.2em";
+                reasonElement.style.color = "#ff9800";
+                reasonElement.style.marginBottom = "20px";
+                
+                // Вставляем элемент после финального счета
+                const scoreElement = document.getElementById('finalScore').parentNode;
+                gameOverScreen.insertBefore(reasonElement, scoreElement.nextSibling);
+            }
+            
+            // Запуск игры с начального экрана
+            function startGame() {
+                startScreen.style.display = 'none';
+                gameActive = true;
+                
+                // Сбрасываем все значения
+                score = 0;
+                lives = 3;
+                fuel = 100;
+                speedFactor = 1;
+                currentSpeed = baseSpeed;
+                gameTime = 0;
+                lastSpeedIncrease = 0;
+                
+                // Настраиваем полосы
+                setupLanePositions();
+                
+                // Начинаем со второй полосы (из 4-х)
+                currentLane = 1;
+                switchToLane(currentLane);
+                
+                // Обновляем отображение
+                scoreDisplay.textContent = score;
+                livesDisplay.textContent = lives;
+                fuelLevel.style.width = '100%';
+                healthLevel.style.width = '100%';
+                
+                // Запускаем игровой цикл
+                gameLoop();
+                
+                // Запускаем таймер игры
+                gameTimeInterval = setInterval(() => {
+                    gameTime++;
+                }, 1000);
+            }
+            
+            // Основной игровой цикл
+            function gameLoop() {
+                if (!gameActive) return;
+                
+                movePlayerCar();
+                moveObjects();
+                createObstacle();
+                createBonus();
+                updateFuel();
+                updateBonusEffects();
+                updateSpeedOverTime();
+                
+                animationFrameId = requestAnimationFrame(gameLoop);
+            }
+            
+            // Перезапуск игры
+            function restartGame() {
+                // Удаляем все препятствия и бонусы
+                obstacles.forEach(obstacle => obstacle.element.remove());
+                bonuses.forEach(bonus => bonus.element.remove());
+                obstacles = [];
+                bonuses = [];
+                
+                // Сбрасываем параметры
+                score = 0;
+                lives = 3;
+                fuel = 100;
+                speedFactor = 1;
+                currentSpeed = baseSpeed;
+                gameTime = 0;
+                lastSpeedIncrease = 0;
+                
+                // Настраиваем полосы
+                setupLanePositions();
+                
+                // Начинаем со второй полосы (из 4-х)
+                currentLane = 1;
+                switchToLane(currentLane);
+                
+                // Останавливаем таймер игры
+                clearInterval(gameTimeInterval);
+                
+                // Обновляем отображение
+                scoreDisplay.textContent = score;
+                livesDisplay.textContent = lives;
+                fuelLevel.style.width = '100%';
+                fuelLevel.style.background = '#4caf50';
+                healthLevel.style.width = '100%';
+                updateSpeedometer();
+                
+                // Убираем экран окончания игры и удаляем сообщение о причине
+                gameOverScreen.classList.remove('active');
+                const reasonElement = gameOverScreen.querySelector('p:not(:first-child)');
+                if (reasonElement) {
+                    reasonElement.remove();
+                }
+                
+                // Сбрасываем бонусы
+                hasShield = false;
+                hasTurbo = false;
+                shieldEffect.style.opacity = 0;
+                turboEffect.style.opacity = 0;
+                
+                // Перезапускаем игру
+                gameActive = true;
+                gameLoop();
+                
+                // Запускаем таймер игры
+                gameTimeInterval = setInterval(() => {
+                    gameTime++;
+                }, 1000);
+            }
+            
+            // Обработка изменения размера окна
+            window.addEventListener('resize', () => {
+                gameContainerWidth = gameContainer.offsetWidth;
+                carWidth = playerCar.offsetWidth;
+                
+                // Пересчитываем позиции полос
+                setupLanePositions();
+                
+                // Обновляем позицию машины игрока
+                switchToLane(currentLane);
+            });
+            
+            // Инициализация игры
+            setupSpeedLines();
+            setupRoad();
+            setupLanePositions(); // Добавляем инициализацию полос
+            setupPlayerCar();
+            updateSpeedometer();
+            
+            // Обновление таймера
+            const countdownInterval = setInterval(updateCountdown, 1000);
+            
+            // Добавляем обработчик на кнопку старта
+            playButton.addEventListener('click', startGame);
+            
+            // Добавляем обработчик на кнопку перезапуска
+            restartButton.addEventListener('click', restartGame);
+        });
+
+        // Обновление текущей полосы
+        function updateCurrentLane() {
+            // Вычисляем текущую полосу на основе позиции машины
+            const laneWidth = gameContainerWidth / totalLanes;
+            currentLane = Math.floor(carPosition / laneWidth);
+            
+            // Ограничиваем значения полосы от 0 до totalLanes-1
+            currentLane = Math.max(0, Math.min(totalLanes - 1, currentLane));
+            
+            // Обновляем отображение
+            if (currentLaneDisplay) {
+                currentLaneDisplay.textContent = `Полоса: ${currentLane + 1}`;
+            }
+        }
+
+        // Настройка позиций полос
+        function setupLanePositions() {
+            lanePositions = [];
+            const laneWidth = gameContainerWidth / totalLanes;
+            
+            for (let i = 0; i < totalLanes; i++) {
+                // Центр каждой полосы
+                lanePositions.push(laneWidth * (i + 0.5));
+            }
+        }
+
+        // Переключение на конкретную полосу
+        function switchToLane(lane) {
+            if (lane >= 0 && lane < totalLanes) {
+                // Плавно перемещаем машину к центру полосы
+                carPosition = lanePositions[lane];
+                playerCar.style.left = `${carPosition - carWidth / 2}px`;
+                currentLane = lane;
+                
+                // Обновляем отображение текущей полосы
+                if (currentLaneDisplay) {
+                    currentLaneDisplay.textContent = `Полоса: ${currentLane + 1}`;
+                }
+            }
+        }
+
+        // Обновление скорости с течением времени
+        function updateSpeedOverTime() {
+            // Увеличиваем скорость каждые 15 секунд
+            if (gameTime - lastSpeedIncrease >= 15) {
+                lastSpeedIncrease = gameTime;
+                
+                // Увеличиваем скорость на 5 км/ч, но не более чем в 2 раза от базовой
+                if (currentSpeed < baseSpeed * 2) {
+                    currentSpeed += 5;
+                    updateSpeedometer();
+                    showNotification("Скорость увеличена! +" + Math.round(currentSpeed - baseSpeed) + " км/ч");
+                    
+                    // Визуальный эффект ускорения
+                    if (speedBoostIndicator) {
+                        speedBoostIndicator.classList.add('speed-boost-active');
+                        setTimeout(() => {
+                            speedBoostIndicator.classList.remove('speed-boost-active');
+                        }, 3000);
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="error-message">
+            <h1 class="title">404</h1>
+            <p class="subtitle">Страница не найдена, но вы можете поиграть пока!</p>
+            <button class="back-button" onclick="window.location.href='/'">На главную</button>
+        </div>
+        
+        <div class="countdown" id="countdown">5:00</div>
+        
+        <div class="current-lane" id="currentLaneDisplay">Полоса: 2</div>
+        
+        <div class="game-container" id="gameContainer">
+            <div class="road" id="road">
+                <div class="lane-markers">
+                    <div class="lane-marker lane-marker-1"></div>
+                    <div class="lane-marker lane-marker-2"></div>
+                    <div class="lane-marker lane-marker-3"></div>
+                </div>
+                <div class="road-side road-side-left"></div>
+                <div class="road-side road-side-right"></div>
+            </div>
+            
+            <div class="speed-lines" id="speedLines"></div>
+            
+            <div class="player-car" id="playerCar">
+                <div class="car-body"></div>
+                <div class="car-hood"></div>
+                <div class="car-roof"></div>
+                <div class="car-trunk"></div>
+                <div class="car-window"></div>
+                <div class="car-light car-light-left"></div>
+                <div class="car-light car-light-right"></div>
+                <div class="car-wheel car-wheel-left-front"></div>
+                <div class="car-wheel car-wheel-right-front"></div>
+                <div class="car-wheel car-wheel-left-back"></div>
+                <div class="car-wheel car-wheel-right-back"></div>
+                <div class="shield-effect" id="shieldEffect"></div>
+                <div class="turbo-effect" id="turboEffect"></div>
+            </div>
+            
+            <div class="indicators">
+                <div class="indicator indicator-shield" id="shieldIndicator" style="display: none;">
+                    <div class="indicator-icon"></div>
+                    <span>Щит: <span class="indicator-time">10с</span></span>
+                </div>
+                <div class="indicator indicator-turbo" id="turboIndicator" style="display: none;">
+                    <div class="indicator-icon"></div>
+                    <span>Турбо: <span class="indicator-time">5с</span></span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <div class="control-button" id="leftButton">←</div>
+            <div class="control-button" id="rightButton">→</div>
+        </div>
+        
+        <div class="dashboard">
+            <div class="dashboard-item">
+                <div class="speedometer">
+                    <div class="speedometer-needle" id="speedNeedle"></div>
+                    <div class="speed-boost-indicator" id="speedBoostIndicator"></div>
+                </div>
+                <div class="dashboard-value" id="speedValue">0</div>
+                <div class="dashboard-label"><div class="dashboard-label-icon speed-icon"></div>км/ч</div>
+            </div>
+            
+            <div class="dashboard-item">
+                <div class="dashboard-value" id="scoreDisplay">0</div>
+                <div class="dashboard-label"><div class="dashboard-label-icon score-icon"></div>ОЧКИ</div>
+            </div>
+            
+            <div class="dashboard-item">
+                <div class="health-bar">
+                    <div id="healthLevel" class="health-level"></div>
+                </div>
+                <div class="dashboard-value" id="livesDisplay">3</div>
+                <div class="dashboard-label"><div class="dashboard-label-icon lives-icon"></div>ЖИЗНИ</div>
+            </div>
+            
+            <div class="dashboard-item">
+                <div class="fuel-gauge">
+                    <div id="fuelLevel" style="width: 100%; height: 100%; background: linear-gradient(to right, #f44336, #ffeb3b, #4caf50); border-radius: 5px;"></div>
+                </div>
+                <div class="dashboard-label"><div class="dashboard-label-icon fuel-icon"></div>ТОПЛИВО</div>
+            </div>
+        </div>
+        
+        <div class="notification" id="notification"></div>
+        
+        <div class="start-screen" id="startScreen">
+            <h2>Приготовься к гонке!</h2>
+            <p>Маневрируй между рядами в стиле "шашек" и выживай как можно дольше!</p>
+            
+            <div class="instruction">
+                <div class="instruction-icon">←→</div>
+                <div class="instruction-text">Стрелки влево/вправо для плавного движения</div>
+            </div>
+            
+            <div class="instruction">
+                <div class="instruction-icon">Alt+←→</div>
+                <div class="instruction-text">Alt + стрелки для быстрого перестроения</div>
+            </div>
+            
+            <div class="instruction">
+                <div class="instruction-icon">⏱️</div>
+                <div class="instruction-text">Скорость увеличивается каждые 15 секунд!</div>
+            </div>
+            
+            <div class="instruction">
+                <div class="instruction-icon" style="background: #4caf50;"></div>
+                <div class="instruction-text">Зеленые канистры восполняют топливо</div>
+            </div>
+            
+            <div class="instruction">
+                <div class="instruction-icon" style="background: #9c27b0;"></div>
+                <div class="instruction-text">Фиолетовые щиты защищают от столкновений</div>
+            </div>
+            
+            <button class="play-button" id="playButton">Начать игру</button>
+        </div>
+        
+        <div class="game-over" id="gameOver">
+            <h2>Игра окончена!</h2>
+            <p>Ваш счет: <span id="finalScore">0</span></p>
+            <button class="restart-button" id="restartButton">Играть снова</button>
+        </div>
+    </div>
+</body>
+</html> 

@@ -21,21 +21,27 @@ logger = logging.getLogger(__name__)
 from fastapi import HTTPException
 
 @router.get("/me")
-async def get_current_profile(actor=Depends(get_current_actor)):
+async def get_current_profile(actor = Depends(get_current_actor)):
+    """
+    actor["type"]  →  'user' | 'admin'
+    actor["role"]  →  'user' | 'admin' | 'moder'
+    """
     if actor["type"] == "user":
         profile = {
-            "role": "user",
-            "full_name": actor["full_name"],  # 👈 добавлено ФИО
+            "role": actor["role"],           # ← всегда 'user'
+            "full_name": actor["full_name"],
             "email": actor["email"],
             "phone": actor["phone"],
-            "iin": actor["iin"]
+            "iin": actor["iin"],
         }
-    elif actor["type"] == "admin":
+
+    elif actor["type"] == "admin":           # включает и модераторов
         profile = {
-            "role": "admin",
+            "role": actor["role"],           # 'admin' ИЛИ 'moder'
             "full_name": actor["full_name"],
-            "iin": actor["iin"]
+            "iin": actor["iin"],
         }
+
     else:
         raise HTTPException(
             status_code=403,

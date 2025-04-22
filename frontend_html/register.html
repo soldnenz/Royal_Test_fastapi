@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ru" class="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Регистрация — Royal One | ПДД Казахстан</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Tailwind Config -->
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace']
+            },
+            colors: {
+              gold: '#d4af37',
+              'gold-dark': '#b08d2b',
+              dark: '#111827',
+              primary: {
+                50: '#FFF8E1',
+                100: '#FFECB3',
+                200: '#FFE082',
+                300: '#FFD54F',
+                400: '#FFCA28',
+                500: '#d4af37', /* gold */
+                600: '#FFB300',
+                700: '#FFA000',
+                800: '#FF8F00',
+                900: '#FF6F00',
+              }
+            }
+          }
+        }
+      }
+    </script>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+
+    <style>
+      html,
+      body {
+        scroll-behavior: smooth;
+        height: 100%;
+      }
+
+      .btn {
+        @apply px-6 py-3 rounded-lg font-semibold transition duration-300;
+      }
+
+      .btn-primary {
+        @apply bg-gold text-white hover:bg-gold-dark dark:bg-primary-600 dark:hover:bg-primary-700 shadow-md hover:shadow-lg border border-transparent;
+      }
+
+      .btn-secondary {
+        @apply bg-white text-gold border border-gold hover:bg-yellow-50 dark:bg-gray-800 dark:text-primary-400 dark:border-primary-500 dark:hover:bg-gray-700 shadow-md hover:shadow-lg;
+      }
+
+      .logo {
+        @apply relative inline-flex font-bold tracking-tight;
+      }
+      
+      .logo::before {
+        content: "";
+        @apply absolute -left-2 -top-2 -bottom-2 -right-2 bg-gold/10 dark:bg-primary-500/20 rounded-md -z-10 transform -rotate-1;
+      }
+      
+      .logo-crown {
+        @apply text-gold dark:text-primary-500 transform -rotate-6 absolute -top-3 -right-4;
+      }
+
+      .bg-pattern {
+        background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23ffffff' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E");
+      }
+
+      .input-animated {
+        @apply transition-all duration-300 border-b-2 border-gray-300 dark:border-gray-600 focus:border-primary-500 dark:focus:border-primary-400 bg-transparent outline-none px-0 py-2 w-full;
+      }
+      
+      .input-label {
+        @apply absolute left-0 top-2 transition-all duration-300 text-gray-500 dark:text-gray-400;
+      }
+      
+      .input-animated:focus + .input-label,
+      .input-animated:not(:placeholder-shown) + .input-label {
+        @apply transform -translate-y-7 text-xs text-primary-500 dark:text-primary-400;
+      }
+      
+      .input-icon {
+        @apply absolute right-0 top-2 text-gray-400 dark:text-gray-500;
+      }
+
+      .step-indicator {
+        @apply flex items-center justify-center bg-gray-200 dark:bg-gray-700 rounded-full w-8 h-8 text-sm font-medium transition-all duration-300;
+      }
+
+      .step-active {
+        @apply bg-primary-500 text-white;
+      }
+
+      .step-completed {
+        @apply bg-green-500 text-white;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-50 text-gray-800 font-sans dark:bg-gray-900 dark:text-gray-100 min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="bg-white shadow-sm dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+      <div class="max-w-7xl mx-auto flex justify-between items-center py-3 px-6">
+        <a href="index.html" class="logo text-2xl">
+          <span class="text-gold dark:text-primary-500">Royal</span><span class="text-gray-800 dark:text-white">One</span>
+          <i class='bx bxs-crown logo-crown'></i>
+        </a>
+        <div class="flex items-center gap-4">
+          <button id="themeToggle" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+            <!-- Sun icon for dark mode -->
+            <i class='bx bxs-sun text-gold text-xl hidden dark:block dark:text-primary-400'></i>
+            <!-- Moon icon for light mode -->
+            <i class='bx bxs-moon text-gray-700 text-xl block dark:hidden'></i>
+          </button>
+          <a href="index.html" class="text-sm text-gray-600 dark:text-gray-300 hover:text-gold dark:hover:text-primary-400">
+            Назад на главную
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-grow flex items-center justify-center p-6 relative overflow-hidden">
+      <!-- Decorative Elements -->
+      <div class="absolute top-0 left-0 w-full h-full bg-pattern opacity-5"></div>
+      <div class="absolute top-0 right-0 w-96 h-96 bg-gold/5 dark:bg-primary-500/10 rounded-full blur-3xl -z-10"></div>
+      <div class="absolute bottom-0 left-0 w-96 h-96 bg-gold/5 dark:bg-primary-500/10 rounded-full blur-3xl -z-10"></div>
+      
+      <!-- Registration Container -->
+      <div class="w-full max-w-2xl relative z-10">
+        <!-- Country Banner - Kazakhstan -->
+        <div class="mb-6 flex items-center justify-center">
+          <div class="bg-blue-500 py-2 px-4 rounded-full flex items-center gap-2 shadow-md">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/d/d3/Flag_of_Kazakhstan.svg" alt="Флаг Казахстана" class="w-6 h-4 object-cover rounded">
+            <span class="text-white text-sm font-medium">ПДД Казахстан</span>
+          </div>
+        </div>
+        
+        <!-- Register Card -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-100 dark:border-gray-700">
+          <!-- Registration Header -->
+          <div class="text-center mb-8">
+            <h1 class="text-2xl font-bold mb-2 dark:text-white">Создание аккаунта</h1>
+            <p class="text-gray-600 dark:text-gray-400">Зарегистрируйтесь и начните подготовку к экзамену ПДД прямо сейчас</p>
+          </div>
+
+          <!-- Steps -->
+          <div class="flex justify-between items-center mb-8">
+            <div class="flex flex-col items-center">
+              <div class="step-indicator step-active">1</div>
+              <span class="text-xs mt-1 text-gray-600 dark:text-gray-400">Личные данные</span>
+            </div>
+            <div class="flex-1 h-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
+            <div class="flex flex-col items-center">
+              <div class="step-indicator">2</div>
+              <span class="text-xs mt-1 text-gray-600 dark:text-gray-400">Подтверждение</span>
+            </div>
+            <div class="flex-1 h-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
+            <div class="flex flex-col items-center">
+              <div class="step-indicator">3</div>
+              <span class="text-xs mt-1 text-gray-600 dark:text-gray-400">Готово</span>
+            </div>
+          </div>
+          
+          <!-- Register Form -->
+          <form class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- First Name Input -->
+              <div class="relative">
+                <input type="text" id="firstName" class="input-animated" placeholder=" ">
+                <label for="firstName" class="input-label">Имя</label>
+                <i class='bx bx-user input-icon'></i>
+              </div>
+              
+              <!-- Last Name Input -->
+              <div class="relative">
+                <input type="text" id="lastName" class="input-animated" placeholder=" ">
+                <label for="lastName" class="input-label">Фамилия</label>
+                <i class='bx bx-user input-icon'></i>
+              </div>
+            </div>
+            
+            <!-- Email Input -->
+            <div class="relative">
+              <input type="email" id="email" class="input-animated" placeholder=" ">
+              <label for="email" class="input-label">Email</label>
+              <i class='bx bx-envelope input-icon'></i>
+            </div>
+            
+            <!-- Phone Input -->
+            <div class="relative">
+              <input type="tel" id="phone" class="input-animated" placeholder=" ">
+              <label for="phone" class="input-label">Телефон</label>
+              <i class='bx bx-phone input-icon'></i>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Password Input -->
+              <div class="relative">
+                <input type="password" id="password" class="input-animated" placeholder=" ">
+                <label for="password" class="input-label">Пароль</label>
+                <i class='bx bx-lock input-icon'></i>
+              </div>
+              
+              <!-- Confirm Password Input -->
+              <div class="relative">
+                <input type="password" id="confirmPassword" class="input-animated" placeholder=" ">
+                <label for="confirmPassword" class="input-label">Подтверждение пароля</label>
+                <i class='bx bx-lock-alt input-icon'></i>
+              </div>
+            </div>
+            
+            <!-- Terms Checkbox -->
+            <div class="flex items-start">
+              <input 
+                type="checkbox" 
+                id="terms" 
+                class="w-4 h-4 mt-1 rounded border-gray-300 text-primary-500 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:checked:bg-primary-500"
+              >
+              <label for="terms" class="ml-2 text-gray-600 dark:text-gray-400 text-sm">
+                Я согласен с <a href="#" class="text-primary-500 dark:text-primary-400 hover:underline">условиями использования</a> и <a href="#" class="text-primary-500 dark:text-primary-400 hover:underline">политикой конфиденциальности</a>
+              </label>
+            </div>
+            
+            <!-- Submit Button -->
+            <button type="submit" class="w-full btn btn-primary flex items-center justify-center gap-2">
+              <i class='bx bx-user-plus'></i>
+              Продолжить
+            </button>
+            
+            <!-- Divider -->
+            <div class="relative flex items-center">
+              <div class="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
+              <span class="flex-shrink mx-3 text-sm text-gray-600 dark:text-gray-400">или зарегистрироваться через</span>
+              <div class="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
+            </div>
+            
+            <!-- Social Login Buttons -->
+            <div class="grid grid-cols-3 gap-3">
+              <button type="button" class="flex items-center justify-center gap-2 border border-gray-300 dark:border-gray-600 rounded-lg p-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                <i class='bx bxl-google text-red-500 text-xl'></i>
+              </button>
+              <button type="button" class="flex items-center justify-center gap-2 border border-gray-300 dark:border-gray-600 rounded-lg p-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                <i class='bx bxl-facebook text-blue-600 text-xl'></i>
+              </button>
+              <button type="button" class="flex items-center justify-center gap-2 border border-gray-300 dark:border-gray-600 rounded-lg p-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                <i class='bx bxl-vk text-blue-500 text-xl'></i>
+              </button>
+            </div>
+          </form>
+          
+          <!-- Login Link -->
+          <div class="text-center mt-8">
+            <p class="text-gray-600 dark:text-gray-400">
+              Уже есть аккаунт? 
+              <a href="login.html" class="text-primary-500 dark:text-primary-400 font-medium hover:underline">Войти</a>
+            </p>
+          </div>
+        </div>
+        
+        <!-- Benefits -->
+        <div class="mt-8 bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
+          <h3 class="font-semibold mb-4 dark:text-white">Преимущества регистрации:</h3>
+          <ul class="space-y-3">
+            <li class="flex items-start">
+              <i class="bx bx-check-circle text-green-500 mt-1 mr-3 text-xl"></i>
+              <span class="text-gray-600 dark:text-gray-300 text-sm">Доступ к более чем 1000 тестовых вопросов ПДД Казахстана</span>
+            </li>
+            <li class="flex items-start">
+              <i class="bx bx-check-circle text-green-500 mt-1 mr-3 text-xl"></i>
+              <span class="text-gray-600 dark:text-gray-300 text-sm">Сохранение прогресса и персональная статистика</span>
+            </li>
+            <li class="flex items-start">
+              <i class="bx bx-check-circle text-green-500 mt-1 mr-3 text-xl"></i>
+              <span class="text-gray-600 dark:text-gray-300 text-sm">Режим экзамена с симуляцией реальных условий</span>
+            </li>
+            <li class="flex items-start">
+              <i class="bx bx-check-circle text-green-500 mt-1 mr-3 text-xl"></i>
+              <span class="text-gray-600 dark:text-gray-300 text-sm">Подробные объяснения к каждому вопросу</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4">
+      <div class="max-w-7xl mx-auto px-6 text-center text-sm text-gray-600 dark:text-gray-400">
+        <p>&copy; 2023 Royal One. Все права защищены.</p>
+      </div>
+    </footer>
+
+    <!-- JS Скрипты -->
+    <script>
+      // Theme Toggle Functionality
+      function setTheme(isDark) {
+        if (isDark) {
+          document.documentElement.classList.add('dark');
+          localStorage.setItem('theme', 'dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+          localStorage.setItem('theme', 'light');
+        }
+      }
+
+      // Check user preference and set theme on load
+      document.addEventListener('DOMContentLoaded', () => {
+        // Check if user has a saved preference
+        const savedTheme = localStorage.getItem('theme');
+        
+        if (savedTheme === 'dark') {
+          setTheme(true);
+        } else if (savedTheme === 'light') {
+          setTheme(false);
+        } else {
+          // Check system preference
+          const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          setTheme(prefersDark);
+        }
+
+        // Setup theme toggle buttons
+        const themeToggle = document.getElementById('themeToggle');
+        
+        themeToggle.addEventListener('click', () => {
+          const isDark = document.documentElement.classList.contains('dark');
+          setTheme(!isDark);
+        });
+      });
+    </script>
+  </body>
+</html> 

@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ru" class="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Вход — Royal One | ПДД Казахстан</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Tailwind Config -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          },
+          colors: {
+            gold: '#d4af37',
+            'gold-dark': '#b08d2b',
+            dark: '#111827',
+            primary: {
+              50: '#FFF8E1',
+              100: '#FFECB3',
+              200: '#FFE082',
+              300: '#FFD54F',
+              400: '#FFCA28',
+              500: '#d4af37', /* gold */
+              600: '#FFB300',
+              700: '#FFA000',
+              800: '#FF8F00',
+              900: '#FF6F00',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+
+  <style>
+    html,
+    body {
+      scroll-behavior: smooth;
+      height: 100%;
+    }
+
+    .btn {
+      @apply px-6 py-3 rounded-lg font-semibold transition duration-300;
+    }
+
+    .btn-primary {
+      @apply bg-gold text-white hover:bg-gold-dark dark:bg-primary-600 dark:hover:bg-primary-700 shadow-md hover:shadow-lg border border-transparent;
+    }
+
+    .btn-secondary {
+      @apply bg-white text-gold border border-gold hover:bg-yellow-50 dark:bg-gray-800 dark:text-primary-400 dark:border-primary-500 dark:hover:bg-gray-700 shadow-md hover:shadow-lg;
+    }
+
+    .logo {
+      @apply relative inline-flex font-bold tracking-tight;
+    }
+    
+    .logo::before {
+      content: "";
+      @apply absolute -left-2 -top-2 -bottom-2 -right-2 bg-gold/10 dark:bg-primary-500/20 rounded-md -z-10 transform -rotate-1;
+    }
+    
+    .logo-crown {
+      @apply text-gold dark:text-primary-500 transform -rotate-6 absolute -top-3 -right-4;
+    }
+
+    .bg-pattern {
+      background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23ffffff' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E");
+    }
+
+    .input-animated {
+      @apply transition-all duration-300 border-b-2 border-gray-300 dark:border-gray-600 focus:border-primary-500 dark:focus:border-primary-400 bg-transparent outline-none px-0 py-2 w-full;
+    }
+    
+    .input-label {
+      @apply absolute left-0 top-2 transition-all duration-300 text-gray-500 dark:text-gray-400;
+    }
+    
+    .input-animated:focus + .input-label,
+    .input-animated:not(:placeholder-shown) + .input-label {
+      @apply transform -translate-y-7 text-xs text-primary-500 dark:text-primary-400;
+    }
+    
+    .input-icon {
+      @apply absolute right-0 top-2 text-gray-400 dark:text-gray-500;
+    }
+
+    /* Toast message styling */
+    .toast {
+      @apply fixed right-5 bottom-5 p-4 rounded-lg shadow-lg transform translate-y-0 opacity-100 transition-all duration-300;
+    }
+    .toast.hide {
+      @apply translate-y-10 opacity-0;
+    }
+    .toast-success {
+      @apply bg-green-500 text-white;
+    }
+    .toast-error {
+      @apply bg-red-500 text-white;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans dark:bg-gray-900 dark:text-gray-100 min-h-screen flex flex-col">
+  <!-- Header -->
+  <header class="bg-white shadow-sm dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+    <div class="max-w-7xl mx-auto flex justify-between items-center py-3 px-4 md:px-6">
+      <a href="index.html" class="logo text-xl md:text-2xl">
+        <span class="text-gold dark:text-primary-500">Royal</span><span class="text-gray-800 dark:text-white">One</span>
+        <i class='bx bxs-crown logo-crown'></i>
+      </a>
+      <div class="flex items-center gap-2 md:gap-4">
+        <button id="themeToggle" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+          <!-- Sun icon for dark mode -->
+          <i class='bx bxs-sun text-gold text-xl hidden dark:block dark:text-primary-400'></i>
+          <!-- Moon icon for light mode -->
+          <i class='bx bxs-moon text-gray-700 text-xl block dark:hidden'></i>
+        </button>
+        <a href="index.html" class="text-sm text-gray-600 dark:text-gray-300 hover:text-gold dark:hover:text-primary-400">
+          Назад на главную
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-grow flex items-center justify-center p-4 md:p-6 relative overflow-hidden">
+    <!-- Decorative Elements -->
+    <div class="absolute top-0 left-0 w-full h-full bg-pattern opacity-5"></div>
+    <div class="absolute top-0 right-0 w-96 h-96 bg-gold/5 dark:bg-primary-500/10 rounded-full blur-3xl -z-10"></div>
+    <div class="absolute bottom-0 left-0 w-96 h-96 bg-gold/5 dark:bg-primary-500/10 rounded-full blur-3xl -z-10"></div>
+    
+    <!-- Login Container -->
+    <div class="w-full max-w-md relative z-10">
+      <!-- Country Banner - Kazakhstan -->
+      <div class="mb-6 flex items-center justify-center">
+        <div class="bg-blue-500 py-2 px-4 rounded-full flex items-center gap-2 shadow-md">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/d/d3/Flag_of_Kazakhstan.svg" alt="Флаг Казахстана" class="w-6 h-4 object-cover rounded">
+          <span class="text-white text-sm font-medium">ПДД Казахстан</span>
+        </div>
+      </div>
+      
+      <!-- Login Card -->
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 md:p-8 border border-gray-100 dark:border-gray-700">
+        <!-- Login Header -->
+        <div class="text-center mb-6 md:mb-8">
+          <h1 class="text-2xl font-bold mb-2 dark:text-white">Добро пожаловать!</h1>
+          <p class="text-gray-600 dark:text-gray-400">Войдите, чтобы продолжить подготовку к экзамену ПДД</p>
+        </div>
+        
+        <!-- Login Form -->
+        <form id="loginForm" class="space-y-6">
+          <!-- Username/Email/IIN Input -->
+          <div class="relative">
+            <input type="text" id="username" name="username" class="input-animated" placeholder=" " required>
+            <label for="username" class="input-label">ИИН (12 цифр) или Email</label>
+            <i class='bx bx-user input-icon'></i>
+          </div>
+          
+          <!-- Password Input -->
+          <div class="relative">
+            <input type="password" id="password" name="password" class="input-animated" placeholder=" " required>
+            <label for="password" class="input-label">Пароль</label>
+            <i class='bx bx-lock input-icon'></i>
+          </div>
+          
+          <!-- Remember me & Forgot Password -->
+          <div class="flex justify-between items-center text-sm">
+            <div class="flex items-center">
+              <input 
+                type="checkbox" 
+                id="remember" 
+                class="w-4 h-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:checked:bg-primary-500"
+              >
+              <label for="remember" class="ml-2 text-gray-600 dark:text-gray-400">Запомнить меня</label>
+            </div>
+            <a href="reset-password.html" class="text-primary-500 dark:text-primary-400 hover:underline">Сбросить пароль</a>
+          </div>
+          
+          <!-- Error message -->
+          <div id="errorMessage" class="text-red-500 text-sm hidden"></div>
+          
+          <!-- Submit Button -->
+          <button type="submit" id="loginButton" class="w-full btn btn-primary flex items-center justify-center gap-2">
+            <i class='bx bx-log-in-circle'></i>
+            Войти
+          </button>
+          
+          <!-- Divider -->
+          <div class="relative flex items-center">
+            <div class="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
+            <span class="flex-shrink mx-3 text-sm text-gray-600 dark:text-gray-400">или войти через</span>
+            <div class="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
+          </div>
+          
+          <!-- Social Login Buttons -->
+          <div class="grid grid-cols-3 gap-3">
+            <button type="button" class="flex items-center justify-center gap-2 border border-gray-300 dark:border-gray-600 rounded-lg p-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+              <i class='bx bxl-google text-red-500 text-xl'></i>
+            </button>
+            <button type="button" class="flex items-center justify-center gap-2 border border-gray-300 dark:border-gray-600 rounded-lg p-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+              <i class='bx bxl-facebook text-blue-600 text-xl'></i>
+            </button>
+            <button type="button" class="flex items-center justify-center gap-2 border border-gray-300 dark:border-gray-600 rounded-lg p-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+              <i class='bx bxl-vk text-blue-500 text-xl'></i>
+            </button>
+          </div>
+        </form>
+        
+        <!-- Register Link -->
+        <div class="text-center mt-6 md:mt-8">
+          <p class="text-gray-600 dark:text-gray-400">
+            Ещё нет аккаунта? 
+            <a href="register.html" class="text-primary-500 dark:text-primary-400 font-medium hover:underline">Зарегистрироваться</a>
+          </p>
+        </div>
+      </div>
+      
+      <!-- Statistics Banner -->
+      <div class="mt-6 md:mt-8 bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 md:p-6">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="text-center">
+            <div class="text-primary-500 dark:text-primary-400 font-bold text-xl">500K+</div>
+            <div class="text-gray-600 dark:text-gray-400 text-xs">Пользователей</div>
+          </div>
+          <div class="text-center">
+            <div class="text-primary-500 dark:text-primary-400 font-bold text-xl">95%</div>
+            <div class="text-gray-600 dark:text-gray-400 text-xs">Сдают с первого раза</div>
+          </div>
+          <div class="text-center">
+            <div class="text-primary-500 dark:text-primary-400 font-bold text-xl">1000+</div>
+            <div class="text-gray-600 dark:text-gray-400 text-xs">Вопросов</div>
+          </div>
+          <div class="text-center">
+            <div class="text-primary-500 dark:text-primary-400 font-bold text-xl">24/7</div>
+            <div class="text-gray-600 dark:text-gray-400 text-xs">Доступность</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Toast Message for Notifications -->
+  <div id="toast" class="toast hide">
+    <div class="flex items-center">
+      <i class='bx bx-check-circle mr-2 text-xl'></i>
+      <span id="toastMessage"></span>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4">
+    <div class="max-w-7xl mx-auto px-4 md:px-6 text-center text-sm text-gray-600 dark:text-gray-400">
+      <p>&copy; 2023 Royal One. Все права защищены.</p>
+    </div>
+  </footer>
+
+  <!-- JS Скрипты -->
+  <script>
+    // Theme Toggle Functionality
+    function setTheme(isDark) {
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+      }
+    }
+
+    // Toast Notification
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      const toastMessage = document.getElementById('toastMessage');
+      
+      toast.className = `toast toast-${type}`;
+      toastMessage.textContent = message;
+      
+      setTimeout(() => {
+        toast.classList.remove('hide');
+      }, 100);
+      
+      setTimeout(() => {
+        toast.classList.add('hide');
+      }, 5000);
+    }
+
+    // Form Submission
+    document.addEventListener('DOMContentLoaded', () => {
+      // Check if user has a saved preference
+      const savedTheme = localStorage.getItem('theme');
+      
+      if (savedTheme === 'dark') {
+        setTheme(true);
+      } else if (savedTheme === 'light') {
+        setTheme(false);
+      } else {
+        // Check system preference
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        setTheme(prefersDark);
+      }
+
+      // Setup theme toggle buttons
+      const themeToggle = document.getElementById('themeToggle');
+      
+      themeToggle.addEventListener('click', () => {
+        const isDark = document.documentElement.classList.contains('dark');
+        setTheme(!isDark);
+      });
+
+      // Setup login form
+      const loginForm = document.getElementById('loginForm');
+      const errorMessage = document.getElementById('errorMessage');
+      const loginButton = document.getElementById('loginButton');
+      
+      loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        // Reset error message
+        errorMessage.classList.add('hidden');
+        errorMessage.textContent = '';
+        
+        // Disable button and show loading state
+        loginButton.disabled = true;
+        loginButton.innerHTML = '<i class="bx bx-loader-alt animate-spin"></i> Вход...';
+        
+        const formData = {
+          username: document.getElementById('username').value,
+          password: document.getElementById('password').value
+        };
+        
+        try {
+          const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(formData),
+            credentials: 'include' // Important for cookies
+          });
+          
+          const data = await response.json();
+          
+          if (!response.ok) {
+            throw new Error(data.detail?.message || 'Ошибка входа');
+          }
+          
+          // Successful login
+          showToast('Вход выполнен успешно!');
+          setTimeout(() => {
+            window.location.href = '/dashboard';
+          }, 1000);
+          
+        } catch (error) {
+          console.error('Login error:', error);
+          errorMessage.textContent = error.message || 'Произошла ошибка при входе';
+          errorMessage.classList.remove('hidden');
+          
+          // Re-enable button
+          loginButton.disabled = false;
+          loginButton.innerHTML = '<i class="bx bx-log-in-circle"></i> Войти';
+        }
+      });
+    });
+  </script>
+</body>
+</html>

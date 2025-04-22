@@ -111,28 +111,34 @@ async def get_current_user(request: Request):
     )
 
 
-async def get_current_actor(request: Request):
+async def get_current_actor(request: Request) -> dict:
+    """
+    Достаёт токен из cookie, валидирует и возвращает словарь с информацией
+    о текущем пользователе / админе / модераторе.
+
+    Возможные role в JWT: 'user', 'admin', 'moderator'
+    """
+    # ─────────────────────────────────────────────────────────────────────────
     token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(
             status_code=401,
-            detail={"message": "Не передан токен (cookie)", "hint": "Добавьте токен в cookie"}
+            detail={"message": "Не передан токен (cookie)", "hint": "Добавьте access_token в cookie"}
         )
 
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_id = payload.get("sub")
-        role = payload.get("role")
-
+        payload  = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id  = payload.get("sub")
+        role     = payload.get("role")          # строка
         if not user_id or not ObjectId.is_valid(user_id):
             raise HTTPException(
                 status_code=401,
-                detail={"message": "Некорректные данные токена", "hint": "Проверьте корректность токена"}
+                detail={"message": "Некорректные данные токена", "hint": "Проверьте токен"}
             )
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=401,
-            detail={"message": "Срок действия токена истёк", "hint": "Попробуйте войти снова"}
+            detail={"message": "Срок действия токена истёк", "hint": "Войдите снова"}
         )
     except jwt.PyJWTError:
         raise HTTPException(
@@ -140,14 +146,16 @@ async def get_current_actor(request: Request):
             detail={"message": "Ошибка валидации токена", "hint": "Невозможно декодировать токен"}
         )
 
+    # ──────────────────────────── USER ──────────────────────────────────────
     if role == "user":
         token_doc = await db.tokens.find_one({"token": token})
         if not token_doc or token_doc.get("revoked") or token_doc["expires_at"] < datetime.utcnow():
             raise HTTPException(
                 status_code=401,
-                detail={"message": "Токен недействителен", "hint": "Он отозван или срок действия истёк"}
+                detail={"message": "Токен недействителен", "hint": "Он отозван или истёк"}
             )
 
+        # обновляем метки активности
         await db.tokens.update_one(
             {"_id": token_doc["_id"]},
             {"$set": {
@@ -161,37 +169,38 @@ async def get_current_actor(request: Request):
         if not user:
             raise HTTPException(
                 status_code=404,
-                detail={"message": "Пользователь не найден", "hint": "Нет пользователя с таким ID"}
+                detail={"message": "Пользователь не найден"}
             )
 
         return {
             "type": "user",
             "id": user["_id"],
             "role": role,
-            "full_name": user.get("full_name"),  # 👈 добавляем ФИО
+            "full_name": user.get("full_name"),
             "email": user.get("email"),
             "phone": user.get("phone"),
             "iin": user.get("iin"),
         }
 
-
-    elif role == "admin":
+    # ─────────────────────── ADMIN / MODER ──────────────────────────────────
+    elif role in ("admin", "moderator"):
         admin = await db.admins.find_one({"_id": ObjectId(user_id)})
         if not admin:
             raise HTTPException(
                 status_code=404,
-                detail={"message": "Администратор не найден", "hint": "Нет администратора с таким ID"}
+                detail={"message": "Администратор не найден"}
             )
 
-        active_session = admin.get("active_session")
-        if not active_session or active_session.get("token") != token:
+        sess = admin.get("active_session")
+        if not sess or sess.get("token") != token:
             raise HTTPException(
                 status_code=401,
-                detail={"message": "Сессия администратора не активна", "hint": "Неверный или устаревший токен"}
+                detail={"message": "Сессия не активна или токен устарел"}
             )
 
+        # обновляем активность
         await db.admins.update_one(
-            {"_id": ObjectId(user_id)},
+            {"_id": admin["_id"]},
             {"$set": {
                 "active_session.last_activity": datetime.utcnow(),
                 "active_session.ip": request.client.host,
@@ -202,11 +211,12 @@ async def get_current_actor(request: Request):
         return {
             "type": "admin",
             "id": admin["_id"],
-            "role": role,
+            "role": role,                     # 'admin' или 'moder'
             "full_name": admin.get("full_name"),
             "iin": admin.get("iin"),
         }
 
+    # ──────────────────────── НЕИЗВЕСТНАЯ РОЛЬ ──────────────────────────────
     raise HTTPException(
         status_code=403,
         detail={"message": "Неизвестная роль", "hint": "Роль не распознана"}

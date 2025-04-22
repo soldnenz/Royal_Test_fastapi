@@ -1,0 +1,1805 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Royal Test - ПДД Казахстана</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #D4AF37; /* Elegant gold */
+            --primary-dark: #B8860B; /* Darker gold */
+            --secondary-color: #6c757d;
+            --accent-color: #8B7500; /* Rich gold accent */
+            --accent-dark: #6B5900;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
+            --body-bg: #ffffff;
+            --text-color: #212529;
+            --border-color: #dee2e6;
+            --gray-100: #f8f9fa;
+            --gray-200: #e9ecef;
+            --gray-300: #dee2e6;
+            --gray-400: #ced4da;
+            --gray-500: #adb5bd;
+            --gray-600: #6c757d;
+            --gray-700: #495057;
+            --gray-800: #343a40;
+            --gray-900: #212529;
+            --font-family: 'Inter', sans-serif;
+            --box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            --transition: all 0.3s ease-in-out;
+            --royal-gold: #D4AF37; /* Elegant gold */
+            --royal-gold-light: #FDF7E4; /* Warmer gold background */
+            --royal-gold-hover: #F4D160; /* Gold hover state */
+        }
+
+        [data-theme="dark"] {
+            --primary-color: #FFD700; /* Bright gold for dark mode */
+            --primary-dark: #E6C200; /* Slightly darker gold */
+            --body-bg: #121212;
+            --text-color: #e0e0e0;
+            --border-color: #444;
+            --gray-100: #222;
+            --gray-200: #333;
+            --gray-300: #444;
+            --gray-400: #555;
+            --gray-500: #777;
+            --gray-600: #999;
+            --gray-700: #aaa;
+            --gray-800: #ccc;
+            --gray-900: #e0e0e0;
+            --dark-color: #f8f9fa;
+            --light-color: #343a40;
+            --box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.5);
+            --royal-gold: #FFD700; /* Bright gold for dark mode */
+            --royal-gold-light: #2D2815; /* Richer dark gold background */
+            --btn-text-color: #000; /* Dark text on gold buttons for better contrast */
+            --royal-gold-hover: #FFC000; /* Gold hover state for dark mode */
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--body-bg);
+            color: var(--text-color);
+            line-height: 1.6;
+            transition: var(--transition);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        /* Header Styles - Simplified */
+        header {
+            background-color: var(--body-bg);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            padding: 0.75rem 0;
+            transition: var(--transition);
+        }
+
+        header .container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-color);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .royal-accent {
+            color: var(--royal-gold);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .main-nav ul {
+            display: flex;
+            list-style: none;
+            gap: 1.25rem;
+        }
+
+        .main-nav a {
+            color: var(--text-color);
+            text-decoration: none;
+            font-weight: 500;
+            transition: var(--transition);
+            position: relative;
+            padding: 0.5rem 0;
+        }
+
+        .main-nav a:hover, .main-nav a.active {
+            color: var(--primary-color);
+        }
+
+        .main-nav a.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background-color: var(--primary-color);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .lang-switcher {
+            display: flex;
+            gap: 0.25rem;
+        }
+
+        .lang-switcher button {
+            background: none;
+            border: none;
+            color: var(--gray-600);
+            font-weight: 500;
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            transition: var(--transition);
+        }
+
+        .lang-switcher button.active {
+            color: var(--text-color);
+            background-color: var(--gray-200);
+        }
+
+        .lang-switcher button:hover {
+            background-color: var(--gray-200);
+        }
+
+        .theme-toggle {
+            background: none;
+            border: none;
+            color: var(--text-color);
+            font-size: 1.25rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            transition: var(--transition);
+        }
+
+        .theme-toggle:hover {
+            background-color: var(--gray-200);
+        }
+
+        [data-theme="light"] .dark-icon {
+            display: inline-block;
+        }
+
+        [data-theme="light"] .light-icon {
+            display: none;
+        }
+
+        [data-theme="dark"] .dark-icon {
+            display: none;
+        }
+
+        [data-theme="dark"] .light-icon {
+            display: inline-block;
+        }
+
+        .auth-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn {
+            display: inline-block;
+            font-weight: 500;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: middle;
+            user-select: none;
+            border: 1px solid transparent;
+            padding: 0.5rem 1rem;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            border-radius: 0.25rem;
+            transition: var(--transition);
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            color: var(--btn-text-color, #fff);
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--royal-gold-hover);
+            border-color: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(212, 175, 55, 0.3);
+        }
+
+        .btn-outline {
+            color: var(--text-color);
+            background-color: transparent;
+            border-color: var(--border-color);
+        }
+
+        .btn-outline:hover {
+            color: var(--btn-text-color, var(--primary-color));
+            border-color: var(--primary-color);
+            background-color: rgba(212, 175, 55, 0.1);
+        }
+
+        .mobile-menu-toggle {
+            display: none;
+            background: none;
+            border: none;
+            width: 30px;
+            height: 25px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .mobile-menu-toggle span {
+            display: block;
+            position: absolute;
+            height: 3px;
+            width: 100%;
+            background: var(--text-color);
+            border-radius: 3px;
+            opacity: 1;
+            left: 0;
+            transform: rotate(0deg);
+            transition: var(--transition);
+        }
+
+        .mobile-menu-toggle span:nth-child(1) {
+            top: 0px;
+        }
+
+        .mobile-menu-toggle span:nth-child(2) {
+            top: 10px;
+        }
+
+        .mobile-menu-toggle span:nth-child(3) {
+            top: 20px;
+        }
+
+        /* Hero Section - Updated */
+        .hero {
+            padding: 5rem 0;
+            background: linear-gradient(135deg, var(--gray-100) 0%, var(--royal-gold-light) 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(212, 175, 55, 0.05) 0%, rgba(255, 255, 255, 0) 70%);
+            z-index: 1;
+            animation: pulse-bg 15s infinite ease-in-out;
+        }
+
+        @keyframes pulse-bg {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+        }
+
+        .hero h1 {
+            font-size: 2.75rem;
+            margin-bottom: 1.5rem;
+            font-weight: 700;
+            opacity: 0;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--gray-700);
+            max-width: 700px;
+            margin: 0 auto 2rem;
+            opacity: 0;
+        }
+
+        .hero-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            opacity: 0;
+        }
+
+        .text-accent {
+            color: var(--royal-gold);
+            position: relative;
+        }
+
+        .text-accent::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background-color: var(--primary-color);
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.5s ease;
+        }
+
+        .hero:hover .text-accent::after {
+            transform: scaleX(1);
+        }
+
+        /* Animation classes */
+        .animate-fade-in {
+            animation: fadeIn 1s ease forwards;
+        }
+
+        .animate-fade-in-delay {
+            animation: fadeIn 1s ease forwards;
+            animation-delay: 0.3s;
+        }
+
+        .animate-fade-in-delay-2 {
+            animation: fadeIn 1s ease forwards;
+            animation-delay: 0.6s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .btn-pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        /* Features Section - Updated to highlight strengths */
+        .features {
+            padding: 5rem 0;
+            background-color: var(--body-bg);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .features::before {
+            content: '';
+            position: absolute;
+            top: -100px;
+            right: -100px;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(138, 43, 226, 0.1) 0%, rgba(255, 255, 255, 0) 70%);
+            border-radius: 50%;
+            z-index: 0;
+        }
+
+        .features h2 {
+            text-align: center;
+            font-size: 2.25rem;
+            margin-bottom: 1rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .features-subtitle {
+            text-align: center;
+            font-size: 1.1rem;
+            color: var(--gray-600);
+            margin-bottom: 3rem;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .feature-card {
+            background-color: var(--body-bg);
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+            border: 1px solid var(--gray-200);
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(138, 43, 226, 0.05) 0%, rgba(255, 255, 255, 0) 100%);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .feature-card:hover::before {
+            opacity: 1;
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1.5rem;
+            color: var(--primary-color);
+            transition: var(--transition);
+        }
+
+        .feature-card:hover .feature-icon {
+            transform: scale(1.1);
+        }
+
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+
+        .feature-card p {
+            color: var(--gray-600);
+        }
+
+        /* Footer */
+        footer {
+            background-color: var(--gray-900);
+            color: var(--light-color);
+            padding: 3rem 0 1.5rem;
+        }
+
+        .footer-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 1.5rem;
+        }
+
+        .footer-logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--light-color);
+        }
+
+        .social-links {
+            display: flex;
+            gap: 1.5rem;
+        }
+
+        .social-links a {
+            color: var(--light-color);
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .social-links a:hover {
+            color: var(--primary-color);
+            opacity: 1;
+        }
+
+        .footer-bottom {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+
+        .footer-bottom p, .contact-info p {
+            margin-bottom: 0.5rem;
+            opacity: 0.9;
+            color: var(--light-color);
+        }
+
+        .contact-info a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        [data-theme="dark"] footer {
+            background-color: var(--gray-900);
+            border-top: 1px solid var(--gray-800);
+        }
+
+        [data-theme="dark"] .footer-bottom p,
+        [data-theme="dark"] .contact-info p,
+        [data-theme="dark"] .footer-logo {
+            color: var(--light-color);
+        }
+
+        /* Responsive Styles */
+        @media (max-width: 992px) {
+            .main-nav, .header-actions {
+                display: none;
+                width: 100%;
+            }
+
+            .main-nav.active, .header-actions.active {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-start;
+                margin-top: 1rem;
+            }
+
+            .main-nav ul {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .main-nav li {
+                width: 100%;
+            }
+
+            .main-nav a {
+                display: block;
+                padding: 0.75rem 0;
+            }
+
+            .header-actions {
+                margin-top: 1rem;
+                gap: 1rem;
+            }
+
+            .auth-buttons {
+                width: 100%;
+            }
+
+            .mobile-menu-toggle {
+                display: block;
+            }
+
+            .hero h1 {
+                font-size: 2.25rem;
+            }
+
+            .footer-top, .footer-bottom {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+                gap: 1.5rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .hero {
+                padding: 3rem 0;
+            }
+
+            .hero-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .btn {
+                width: 100%;
+                max-width: 300px;
+            }
+
+            .features {
+                padding: 3rem 0;
+            }
+
+            .feature-card {
+                padding: 1.5rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .hero h1 {
+                font-size: 1.75rem;
+            }
+
+            .hero p {
+                font-size: 1rem;
+            }
+
+            .features h2 {
+                font-size: 1.75rem;
+            }
+        }
+
+        /* Categories Section - Updated, no images */
+        .categories {
+            padding: 5rem 0;
+            background-color: var(--gray-100);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .categories::before {
+            content: '';
+            position: absolute;
+            bottom: -100px;
+            left: -100px;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(138, 43, 226, 0.1) 0%, rgba(255, 255, 255, 0) 70%);
+            border-radius: 50%;
+            z-index: 0;
+        }
+
+        .categories h2 {
+            text-align: center;
+            font-size: 2.25rem;
+            margin-bottom: 3rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .categories-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .category-card {
+            background-color: var(--body-bg);
+            border-radius: 12px;
+            box-shadow: var(--box-shadow);
+            transition: var(--transition);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-top: 4px solid var(--primary-color);
+        }
+
+        .category-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .category-icon {
+            font-size: 2.5rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+            transition: transform 0.3s ease;
+        }
+
+        .category-card:hover .category-icon {
+            transform: scale(1.1);
+        }
+
+        .category-content {
+            padding: 2rem;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .category-content h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+
+        .category-content p {
+            color: var(--gray-600);
+            margin-bottom: 1.5rem;
+            flex-grow: 1;
+        }
+
+        .category-content .btn {
+            margin-top: auto;
+            transition: var(--transition);
+        }
+
+        .category-content .btn:hover {
+            transform: translateY(-3px);
+        }
+
+        /* Contact Section - Updated */
+        .contact {
+            padding: 5rem 0;
+            background-color: var(--body-bg);
+        }
+
+        .contact h2 {
+            text-align: center;
+            font-size: 2.25rem;
+            margin-bottom: 3rem;
+            position: relative;
+        }
+
+        .contact-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .contact-info-card {
+            background-color: var(--gray-100);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            transition: var(--transition);
+            text-align: center;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .contact-info-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .contact-icon {
+            font-size: 2.5rem;
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            transition: transform 0.3s ease;
+        }
+
+        .contact-info-card:hover .contact-icon {
+            transform: scale(1.1);
+        }
+
+        .contact-info-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+
+        .contact-info-card p, .contact-info-card a {
+            color: var(--gray-600);
+            margin-bottom: 0.5rem;
+            text-decoration: none;
+            transition: var(--transition);
+            display: block;
+        }
+
+        .contact-info-card a:hover {
+            color: var(--primary-color);
+        }
+
+        /* Royal Driving Section */
+        .royal-driving {
+            padding: 3rem 0;
+            background-color: var(--body-bg);
+            border-top: 1px solid var(--gray-200);
+            position: relative;
+        }
+
+        [data-theme="dark"] .royal-driving {
+            border-top: 1px solid var(--gray-800);
+        }
+
+        .royal-driving-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            max-width: 700px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .royal-driving-logo {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text-color);
+            position: relative;
+            display: inline-block;
+        }
+
+        .royal-driving p {
+            color: var(--gray-600);
+            margin-bottom: 1rem;
+            font-size: 0.95rem;
+        }
+
+        .royal-driving .btn {
+            transition: var(--transition);
+            margin-top: 0.5rem;
+        }
+
+        .royal-driving-intro {
+            font-size: 1rem;
+            margin-bottom: 1.25rem;
+            max-width: 600px;
+        }
+        
+        .driving-locations {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1.5rem;
+            margin: 1rem 0;
+            width: 100%;
+        }
+        
+        .driving-location {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1.5rem;
+            background-color: var(--gray-100);
+            border-radius: 8px;
+            min-width: 200px;
+        }
+        
+        .driving-location i {
+            font-size: 1.25rem;
+            color: var(--gray-500);
+        }
+        
+        .driving-location h4 {
+            font-weight: 600;
+            margin-bottom: 0.15rem;
+            font-size: 0.95rem;
+        }
+        
+        .driving-location p {
+            margin-bottom: 0 !important;
+            font-size: 0.85rem;
+            opacity: 0.8;
+        }
+        
+        [data-theme="dark"] .driving-location {
+            background-color: var(--gray-800);
+        }
+
+        /* Make sure Royal Driving text has gold accent in dark mode */
+        [data-theme="dark"] .royal-driving-logo .royal-accent {
+            color: var(--primary-color) !important;
+        }
+
+        [data-theme="dark"] .royal-driving-logo {
+            color: var(--light-color) !important;
+        }
+
+        [data-theme="dark"] .royal-driving p {
+            color: var(--gray-400) !important;
+        }
+
+        /* Modern UI Enhancements */
+        .category-card, .feature-card, .contact-info-card, .driving-feature {
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            backdrop-filter: blur(5px);
+        }
+
+        [data-theme="dark"] .category-card, 
+        [data-theme="dark"] .feature-card, 
+        [data-theme="dark"] .contact-info-card, 
+        [data-theme="dark"] .driving-feature {
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            background-color: rgba(45, 42, 21, 0.7);
+            border: 1px solid rgba(255, 215, 0, 0.1);
+        }
+
+        .btn {
+            border-radius: 8px;
+            padding: 0.6rem 1.2rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+        }
+
+        .royal-driving-badge {
+            background-color: var(--primary-color);
+            color: var(--btn-text-color, #000);
+            padding: 0.4rem 1.2rem;
+            border-radius: 30px;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            letter-spacing: 0.5px;
+            display: inline-block;
+            box-shadow: 0 5px 15px rgba(212, 175, 55, 0.3);
+        }
+        
+        .driving-locations {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 2rem;
+            margin: 1.5rem 0;
+            width: 100%;
+        }
+        
+        .driving-location {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 2rem;
+            background-color: rgba(212, 175, 55, 0.1);
+            border-radius: 12px;
+            min-width: 250px;
+        }
+        
+        .driving-location i {
+            font-size: 1.5rem;
+            color: var(--primary-color);
+        }
+        
+        .driving-location h4 {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        
+        .driving-location p {
+            margin-bottom: 0 !important;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        .btn-glow {
+            animation: glow 2s infinite alternate;
+            position: relative;
+        }
+        
+        @keyframes glow {
+            from {
+                box-shadow: 0 0 5px rgba(212, 175, 55, 0.5);
+            }
+            to {
+                box-shadow: 0 0 20px rgba(212, 175, 55, 0.8);
+            }
+        }
+        
+        /* More modern design touches */
+        [data-theme="dark"] .driving-location {
+            background-color: rgba(255, 215, 0, 0.1);
+        }
+        
+        /* Modern UI Enhancements - 2025 style */
+        body {
+            --header-height: 70px;
+        }
+        
+        header {
+            height: var(--header-height);
+            display: flex;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            background-color: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
+        }
+        
+        [data-theme="dark"] header {
+            background-color: rgba(18, 18, 18, 0.8);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+        }
+        
+        .logo {
+            font-size: 1.6rem;
+        }
+        
+        .royal-accent {
+            font-weight: 800;
+        }
+        
+        .main-nav a {
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+        
+        .category-card, .feature-card, .contact-info-card {
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+        }
+        
+        .category-card:hover, .feature-card:hover, .contact-info-card:hover {
+            transform: translateY(-15px) scale(1.03);
+        }
+
+        /* Gold-enhanced UI elements */
+        .category-card, .feature-card {
+            border: 1px solid rgba(212, 175, 55, 0.2);
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, var(--body-bg) 0%, rgba(212, 175, 55, 0.05) 100%);
+        }
+
+        .category-card::before, .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--primary-color), transparent);
+            opacity: 0.7;
+        }
+
+        [data-theme="dark"] .category-card, 
+        [data-theme="dark"] .feature-card {
+            background: linear-gradient(135deg, rgba(18, 18, 18, 0.8) 0%, rgba(255, 215, 0, 0.1) 100%);
+            border: 1px solid rgba(255, 215, 0, 0.2);
+        }
+
+        .discount-banner {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 1.5rem;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+            color: var(--btn-text-color, #000);
+            border-radius: 12px;
+            margin: 2rem 0;
+            box-shadow: 0 10px 25px rgba(212, 175, 55, 0.25);
+            max-width: 90%;
+            width: 600px;
+        }
+        
+        .discount-icon {
+            font-size: 2.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+        }
+        
+        .discount-info h4 {
+            font-weight: 700;
+            font-size: 1.3rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .discount-info p {
+            margin-bottom: 0 !important;
+            opacity: 0.9;
+        }
+        
+        [data-theme="dark"] .discount-banner {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+            box-shadow: 0 10px 25px rgba(255, 215, 0, 0.15);
+        }
+
+        .special-zone {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 1.5rem;
+            background-color: rgba(212, 175, 55, 0.1);
+            border-radius: 12px;
+            margin: 1.5rem 0;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            max-width: 90%;
+            width: 600px;
+            border-left: 3px solid var(--primary-color);
+        }
+        
+        .special-zone-icon {
+            font-size: 2rem;
+            color: var(--primary-color);
+        }
+        
+        .special-zone-info h4 {
+            font-weight: 700;
+            font-size: 1.2rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .special-zone-info p {
+            margin-bottom: 0 !important;
+        }
+        
+        [data-theme="dark"] .special-zone {
+            background-color: rgba(255, 215, 0, 0.1);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Add more specific dark theme footer rules */
+        [data-theme="dark"] .footer-bottom p,
+        [data-theme="dark"] .footer-bottom span,
+        [data-theme="dark"] .contact-info p,
+        [data-theme="dark"] .contact-info span,
+        [data-theme="dark"] .footer-logo,
+        [data-theme="dark"] .royal-accent {
+            color: var(--light-color) !important;
+        }
+
+        [data-theme="dark"] footer .royal-accent {
+            color: var(--primary-color) !important;
+        }
+        
+        /* Ensure footer has dark background in dark mode */
+        [data-theme="dark"] footer {
+            background-color: #121212 !important;
+            color: var(--light-color) !important;
+        }
+        
+        /* Fix footer logo colors */
+        footer .royal-accent {
+            color: var(--royal-gold) !important;
+        }
+        
+        footer .footer-logo {
+            color: var(--light-color) !important;
+        }
+        
+        /* Make sure all text is visible in dark mode */
+        [data-theme="dark"] .footer-bottom * {
+            color: var(--light-color) !important;
+        }
+        
+        [data-theme="dark"] footer span:not(.royal-accent) {
+            color: var(--light-color) !important;
+        }
+
+        /* Fix Royal Driving section */
+        .royal-driving-logo .royal-accent {
+            color: var(--royal-gold) !important;
+        }
+    </style>
+    <script>
+        // Theme toggle functionality
+        const savedTheme = localStorage.getItem("theme") || "light";
+        document.documentElement.dataset.theme = savedTheme;
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const newTheme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+            html.dataset.theme = newTheme;
+            localStorage.setItem('theme', newTheme);
+        }
+
+        // Translations
+        const translations = {
+            'ru': {
+                'nav_home': 'Главная',
+                'nav_tests': 'Тесты',
+                'nav_news': 'Новости',
+                'nav_contact': 'Контакты',
+                'login': 'Вход',
+                'register': 'Регистрация',
+                'hero_title': 'Подготовка к экзаменам ПДД',
+                'hero_subtitle': 'Современный сервис для эффективной подготовки к сдаче теоретического экзамена',
+                'start_testing': 'Начать тестирование',
+                'learn_more': 'Узнать больше',
+                'features_title': 'Наши преимущества',
+                'official_db': 'Официальная база вопросов',
+                'official_db_desc': 'Актуальные вопросы, включая последние изменения в правилах дорожного движения Казахстана',
+                'adaptive_design': 'Адаптивный дизайн',
+                'adaptive_desc': 'Удобное использование на любых устройствах',
+                'multilingual': 'Многоязычность',
+                'multilingual_desc': 'Поддержка казахского, русского и английского языков',
+                'progress_tracking': 'Отслеживание прогресса',
+                'progress_tracking_desc': 'Детальная статистика вашего обучения с анализом ошибок и рекомендациями для улучшения',
+                'quick_start': 'Быстрый старт',
+                'quick_start_desc': 'Понятный интерфейс и минимум настроек - начните тестирование без лишних сложностей',
+                'any_device': 'Доступ с любого устройства',
+                'any_device_desc': 'Тренируйтесь дома за компьютером или в дороге с мобильного телефона',
+                'quality_guarantee': 'Гарантия качества',
+                'quality_guarantee_desc': '95% наших пользователей успешно сдают теоретический экзамен с первого раза',
+                'actual_questions': 'Актуальные вопросы',
+                'actual_questions_desc': 'Соответствие официальным экзаменационным билетам',
+                'rights_reserved': 'Все права защищены.',
+                'tech_support': 'Техническая поддержка:',
+                'categories_title': 'Категории тестов',
+                'basic_rules': 'Общие положения',
+                'basic_rules_desc': 'Базовые понятия и термины ПДД, общие обязанности участников движения, административная ответственность',
+                'road_signs': 'Дорожные знаки',
+                'road_signs_desc': 'Запрещающие, предупреждающие, предписывающие знаки и знаки приоритета. Тесты на распознавание знаков',
+                'traffic_lights': 'Дорожная разметка',
+                'traffic_lights_desc': 'Горизонтальная и вертикальная разметка, их значение и применение в различных дорожных ситуациях',
+                'electric_scooters': 'Электросамокаты',
+                'electric_scooters_desc': 'Правила и требования для электросамокатов, безопасное передвижение и парковка',
+                'mopeds': 'Мопеды',
+                'mopeds_desc': 'Требования к управлению мопедами, права и обязанности водителей мопедов',
+                'cars': 'Машины',
+                'cars_desc': 'Правила и особенности управления легковыми автомобилями в различных условиях',
+                'trucks': 'Грузовики',
+                'trucks_desc': 'Требования к управлению грузовыми автомобилями, особенности перевозки грузов',
+                'trams': 'Трамваи',
+                'trams_desc': 'Правила управления трамваями и взаимодействие с другими участниками движения',
+                'medicine': 'Медицина',
+                'medicine_desc': 'Первая помощь при ДТП, необходимые навыки и знания для оказания экстренной помощи',
+                'fines': 'Штрафы',
+                'fines_desc': 'Административные штрафы за нарушение правил дорожного движения, размеры и условия',
+                'start_now': 'Начать сейчас',
+                'contact_title': 'Свяжитесь с нами',
+                'telegram_support': 'Telegram поддержка',
+                'telegram_desc': 'Получите быструю техническую поддержку через Telegram',
+                'whatsapp_support': 'WhatsApp поддержка',
+                'whatsapp_desc': 'Задайте вопросы и получите консультацию по WhatsApp',
+                'email_support': 'Email поддержка',
+                'email_desc': 'Отправьте нам письмо с вопросами или предложениями',
+                'users_count': 'Пользователей',
+                'tests_count': 'Тестов пройдено',
+                'questions_count': 'Вопросов в базе',
+                'pass_rate': 'Процент сдачи',
+                'driving': 'Автошкола',
+                'driving_intro': 'Есть своя автошкола в Астане и Шымкенте.',
+                'more_details': 'Подробнее'
+            },
+            'kz': {
+                'nav_home': 'Басты бет',
+                'nav_tests': 'Тесттер',
+                'nav_news': 'Жаңалықтар',
+                'nav_contact': 'Байланыс',
+                'login': 'Кіру',
+                'register': 'Тіркелу',
+                'hero_title': 'Қазақстанның ЖҚЕ емтиханына дайындық',
+                'hero_subtitle': 'Теориялық емтиханға тиімді дайындалуға арналған заманауи қызмет',
+                'start_testing': 'Тестілеуді бастау',
+                'learn_more': 'Көбірек білу',
+                'features_title': 'Біздің артықшылықтар',
+                'official_db': 'Ресми сұрақтар базасы',
+                'official_db_desc': 'Қазақстанның жол қозғалысы ережелеріндегі соңғы өзгерістерді қоса алғанда, өзекті сұрақтар',
+                'adaptive_design': 'Бейімделгіш дизайн',
+                'adaptive_desc': 'Кез келген құрылғыда қолдану ыңғайлы',
+                'multilingual': 'Көптілділік',
+                'multilingual_desc': 'Қазақ, орыс және ағылшын тілдерін қолдау',
+                'progress_tracking': 'Прогресті бақылау',
+                'progress_tracking_desc': 'Қателерді талдау және жақсарту бойынша ұсыныстары бар оқуыңыздың толық статистикасы',
+                'quick_start': 'Жылдам бастау',
+                'quick_start_desc': 'Түсінікті интерфейс және минималды параметрлер - артық күрделіліксіз тестілеуді бастаңыз',
+                'any_device': 'Кез-келген құрылғыдан қолжетімділік',
+                'any_device_desc': 'Үйде компьютерде немесе жолда ұялы телефонда жаттығыңыз',
+                'quality_guarantee': 'Сапа кепілдігі',
+                'quality_guarantee_desc': 'Біздің пайдаланушыларымыздың 95% теориялық емтиханды бірінші реттен сәтті тапсырады',
+                'actual_questions': 'Өзекті сұрақтар',
+                'actual_questions_desc': 'Ресми емтихан билеттеріне сәйкестік',
+                'rights_reserved': 'Барлық құқықтар қорғалған.',
+                'tech_support': 'Техникалық қолдау:',
+                'categories_title': 'Тест санаттары',
+                'basic_rules': 'Негізгі ережелер',
+                'basic_rules_desc': 'Қауіпсіз жүргізу үшін жол қозғалысының негізгі ережелерін үйреніңіз',
+                'road_signs': 'Жол белгілері',
+                'road_signs_desc': 'Жол белгілерімен және олардың мағынасымен танысыңыз',
+                'traffic_lights': 'Жол таңбалары',
+                'traffic_lights_desc': 'Көлденең және тік таңбалар, олардың мәні және түрлі жол жағдайларында қолдану',
+                'electric_scooters': 'Электр самокаттар',
+                'electric_scooters_desc': 'Электр самокаттарға арналған ережелер мен талаптар, қауіпсіз қозғалу және тұрақ',
+                'mopeds': 'Мопедтер',
+                'mopeds_desc': 'Мопедтерді басқару талаптары, мопед жүргізушілерінің құқықтары мен міндеттері',
+                'cars': 'Автомобильдер',
+                'cars_desc': 'Түрлі жағдайларда жеңіл автомобильдерді басқару ережелері мен ерекшеліктері',
+                'trucks': 'Жүк көліктері',
+                'trucks_desc': 'Жүк көліктерін басқаруға қойылатын талаптар, жүк тасымалдау ерекшеліктері',
+                'trams': 'Трамвайлар',
+                'trams_desc': 'Трамвайларды басқару ережелері және басқа қозғалыс қатысушыларымен өзара әрекеттесу',
+                'medicine': 'Медицина',
+                'medicine_desc': 'ЖКО кезінде алғашқы көмек, жедел көмек көрсету үшін қажетті дағдылар мен білім',
+                'fines': 'Айыппұлдар',
+                'fines_desc': 'Жол қозғалысы ережелерін бұзғаны үшін әкімшілік айыппұлдар, мөлшері және шарттары',
+                'start_now': 'Қазір бастау',
+                'contact_title': 'Бізбен байланыс',
+                'telegram_support': 'Telegram қолдау',
+                'telegram_desc': 'Telegram арқылы жылдам техникалық қолдау алыңыз',
+                'whatsapp_support': 'WhatsApp қолдау',
+                'whatsapp_desc': 'WhatsApp арқылы сұрақтар қойыңыз және кеңес алыңыз',
+                'email_support': 'Email қолдау',
+                'email_desc': 'Бізге сұрақтарыңыз немесе ұсыныстарыңыз бар хат жіберіңіз',
+                'users_count': 'Қолданушылар',
+                'tests_count': 'Тесттер өткізілді',
+                'questions_count': 'Базадағы сұрақтар',
+                'pass_rate': 'Өту пайызы',
+                'driving': 'Автомектеп',
+                'driving_intro': 'Астана мен Шымкентте өз автомектебі бар.',
+                'more_details': 'Толығырақ'
+            },
+            'en': {
+                'nav_home': 'Home',
+                'nav_tests': 'Tests',
+                'nav_news': 'News',
+                'nav_contact': 'Contact',
+                'login': 'Sign In',
+                'register': 'Sign Up',
+                'hero_title': 'Kazakhstan Traffic Rules Exam Preparation',
+                'hero_subtitle': 'Modern service for effective preparation for the theoretical exam',
+                'start_testing': 'Start Testing',
+                'learn_more': 'Learn More',
+                'features_title': 'Our Advantages',
+                'official_db': 'Official Question Database',
+                'official_db_desc': 'Up-to-date questions, including the latest changes in Kazakhstan traffic rules',
+                'adaptive_design': 'Adaptive Design',
+                'adaptive_desc': 'Convenient use on any device',
+                'multilingual': 'Multilingual',
+                'multilingual_desc': 'Support for Kazakh, Russian and English languages',
+                'progress_tracking': 'Progress Tracking',
+                'progress_tracking_desc': 'Detailed statistics of your learning with error analysis and recommendations for improvement',
+                'quick_start': 'Quick Start',
+                'quick_start_desc': 'User-friendly interface and minimal settings - start testing without unnecessary complexity',
+                'any_device': 'Access from Any Device',
+                'any_device_desc': 'Practice at home on your computer or on the go with your mobile phone',
+                'quality_guarantee': 'Quality Guarantee',
+                'quality_guarantee_desc': '95% of our users successfully pass the theoretical exam on the first attempt',
+                'actual_questions': 'Actual Questions',
+                'actual_questions_desc': 'Compliance with official exam tickets',
+                'rights_reserved': 'All rights reserved.',
+                'tech_support': 'Technical support:',
+                'categories_title': 'Test Categories',
+                'basic_rules': 'Basic Rules',
+                'basic_rules_desc': 'Learn the basic traffic rules for safe driving',
+                'road_signs': 'Road Signs',
+                'road_signs_desc': 'Get familiar with road signs and their meanings',
+                'traffic_lights': 'Road Markings',
+                'traffic_lights_desc': 'Horizontal and vertical markings, their meaning and application in various road situations',
+                'electric_scooters': 'Electric Scooters',
+                'electric_scooters_desc': 'Rules and requirements for electric scooters, safe movement and parking',
+                'mopeds': 'Mopeds',
+                'mopeds_desc': 'Requirements for operating mopeds, rights and obligations of moped drivers',
+                'cars': 'Cars',
+                'cars_desc': 'Rules and features of driving passenger cars in various conditions',
+                'trucks': 'Trucks',
+                'trucks_desc': 'Requirements for operating trucks, features of cargo transportation',
+                'trams': 'Trams',
+                'trams_desc': 'Rules for operating trams and interaction with other road users',
+                'medicine': 'Medicine',
+                'medicine_desc': 'First aid in case of accidents, necessary skills and knowledge for emergency assistance',
+                'fines': 'Fines',
+                'fines_desc': 'Administrative fines for traffic violations, amounts and conditions',
+                'start_now': 'Start Now',
+                'contact_title': 'Contact Us',
+                'telegram_support': 'Telegram Support',
+                'telegram_desc': 'Get quick technical support via Telegram',
+                'whatsapp_support': 'WhatsApp Support',
+                'whatsapp_desc': 'Ask questions and get consultation via WhatsApp',
+                'email_support': 'Email Support',
+                'email_desc': 'Send us an email with questions or suggestions',
+                'users_count': 'Users',
+                'tests_count': 'Tests Taken',
+                'questions_count': 'Questions in Base',
+                'pass_rate': 'Pass Rate',
+                'driving': 'Driving School',
+                'driving_intro': 'We have our own driving school in Astana and Shymkent.',
+                'more_details': 'More Details'
+            }
+        };
+
+        // Set default language
+        let currentLang = localStorage.getItem('language') || 'ru';
+        document.documentElement.lang = currentLang;
+    </script>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="logo">
+                <span class="royal-accent">Royal</span> Test
+            </div>
+            <nav class="main-nav">
+                <ul>
+                    <li><a href="/" class="active"><span data-trans="nav_home">Главная</span></a></li>
+                    <li><a href="/tests"><span data-trans="nav_tests">Тесты</span></a></li>
+                    <li><a href="#contact"><span data-trans="nav_contact">Контакты</span></a></li>
+                </ul>
+            </nav>
+            <div class="header-actions">
+                <div class="lang-switcher">
+                    <button data-lang="kz">KZ</button>
+                    <button data-lang="ru" class="active">RU</button>
+                    <button data-lang="en">EN</button>
+                </div>
+                <button class="theme-toggle" onclick="toggleTheme()">
+                    <span class="light-icon"><i class="fas fa-sun"></i></span>
+                    <span class="dark-icon"><i class="fas fa-moon"></i></span>
+                </button>
+                <div class="auth-buttons">
+                    <a href="/login" class="btn btn-outline"><span data-trans="login">Вход</span></a>
+                    <a href="/registration" class="btn btn-primary"><span data-trans="register">Регистрация</span></a>
+                </div>
+            </div>
+            <button class="mobile-menu-toggle" id="mobile-menu-toggle">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1 class="animate-fade-in"><span data-trans="hero_title">Подготовка к экзаменам ПДД</span> <span class="text-accent">Казахстана</span></h1>
+                    <p class="animate-fade-in-delay" data-trans="hero_subtitle">Современный сервис для эффективной подготовки к сдаче теоретического экзамена</p>
+                    <div class="hero-buttons animate-fade-in-delay-2">
+                        <a href="/tests" class="btn btn-primary btn-pulse"><span data-trans="start_testing">Начать тестирование</span></a>
+                        <a href="/about" class="btn btn-outline"><span data-trans="learn_more">Узнать больше</span></a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="features">
+            <div class="container">
+                <h2 data-trans="features_title">Наши преимущества</h2>
+                <p class="features-subtitle">Royal Test - самый современный инструмент для эффективной подготовки к экзамену ПДД в Казахстане</p>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="fas fa-shield-alt"></i></div>
+                        <h3 data-trans="official_db">Официальная база вопросов</h3>
+                        <p data-trans="official_db_desc">Актуальные вопросы, включая последние изменения в правилах дорожного движения Казахстана</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="fas fa-language"></i></div>
+                        <h3 data-trans="multilingual">Многоязычность</h3>
+                        <p data-trans="multilingual_desc">Поддержка казахского, русского и английского языков для вашего удобства</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="fas fa-chart-line"></i></div>
+                        <h3 data-trans="progress_tracking">Отслеживание прогресса</h3>
+                        <p data-trans="progress_tracking_desc">Детальная статистика вашего обучения с анализом ошибок и рекомендациями для улучшения</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="fas fa-bolt"></i></div>
+                        <h3 data-trans="quick_start">Быстрый старт</h3>
+                        <p data-trans="quick_start_desc">Понятный интерфейс и минимум настроек - начните тестирование без лишних сложностей</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="fas fa-mobile-alt"></i></div>
+                        <h3 data-trans="any_device">Доступ с любого устройства</h3>
+                        <p data-trans="any_device_desc">Тренируйтесь дома за компьютером или в дороге с мобильного телефона</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="fas fa-certificate"></i></div>
+                        <h3 data-trans="quality_guarantee">Гарантия качества</h3>
+                        <p data-trans="quality_guarantee_desc">95% наших пользователей успешно сдают теоретический экзамен с первого раза</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="categories">
+            <div class="container">
+                <h2 data-trans="categories_title">Категории тестов</h2>
+                <div class="categories-grid">
+                    <div class="category-card">
+                        <div class="category-content">
+                            <div class="category-icon">
+                                <i class="fas fa-book"></i>
+                            </div>
+                            <h3 data-trans="basic_rules">Общие положения</h3>
+                            <p data-trans="basic_rules_desc">Базовые понятия и термины ПДД, общие обязанности участников движения, административная ответственность</p>
+                        </div>
+                    </div>
+                    <div class="category-card">
+                        <div class="category-content">
+                            <div class="category-icon">
+                                <i class="fas fa-traffic-light"></i>
+                            </div>
+                            <h3 data-trans="road_signs">Дорожные знаки</h3>
+                            <p data-trans="road_signs_desc">Запрещающие, предупреждающие, предписывающие знаки и знаки приоритета. Тесты на распознавание знаков</p>
+                        </div>
+                    </div>
+                    <div class="category-card">
+                        <div class="category-content">
+                            <div class="category-icon">
+                                <i class="fas fa-route"></i>
+                            </div>
+                            <h3 data-trans="traffic_lights">Дорожная разметка</h3>
+                            <p data-trans="traffic_lights_desc">Горизонтальная и вертикальная разметка, их значение и применение в различных дорожных ситуациях</p>
+                        </div>
+                    </div>
+                    <div class="category-card">
+                        <div class="category-content">
+                            <div class="category-icon">
+                                <i class="fas fa-bolt"></i>
+                            </div>
+                            <h3 data-trans="electric_scooters">Электросамокаты</h3>
+                            <p data-trans="electric_scooters_desc">Правила и требования для электросамокатов, безопасное передвижение и парковка</p>
+                        </div>
+                    </div>
+                    <div class="category-card">
+                        <div class="category-content">
+                            <div class="category-icon">
+                                <i class="fas fa-bicycle"></i>
+                            </div>
+                            <h3 data-trans="mopeds">Мопеды</h3>
+                            <p data-trans="mopeds_desc">Требования к управлению мопедами, права и обязанности водителей мопедов</p>
+                        </div>
+                    </div>
+                    <div class="category-card">
+                        <div class="category-content">
+                            <div class="category-icon">
+                                <i class="fas fa-car"></i>
+                            </div>
+                            <h3 data-trans="cars">Машины</h3>
+                            <p data-trans="cars_desc">Правила и особенности управления легковыми автомобилями в различных условиях</p>
+                        </div>
+                    </div>
+                    <div class="category-card">
+                        <div class="category-content">
+                            <div class="category-icon">
+                                <i class="fas fa-truck"></i>
+                            </div>
+                            <h3 data-trans="trucks">Грузовики</h3>
+                            <p data-trans="trucks_desc">Требования к управлению грузовыми автомобилями, особенности перевозки грузов</p>
+                        </div>
+                    </div>
+                    <div class="category-card">
+                        <div class="category-content">
+                            <div class="category-icon">
+                                <i class="fas fa-train"></i>
+                            </div>
+                            <h3 data-trans="trams">Трамваи</h3>
+                            <p data-trans="trams_desc">Правила управления трамваями и взаимодействие с другими участниками движения</p>
+                        </div>
+                    </div>
+                    <div class="category-card">
+                        <div class="category-content">
+                            <div class="category-icon">
+                                <i class="fas fa-first-aid"></i>
+                            </div>
+                            <h3 data-trans="medicine">Медицина</h3>
+                            <p data-trans="medicine_desc">Первая помощь при ДТП, необходимые навыки и знания для оказания экстренной помощи</p>
+                        </div>
+                    </div>
+                    <div class="category-card">
+                        <div class="category-content">
+                            <div class="category-icon">
+                                <i class="fas fa-money-bill"></i>
+                            </div>
+                            <h3 data-trans="fines">Штрафы</h3>
+                            <p data-trans="fines_desc">Административные штрафы за нарушение правил дорожного движения, размеры и условия</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="contact" id="contact">
+            <div class="container">
+                <h2 data-trans="contact_title">Свяжитесь с нами</h2>
+                <div class="contact-container">
+                    <div class="contact-info-card">
+                        <div class="contact-icon">
+                            <i class="fab fa-telegram"></i>
+                        </div>
+                        <h3 data-trans="telegram_support">Telegram поддержка</h3>
+                        <p data-trans="telegram_desc">Получите быструю техническую поддержку через Telegram</p>
+                        <a href="https://t.me/royal_one_support" target="_blank">@royal_one_support</a>
+                    </div>
+                    <div class="contact-info-card">
+                        <div class="contact-icon">
+                            <i class="fab fa-whatsapp"></i>
+                        </div>
+                        <h3 data-trans="whatsapp_support">WhatsApp поддержка</h3>
+                        <p data-trans="whatsapp_desc">Задайте вопросы и получите консультацию по WhatsApp</p>
+                        <a href="https://wa.me/77777777777" target="_blank">+7 777 777 7777</a>
+                    </div>
+                    <div class="contact-info-card">
+                        <div class="contact-icon">
+                            <i class="fab fa-instagram"></i>
+                        </div>
+                        <h3>Instagram</h3>
+                        <p>Следите за нашими новостями и обновлениями в Instagram</p>
+                        <a href="https://instagram.com/royal_test_kz" target="_blank">@royal_test_kz</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="royal-driving">
+            <div class="container">
+                <div class="royal-driving-container">
+                    <div class="royal-driving-logo">
+                        <span class="royal-accent">Royal Driving</span> <span data-trans="driving">Driving</span>
+                    </div>
+                    <p class="royal-driving-intro" data-trans="driving_intro">Есть своя автошкола в Астане и Шымкенте.</p>                    
+                    <a href="/driving-school" class="btn btn-outline"><span data-trans="more_details">Подробнее</span></a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-top">
+                <div class="footer-logo">
+                    <span class="royal-accent">Royal</span> One
+                </div>
+                <div class="social-links">
+                    <a href="https://t.me/royal_one_support" target="_blank"><i class="fab fa-telegram"></i></a>
+                    <a href="https://instagram.com/royal_test_kz" target="_blank"><i class="fab fa-instagram"></i></a>
+                    <a href="#" target="_blank"><i class="fab fa-whatsapp"></i></a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2023 Royal One. <span data-trans="rights_reserved">Все права защищены.</span></p>
+                <div class="contact-info">
+                    <p><span data-trans="tech_support">Техническая поддержка:</span> <a href="https://t.me/royal_one_support">@royal_one_support</a></p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Mobile menu toggle
+        document.addEventListener('DOMContentLoaded', function() {
+            const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+            const mainNav = document.querySelector('.main-nav');
+            const headerActions = document.querySelector('.header-actions');
+            
+            mobileMenuToggle.addEventListener('click', function() {
+                mainNav.classList.toggle('active');
+                headerActions.classList.toggle('active');
+                
+                // Toggle menu icon animation
+                this.classList.toggle('open');
+            });
+            
+            // Language switcher
+            const langButtons = document.querySelectorAll('.lang-switcher button');
+            
+            // Function to update UI with translations
+            function updateLanguage(lang) {
+                const transElements = document.querySelectorAll('[data-trans]');
+                transElements.forEach(el => {
+                    const key = el.getAttribute('data-trans');
+                    if (translations[lang] && translations[lang][key]) {
+                        el.textContent = translations[lang][key];
+                    }
+                });
+                
+                // Update HTML lang attribute
+                document.documentElement.lang = lang;
+                
+                // Update active button
+                langButtons.forEach(btn => {
+                    btn.classList.toggle('active', btn.getAttribute('data-lang') === lang);
+                });
+                
+                // Save language preference
+                localStorage.setItem('language', lang);
+                currentLang = lang;
+            }
+            
+            // Initialize with saved language
+            updateLanguage(currentLang);
+            
+            // Add click event for language buttons
+            langButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const lang = this.getAttribute('data-lang');
+                    updateLanguage(lang);
+                });
+            });
+
+            // Smooth scrolling for anchor links
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    
+                    const targetId = this.getAttribute('href');
+                    const targetElement = document.querySelector(targetId);
+                    
+                    if (targetElement) {
+                        window.scrollTo({
+                            top: targetElement.offsetTop - 80,
+                            behavior: 'smooth'
+                        });
+                        
+                        // Close mobile menu if open
+                        if (mainNav.classList.contains('active')) {
+                            mainNav.classList.remove('active');
+                            headerActions.classList.remove('active');
+                            mobileMenuToggle.classList.remove('open');
+                        }
+                    }
+                });
+            });
+
+            // Animation for count up numbers
+            const animateCountUp = () => {
+                const countUpElements = document.querySelectorAll('.animate-count-up');
+                
+                countUpElements.forEach(element => {
+                    const target = parseInt(element.dataset.target);
+                    const numberElement = element.querySelector('.stat-number');
+                    let currentText = numberElement.innerText;
+                    let currentNumber = parseInt(currentText.replace(/[^0-9]/g, ''));
+                    
+                    if (isNaN(currentNumber)) currentNumber = 0;
+                    
+                    // Calculate the increment based on the target value
+                    const increment = Math.max(1, Math.floor(target / 100));
+                    
+                    if (currentNumber < target) {
+                        // Calculate the new value, not exceeding the target
+                        const newValue = Math.min(currentNumber + increment, target);
+                        
+                        // Update the text with appropriate formatting
+                        if (element.id === 'pass-rate') {
+                            numberElement.innerText = newValue + '%';
+                        } else if (newValue >= 1000) {
+                            numberElement.innerText = newValue.toLocaleString() + '+';
+                        } else {
+                            numberElement.innerText = newValue + '+';
+                        }
+                        
+                        // Continue animation if not reached target
+                        if (newValue < target) {
+                            requestAnimationFrame(animateCountUp);
+                        }
+                    }
+                });
+            };
+
+            // Intersection Observer for animations
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        if (entry.target.classList.contains('animate-count-up')) {
+                            animateCountUp();
+                        }
+                        
+                        // Add animation classes for other elements if needed
+                        if (entry.target.classList.contains('feature-card')) {
+                            entry.target.classList.add('animate-fade-in');
+                        }
+                        
+                        if (entry.target.classList.contains('category-card')) {
+                            entry.target.classList.add('animate-fade-in');
+                        }
+                    }
+                });
+            }, { threshold: 0.1 });
+
+            // Observe elements for animations
+            document.querySelectorAll('.animate-count-up, .feature-card, .category-card').forEach(el => {
+                observer.observe(el);
+            });
+        });
+    </script>
+</body>
+</html>

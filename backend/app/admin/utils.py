@@ -15,11 +15,16 @@ def hash_password(password: str) -> str:
 def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
-def create_token(data: dict, hours: int = 24):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(hours=hours)
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+def create_token(sub: str, role: str, hours: int = 24) -> str:
+    """
+    role: 'admin', 'moder' или 'user'
+    """
+    payload = {
+        "sub":  sub,
+        "role": role,
+        "exp":  datetime.utcnow() + timedelta(hours=hours)
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 def decode_token(token: str):
     return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
