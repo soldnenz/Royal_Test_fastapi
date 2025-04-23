@@ -558,12 +558,12 @@ const SubscriptionPage = () => {
                   </p>
                 </div>
                 
-                <div className="flex justify-between space-x-4">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <button
                     type="submit"
                     className="flex-1 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
                   >
-                    {t.sendGift || "Отправить подарок"}
+                    {t.issueGift || "Выдать"}
                   </button>
                   
                   <button
@@ -585,9 +585,10 @@ const SubscriptionPage = () => {
   const renderBalanceAndPromo = () => {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+        {/* Balance Section */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden flex flex-col">
           <div className="h-2 bg-gradient-to-r from-emerald-400 to-green-500"></div>
-          <div className="p-6">
+          <div className="p-6 flex-grow flex flex-col">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
               {t.topUpBalance || "Пополнить баланс"}
             </h3>
@@ -599,7 +600,7 @@ const SubscriptionPage = () => {
               </div>
             </div>
             
-            <form onSubmit={handleTopUp}>
+            <form onSubmit={handleTopUp} className="flex-grow flex flex-col">
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {t.amount || "Сумма"} (KZT)
@@ -629,24 +630,27 @@ const SubscriptionPage = () => {
                 ))}
               </div>
               
-              <button
-                type="submit"
-                className="w-full py-3 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
-              >
-                {t.topUp || "Пополнить"}
-              </button>
+              <div className="mt-auto">
+                <button
+                  type="submit"
+                  className="w-full py-3 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
+                >
+                  {t.topUp || "Пополнить"}
+                </button>
+              </div>
             </form>
           </div>
         </div>
         
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+        {/* Promo Code Section */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden flex flex-col">
           <div className="h-2 bg-gradient-to-r from-purple-400 to-indigo-500"></div>
-          <div className="p-6">
+          <div className="p-6 flex-grow flex flex-col">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
               {t.activatePromoCode || "Активировать промокод"}
             </h3>
             
-            <form onSubmit={handleActivatePromo}>
+            <form onSubmit={handleActivatePromo} className="flex-grow flex flex-col">
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {t.promoCode || "Промокод"}
@@ -664,12 +668,14 @@ const SubscriptionPage = () => {
                 </p>
               </div>
               
-              <button
-                type="submit"
-                className="w-full py-3 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
-              >
-                {t.activate || "Активировать"}
-              </button>
+              <div className="mt-auto">
+                <button
+                  type="submit"
+                  className="w-full py-3 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
+                >
+                  {t.activate || "Активировать"}
+                </button>
+              </div>
             </form>
           </div>
         </div>
