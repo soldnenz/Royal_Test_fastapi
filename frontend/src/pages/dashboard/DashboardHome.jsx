@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useOutletContext, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { translations } from '../../translations/translations';
+import './styles.css'; // Make sure to create this file if it doesn't exist
 
 const DashboardHome = () => {
   const { profileData } = useOutletContext();
@@ -205,7 +206,7 @@ const DashboardHome = () => {
                 <p className="text-gray-600 dark:text-gray-400">{t.noRecentTests}</p>
                 <button 
                   onClick={() => navigate('/dashboard/tests')}
-                  className="mt-4 px-4 py-2 bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 rounded-lg hover:bg-primary-200 dark:hover:bg-primary-800 transition-colors"
+                  className="mt-4 px-6 py-2.5 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
                 >
                   {t.startFirstTest}
                 </button>

@@ -1,0 +1,71 @@
+/* Fixes for subscription slider in mobile/vertical mode */
+@media (max-width: 768px) {
+  /* Makes the slider more touch-friendly on mobile */
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 25px;
+    background: transparent;
+    cursor: pointer;
+  }
+  
+  /* Chrome/Safari styles */
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    height: 24px;
+    width: 24px;
+    background: #3498db;
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    margin-top: -8px; /* Offset to center on track */
+  }
+  
+  input[type="range"]::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 8px;
+    background: #e0e0e0;
+    border-radius: 4px;
+  }
+  
+  /* Firefox styles */
+  input[type="range"]::-moz-range-thumb {
+    height: 24px;
+    width: 24px;
+    background: #3498db;
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+  
+  input[type="range"]::-moz-range-track {
+    width: 100%;
+    height: 8px;
+    background: #e0e0e0;
+    border-radius: 4px;
+  }
+  
+  /* Enhancement for easier interaction */
+  input[type="range"]:focus {
+    outline: none;
+  }
+  
+  input[type="range"]:focus::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.3);
+  }
+  
+  input[type="range"]:focus::-moz-range-thumb {
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.3);
+  }
+  
+  /* Adjustments to make the slider more visible */
+  .test-progress {
+    margin-bottom: 1.5rem !important;
+  }
+  
+  /* Improved touch target area */
+  .progress-bar {
+    padding: 8px 0;
+    touch-action: manipulation;
+  }
+} 
