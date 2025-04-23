@@ -801,6 +801,159 @@ const SubscriptionPage = () => {
     );
   };
 
+  // Render purchase options
+  const renderPurchaseOptions = () => {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        <div className="mb-6 flex justify-between items-center">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+            {tLang.buySubscription || "Buy Subscription"}
+          </h2>
+          <button
+            type="button"
+            onClick={() => setIsGiftMode(!isGiftMode)}
+            className={`px-4 py-2 rounded-lg transition ${
+              isGiftMode
+                ? 'bg-primary-100 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+          >
+            {isGiftMode ? (tLang.purchaseForSelf || "Purchase for Self") : (tLang.buyAsGift || "Buy as Gift")}
+          </button>
+        </div>
+        
+        {/* Subscription Types */}
+        {renderSubscriptionTypes()}
+        
+        {/* Gift Options */}
+        {renderGiftOptions()}
+        
+        {/* Duration Selection */}
+        {renderDurationSelection()}
+        
+        {/* Total Price */}
+        <div className="mb-8 p-6 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="flex justify-between items-center">
+            <span className="text-lg font-medium text-gray-900 dark:text-white">
+              {tLang.totalPrice || "Total Price"}:
+            </span>
+            <span className="text-2xl font-bold text-gray-900 dark:text-white">
+              {formatMoney(getSubscriptionPrice(selectedSubscriptionType, selectedDuration))}
+            </span>
+          </div>
+        </div>
+        
+        {/* Purchase Button */}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={isGiftMode ? handlePurchaseGift : handlePurchaseSubscription}
+            disabled={purchaseLoading}
+            className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+              selectedSubscriptionType === 'economy'
+                ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                : selectedSubscriptionType === 'vip'
+                  ? 'bg-purple-500 hover:bg-purple-600 text-white'
+                  : 'bg-amber-500 hover:bg-amber-600 text-white'
+            }`}
+          >
+            {purchaseLoading ? (
+              <span className="flex items-center">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                {tLang.processing || "Processing..."}
+              </span>
+            ) : (
+              isGiftMode ? (tLang.purchaseGift || "Purchase Gift") : (tLang.buySubscription || "Buy Subscription")
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  };
+  
+  // Render balance and promo code section
+  const renderBalanceAndPromo = () => {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Top Up Balance */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+            {tLang.topUpBalance || "Top Up Balance"}
+          </h2>
+          
+          <div className="mb-4">
+            <label htmlFor="currentBalance" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {tLang.currentBalance || "Current Balance"}
+            </label>
+            <div className="w-full p-3 bg-gray-100 dark:bg-gray-700 rounded-md text-gray-900 dark:text-white font-medium">
+              {formatMoney(subscription?.balance || 0)}
+            </div>
+          </div>
+          
+          <form onSubmit={handleTopUp} className="space-y-4">
+            <div>
+              <label htmlFor="amount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {tLang.amount || "Amount"}
+              </label>
+              <select
+                id="amount"
+                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+              >
+                <option value="1000">1,000 ₸</option>
+                <option value="2000">2,000 ₸</option>
+                <option value="5000">5,000 ₸</option>
+                <option value="10000">10,000 ₸</option>
+                <option value="15000">15,000 ₸</option>
+                <option value="20000">20,000 ₸</option>
+              </select>
+            </div>
+            
+            <button
+              type="submit"
+              className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
+            >
+              {tLang.topUp || "Top Up"}
+            </button>
+          </form>
+        </div>
+        
+        {/* Activate Promo Code */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+            {tLang.activatePromoCode || "Activate Promo Code"}
+          </h2>
+          
+          <form onSubmit={handleActivatePromo} className="space-y-4">
+            <div>
+              <label htmlFor="promoCode" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {tLang.promoCode || "Promo Code"}
+              </label>
+              <input
+                id="promoCode"
+                type="text"
+                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+                placeholder={tLang.enterPromoCode || "Enter promo code"}
+              />
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                {tLang.promoCodeDescription || "Enter a promo code to activate a subscription or receive a bonus"}
+              </p>
+            </div>
+            
+            <button
+              type="submit"
+              className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
+            >
+              {tLang.activate || "Activate"}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
