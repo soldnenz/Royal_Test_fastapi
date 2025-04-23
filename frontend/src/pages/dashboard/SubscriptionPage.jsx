@@ -351,7 +351,7 @@ const SubscriptionPage = () => {
     const plans = [
       { 
         id: 'economy', 
-        title: t.economyTitle, 
+        title: t.economyTitle || "Эконом", 
         price: 1990, 
         features: [
           t.economyFeature1 || "Доступ к категориям A, A1, B", 
@@ -361,7 +361,7 @@ const SubscriptionPage = () => {
       },
       { 
         id: 'Vip', 
-        title: t.vipTitle, 
+        title: t.vipTitle || "VIP", 
         price: 3990, 
         featured: true, 
         features: [
@@ -373,7 +373,7 @@ const SubscriptionPage = () => {
       },
       { 
         id: 'Royal', 
-        title: t.royalTitle, 
+        title: t.royalTitle || "Royal", 
         price: 6990, 
         features: [
           t.royalFeature1 || "Все функции VIP тарифа", 
@@ -398,12 +398,12 @@ const SubscriptionPage = () => {
           <div className="h-2 bg-gradient-to-r from-primary-400 to-primary-600"></div>
           <div className="p-6">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              {isForGift ? t.buySubscriptionGift : t.buySubscription}
+              {isForGift ? (t.buySubscriptionGift || "Подарить подписку") : (t.buySubscription || "Купить подписку")}
             </h3>
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {t.subscriptionType}
+                {t.subscriptionType || "Тип подписки"}
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {plans.map((plan) => {
@@ -433,13 +433,13 @@ const SubscriptionPage = () => {
                         </span>
                         {plan.featured && (
                           <span className="ml-2 px-2 py-0.5 bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 text-xs rounded-full">
-                            {t.popular}
+                            {t.popular || "Популярный"}
                           </span>
                         )}
                       </div>
                       <div className="ml-7">
                         <div className="text-lg font-bold text-gray-900 dark:text-white mb-1">
-                          {formatMoney(plan.price)} <span className="text-xs text-gray-500 dark:text-gray-400">/ {t.month}</span>
+                          {formatMoney(plan.price)} <span className="text-xs text-gray-500 dark:text-gray-400">/ {t.month || "месяц"}</span>
                         </div>
                         <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
                           {plan.features.map((feature, index) => (
@@ -460,7 +460,7 @@ const SubscriptionPage = () => {
             
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {t.duration}
+                {t.duration || "Длительность"}
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {durations.map((duration) => {
@@ -481,7 +481,7 @@ const SubscriptionPage = () => {
                       </div>
                       {duration.discount && (
                         <div className="text-xs text-green-600 dark:text-green-400 mt-1">
-                          {t.save} {duration.discount}
+                          {t.save || "Скидка"} {duration.discount}
                         </div>
                       )}
                     </div>
@@ -493,9 +493,9 @@ const SubscriptionPage = () => {
             {isForGift && (
               <div className="mb-6">
                 <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                  <h4 className="font-medium text-amber-800 dark:text-amber-300 mb-2">{t.giftInformation}</h4>
+                  <h4 className="font-medium text-amber-800 dark:text-amber-300 mb-2">{t.giftInformation || "Информация о подарке"}</h4>
                   <p className="text-sm text-amber-700 dark:text-amber-400">
-                    {t.giftInformationText}
+                    {t.giftInformationText || "Вы можете подарить подписку любому пользователю, зная его ИИН. Подписка будет активирована автоматически после оплаты."}
                   </p>
                 </div>
               </div>
@@ -503,7 +503,7 @@ const SubscriptionPage = () => {
             
             <div className="flex flex-col sm:flex-row sm:justify-between items-center border-t border-gray-200 dark:border-gray-700 pt-4">
               <div className="mb-4 sm:mb-0">
-                <div className="text-sm text-gray-600 dark:text-gray-400">{t.totalPrice}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">{t.totalPrice || "Итоговая цена"}</div>
                 <div className="text-2xl font-bold text-gray-900 dark:text-white">
                   {formatMoney(getSubscriptionPrice(selectedSubscriptionType, selectedDuration))}
                 </div>
@@ -515,7 +515,7 @@ const SubscriptionPage = () => {
                     onClick={() => setIsForGift(true)}
                     className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                   >
-                    {t.buyAsGift}
+                    {t.buyAsGift || "Купить как подарок"}
                   </button>
                 )}
                 
@@ -523,7 +523,7 @@ const SubscriptionPage = () => {
                   onClick={isForGift ? handlePurchaseGift : handlePurchaseSubscription}
                   className="px-6 py-2 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
                 >
-                  {isForGift ? t.purchaseGift : t.purchaseForSelf}
+                  {isForGift ? (t.purchaseGift || "Купить подарок") : (t.purchaseForSelf || "Купить для себя")}
                 </button>
               </div>
             </div>
@@ -535,13 +535,13 @@ const SubscriptionPage = () => {
             <div className="h-2 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
             <div className="p-6">
               <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                {t.giftByIIN}
+                {t.giftByIIN || "Подарить по ИИН"}
               </h3>
               
               <form onSubmit={handleGiftByIIN}>
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    {t.recipientIIN}
+                    {t.recipientIIN || "ИИН получателя"}
                   </label>
                   <input
                     type="text"
@@ -554,7 +554,7 @@ const SubscriptionPage = () => {
                     required
                   />
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    {t.iinDescription}
+                    {t.iinDescription || "Введите 12-значный ИИН получателя подарка"}
                   </p>
                 </div>
                 
@@ -562,7 +562,7 @@ const SubscriptionPage = () => {
                   type="submit"
                   className="w-full py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
                 >
-                  {t.sendGift}
+                  {t.sendGift || "Отправить подарок"}
                 </button>
               </form>
             </div>
@@ -580,12 +580,12 @@ const SubscriptionPage = () => {
           <div className="h-2 bg-gradient-to-r from-emerald-400 to-green-500"></div>
           <div className="p-6">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              {t.topUpBalance}
+              {t.topUpBalance || "Пополнить баланс"}
             </h3>
             
             <div className="mb-4">
               <div className="flex items-center justify-between">
-                <span className="text-gray-700 dark:text-gray-300">{t.currentBalance}:</span>
+                <span className="text-gray-700 dark:text-gray-300">{t.currentBalance || "Текущий баланс"}:</span>
                 <span className="text-lg font-bold text-gray-900 dark:text-white">{formatMoney(profileData?.money)}</span>
               </div>
             </div>
@@ -593,7 +593,7 @@ const SubscriptionPage = () => {
             <form onSubmit={handleTopUp}>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t.amount} (KZT)
+                  {t.amount || "Сумма"} (KZT)
                 </label>
                 <input
                   type="number"
@@ -624,7 +624,7 @@ const SubscriptionPage = () => {
                 type="submit"
                 className="w-full py-2 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
               >
-                {t.topUp}
+                {t.topUp || "Пополнить"}
               </button>
             </form>
           </div>
@@ -634,13 +634,13 @@ const SubscriptionPage = () => {
           <div className="h-2 bg-gradient-to-r from-purple-400 to-indigo-500"></div>
           <div className="p-6">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              {t.activatePromoCode}
+              {t.activatePromoCode || "Активировать промокод"}
             </h3>
             
             <form onSubmit={handleActivatePromo}>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t.promoCode}
+                  {t.promoCode || "Промокод"}
                 </label>
                 <input
                   type="text"
@@ -651,7 +651,7 @@ const SubscriptionPage = () => {
                   required
                 />
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  {t.promoCodeDescription}
+                  {t.promoCodeDescription || "Введите промокод для активации подписки или получения бонуса"}
                 </p>
               </div>
               
@@ -659,7 +659,7 @@ const SubscriptionPage = () => {
                 type="submit"
                 className="w-full py-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
               >
-                {t.activate}
+                {t.activate || "Активировать"}
               </button>
             </form>
           </div>
@@ -675,10 +675,10 @@ const SubscriptionPage = () => {
         <div className="h-2 bg-gradient-to-r from-primary-600 to-primary-400"></div>
         <div className="p-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {t.subscriptionManagement}
+            {t.subscriptionManagement || "Управление подпиской"}
           </h1>
           <p className="text-gray-600 dark:text-gray-300">
-            {t.subscriptionDescription}
+            {t.subscriptionDescription || "Здесь вы можете управлять вашей подпиской, пополнить баланс или активировать промокод"}
           </p>
         </div>
       </div>
@@ -694,7 +694,7 @@ const SubscriptionPage = () => {
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
             }`}
           >
-            {t.mySubscription}
+            {t.mySubscription || "Моя подписка"}
           </button>
           <button
             onClick={() => { setActiveTab('buy'); setIsForGift(false); }}
@@ -704,7 +704,7 @@ const SubscriptionPage = () => {
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
             }`}
           >
-            {t.buySubscription}
+            {t.buySubscription || "Купить подписку"}
           </button>
           <button
             onClick={() => setActiveTab('balance')}
@@ -714,7 +714,7 @@ const SubscriptionPage = () => {
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
             }`}
           >
-            {t.balanceAndPromo}
+            {t.balanceAndPromo || "Баланс и промокоды"}
           </button>
         </div>
       </div>

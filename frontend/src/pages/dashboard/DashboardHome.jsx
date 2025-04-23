@@ -190,18 +190,7 @@ const DashboardHome = () => {
                         )}
                       </span>
                     ) : (
-                      <div className="flex flex-col">
-                        <span className="text-gray-700 dark:text-gray-300">{t.noSubscription}</span>
-                        <Link 
-                          to="/dashboard/subscription" 
-                          className="mt-1 inline-flex items-center justify-center text-sm px-3 py-1 bg-primary-500 text-white rounded-md hover:bg-primary-600 transition-colors"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                          </svg>
-                          {t.activateSubscription}
-                        </Link>
-                      </div>
+                      <span className="text-gray-700 dark:text-gray-300">{t.noSubscription}</span>
                     )}
                   </h3>
                 )}

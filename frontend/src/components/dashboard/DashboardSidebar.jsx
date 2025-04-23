@@ -51,22 +51,22 @@ const DashboardSidebar = ({ isOpen, toggleSidebar }) => {
     <aside 
       className={`z-40 flex flex-col bg-white dark:bg-gray-800 shadow-md transition-all duration-300 ease-in-out ${
         isOpen ? 'w-64' : 'w-0 sm:w-20'
-      } fixed inset-y-0 left-0 md:relative`}
+      } fixed inset-y-0 left-0 md:relative overflow-hidden`}
     >
       {/* Logo and toggle button */}
-      <div className="flex items-center justify-between h-16 px-4 bg-primary-600 text-white">
-        <div className="flex items-center">
-          {/* Only show logo in desktop or when sidebar is open */}
-          {isOpen || window.innerWidth >= 768 ? (
+      <div className={`flex items-center justify-between h-16 px-4 bg-primary-600 text-white ${!isOpen && 'sm:justify-center'}`}>
+        {isOpen && (
+          <div className="flex items-center">
             <Link to="/dashboard" className="flex items-center">
-              {isOpen ? (
-                <span className="text-xl font-bold truncate">Royal Test</span>
-              ) : (
-                <span className={`text-xl font-bold ${window.innerWidth < 640 ? 'hidden' : ''}`}>RT</span>
-              )}
+              <span className="text-xl font-bold truncate">Royal Test</span>
             </Link>
-          ) : null}
-        </div>
+          </div>
+        )}
+        {(!isOpen && window.innerWidth >= 640) && (
+          <Link to="/dashboard" className="flex items-center">
+            <span className="text-xl font-bold">RT</span>
+          </Link>
+        )}
         <button 
           onClick={toggleSidebar}
           className={`p-1 rounded-full hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-white ${isOpen ? 'md:hidden' : ''}`}
@@ -84,7 +84,7 @@ const DashboardSidebar = ({ isOpen, toggleSidebar }) => {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto pt-5 pb-4">
+      <nav className={`flex-1 overflow-y-auto pt-5 pb-4 ${!isOpen && 'sm:pt-5'}`}>
         <ul className="space-y-1 px-2">
           {navItems.map((item) => (
             <li key={item.path}>
@@ -94,7 +94,7 @@ const DashboardSidebar = ({ isOpen, toggleSidebar }) => {
                   location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)
                     ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-100'
                     : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                }`}
+                } ${!isOpen && 'sm:justify-center'}`}
               >
                 <span className="min-w-[24px]">{item.icon}</span>
                 {isOpen && <span className="ml-3">{item.name}</span>}
