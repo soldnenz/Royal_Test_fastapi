@@ -49,7 +49,7 @@ const DashboardSidebar = ({ isOpen, toggleSidebar }) => {
 
   return (
     <aside 
-      className={`z-30 flex flex-col bg-white dark:bg-gray-800 shadow-md transition-all duration-300 ease-in-out ${
+      className={`z-40 flex flex-col bg-white dark:bg-gray-800 shadow-md transition-all duration-300 ease-in-out ${
         isOpen ? 'w-64' : 'w-0 sm:w-20'
       } fixed inset-y-0 left-0 md:relative`}
     >
@@ -62,14 +62,16 @@ const DashboardSidebar = ({ isOpen, toggleSidebar }) => {
             <span className="text-xl font-bold">RT</span>
           )}
         </Link>
-        <button 
-          onClick={toggleSidebar}
-          className="p-1 rounded-full hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-white md:hidden"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        {isOpen && (
+          <button 
+            onClick={toggleSidebar}
+            className="p-1 rounded-full hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-white md:hidden"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Navigation */}
@@ -93,7 +95,7 @@ const DashboardSidebar = ({ isOpen, toggleSidebar }) => {
         </ul>
       </nav>
 
-      {/* Mobile close button */}
+      {/* Mobile close button at the bottom */}
       <div className="md:hidden p-4">
         <button
           onClick={toggleSidebar}

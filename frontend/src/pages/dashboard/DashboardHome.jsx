@@ -64,6 +64,36 @@ const DashboardHome = () => {
     }
   };
 
+  const getSubscriptionIconColor = (type) => {
+    switch(type?.toLowerCase()) {
+      case 'royal':
+        return {
+          bg: 'bg-gradient-to-br from-amber-100 to-yellow-200 dark:from-amber-900/30 dark:to-yellow-800/30',
+          text: 'text-amber-600 dark:text-amber-400'
+        };
+      case 'vip':
+        return {
+          bg: 'bg-gradient-to-br from-blue-100 to-indigo-200 dark:from-blue-900/30 dark:to-indigo-800/30',
+          text: 'text-blue-600 dark:text-blue-400'
+        };
+      case 'economy':
+        return {
+          bg: 'bg-gradient-to-br from-green-100 to-emerald-200 dark:from-green-900/30 dark:to-emerald-800/30',
+          text: 'text-green-600 dark:text-green-400'
+        };
+      case 'school':
+        return {
+          bg: 'bg-gradient-to-br from-purple-100 to-violet-200 dark:from-purple-900/30 dark:to-violet-800/30',
+          text: 'text-purple-600 dark:text-purple-400'
+        };
+      default:
+        return {
+          bg: 'bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-900/30 dark:to-gray-800/30',
+          text: 'text-gray-600 dark:text-gray-400'
+        };
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Welcome Section */}
@@ -161,30 +191,32 @@ const DashboardHome = () => {
                       </span>
                     ) : (
                       <span className="flex items-center">
-                        {t.freeAccount}
+                        <span className="text-gray-700 dark:text-gray-300">{t.noSubscription}</span>
                         <Link 
                           to="/dashboard/subscription" 
                           className="ml-2 text-xs bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 py-0.5 px-2 rounded-full hover:bg-primary-200 dark:hover:bg-primary-800 transition-colors"
                         >
-                          {t.upgrade}
+                          {t.activateSubscription}
                         </Link>
                       </span>
                     )}
                   </h3>
                 )}
               </div>
-              <div className={`h-12 w-12 rounded-full flex items-center justify-center ${
-                subscription?.has_subscription
-                  ? 'bg-gradient-to-br from-amber-100 to-yellow-200 dark:from-amber-900/30 dark:to-yellow-800/30'
-                  : 'bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-900/30 dark:to-gray-800/30'
-              }`}>
-                <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${
-                  subscription?.has_subscription
-                    ? 'text-amber-600 dark:text-amber-400'
-                    : 'text-gray-600 dark:text-gray-400'
-                }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                </svg>
+              <div>
+                {subscription?.has_subscription ? (
+                  <div className={`h-12 w-12 rounded-full flex items-center justify-center ${getSubscriptionIconColor(subscription.subscription_type).bg}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${getSubscriptionIconColor(subscription.subscription_type).text}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                  </div>
+                ) : (
+                  <div className="h-12 w-12 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-900/30 dark:to-gray-800/30 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                  </div>
+                )}
               </div>
             </div>
           </div>

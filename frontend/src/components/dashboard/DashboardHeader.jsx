@@ -51,12 +51,13 @@ const DashboardHeader = ({ profileData, toggleSidebar }) => {
   };
 
   return (
-    <header className="z-20 flex items-center justify-between h-16 px-4 md:px-6 bg-white dark:bg-gray-800 shadow-sm">
+    <header className="z-30 flex items-center justify-between h-16 px-4 md:px-6 bg-white dark:bg-gray-800 shadow-sm">
       {/* Left: Mobile menu toggle */}
       <div className="flex items-center">
         <button
           onClick={toggleSidebar}
-          className="p-2 mr-2 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className="p-2 mr-3 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          aria-label="Toggle sidebar"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -64,11 +65,11 @@ const DashboardHeader = ({ profileData, toggleSidebar }) => {
         </button>
         
         {/* Brand name - visible on larger screens */}
-        <h1 className="hidden md:block text-xl font-bold text-gray-800 dark:text-white">Royal Test</h1>
+        <h1 className="hidden sm:block text-xl font-bold text-gray-800 dark:text-white">Royal Test</h1>
       </div>
       
       {/* Right: User info and settings */}
-      <div className="flex items-center space-x-3">
+      <div className="flex items-center space-x-1 sm:space-x-3">
         {/* Theme toggle */}
         <button
           onClick={toggleTheme}
