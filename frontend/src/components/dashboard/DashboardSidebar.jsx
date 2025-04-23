@@ -1,14 +1,29 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { translations } from '../../translations/translations';
-import { useMediaQuery } from 'react-responsive';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 const DashboardSidebar = ({ isOpen, toggleSidebar }) => {
   const { language } = useLanguage();
   const t = translations[language];
   const location = useLocation();
-  const isMobile = useMediaQuery({ maxWidth: 768 });
+  const [isMobile, setIsMobile] = useState(false);
+  
+  // Check if screen is mobile on component mount and when window resizes
+  useEffect(() => {
+    const checkIfMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    // Initial check
+    checkIfMobile();
+    
+    // Add event listener for window resize
+    window.addEventListener('resize', checkIfMobile);
+    
+    // Clean up
+    return () => window.removeEventListener('resize', checkIfMobile);
+  }, []);
 
   // Navigation items - can be expanded later
   const navItems = [

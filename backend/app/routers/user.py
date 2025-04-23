@@ -32,6 +32,7 @@ async def get_current_profile(actor = Depends(get_current_actor)):
             "email": actor["email"],
             "phone": actor["phone"],
             "iin": actor["iin"],
+            "money": actor["money"],
         }
 
     elif actor["type"] == "admin":           # включает и модераторов
