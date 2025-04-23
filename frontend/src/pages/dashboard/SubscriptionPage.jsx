@@ -3,10 +3,12 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { translations } from '../../translations/translations';
 import { toast } from 'react-toastify';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 const SubscriptionPage = () => {
   const { language } = useLanguage();
   const tLang = translations[language];
+  const navigate = useNavigate();
   
   // State for subscription data
   const [subscription, setSubscription] = useState(null);
@@ -22,6 +24,10 @@ const SubscriptionPage = () => {
   const [giftIIN, setGiftIIN] = useState('');
   const [showGiftOptions, setShowGiftOptions] = useState(false);
   const [giftType, setGiftType] = useState(null);
+  const [topUpAmount, setTopUpAmount] = useState('');
+  const [customAmount, setCustomAmount] = useState(false);
+  const [balance, setBalance] = useState(null);
+  const [promoCode, setPromoCode] = useState('');
   
   // Fetch current subscription data
   useEffect(() => {
@@ -32,13 +38,14 @@ const SubscriptionPage = () => {
   const fetchSubscription = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/subscriptions/current', {
+      const response = await fetch('/api/users/my/subscription', {
         credentials: 'include'
       });
       
       if (response.ok) {
         const data = await response.json();
         setSubscription(data.subscription);
+        setBalance(data.balance);
       }
     } catch (error) {
       console.error('Error fetching subscription:', error);
@@ -84,8 +91,21 @@ const SubscriptionPage = () => {
     event.preventDefault();
     clearMessages();
     
-    // Implement subscription purchase logic
-    console.log('Purchase subscription:', selectedSubscriptionType, selectedDuration);
+    // Calculate price
+    const price = getSubscriptionPrice(selectedSubscriptionType, selectedDuration);
+    
+    // Navigate to the payment page with selected subscription details
+    navigate('/dashboard/payment', {
+      state: {
+        paymentDetails: {
+          subscriptionType: selectedSubscriptionType,
+          duration: selectedDuration,
+          price: price,
+          date: new Date().toLocaleDateString(),
+          orderId: `ORD-${Math.floor(Math.random() * 100000)}`
+        }
+      }
+    });
   };
   
   // Handle gift purchase
@@ -93,57 +113,30 @@ const SubscriptionPage = () => {
     event.preventDefault();
     clearMessages();
     
-    try {
-      setPurchaseLoading(true);
-      
-      // Validate IIN if gift by IIN is selected
-      if (giftOption === 'iin' && (!giftIIN || giftIIN.length !== 12)) {
-        setError(tLang.invalidIIN || "Please enter a valid 12-digit IIN");
-        setPurchaseLoading(false);
-        return;
-      }
-      
-      // Calculate price based on subscription type and duration
-      const price = getSubscriptionPrice(selectedSubscriptionType, selectedDuration);
-      
-      // Prepare request data
-      const requestData = {
-        subscription_type: selectedSubscriptionType,
-        duration_months: selectedDuration,
-        price: price,
-        gift_type: giftOption, // 'iin' or 'promo'
-        recipient_iin: giftOption === 'iin' ? giftIIN : null
-      };
-      
-      // Make API request
-      const response = await axios.post('/api/subscriptions/gift', requestData, {
-        withCredentials: true
-      });
-      
-      // Handle success
-      if (response.status === 200 || response.status === 201) {
-        const data = response.data;
-        
-        if (giftOption === 'iin') {
-          setSuccess(tLang.giftSentSuccess || "Gift subscription has been successfully sent to the recipient");
-        } else {
-          // Display promo code to the user
-          setSuccess(`${tLang.giftPromoSuccess || "Your gift promo code is"}: ${data.promo_code}`);
-        }
-        
-        // Reset form
-        setGiftIIN('');
-      }
-    } catch (error) {
-      console.error('Error purchasing gift:', error);
-      setError(
-        error.response?.data?.message || 
-        tLang.giftPurchaseError || 
-        "There was an error processing your gift purchase. Please try again."
-      );
-    } finally {
-      setPurchaseLoading(false);
+    // Validate IIN if gift by IIN is selected
+    if (giftOption === 'iin' && (!giftIIN || giftIIN.length !== 12)) {
+      setError(tLang.invalidIIN || "Please enter a valid 12-digit IIN");
+      return;
     }
+    
+    // Calculate price based on subscription type and duration
+    const price = getSubscriptionPrice(selectedSubscriptionType, selectedDuration);
+    
+    // Navigate to the payment page with gift details
+    navigate('/dashboard/payment', {
+      state: {
+        paymentDetails: {
+          subscriptionType: selectedSubscriptionType,
+          duration: selectedDuration,
+          price: price,
+          date: new Date().toLocaleDateString(),
+          orderId: `ORD-${Math.floor(Math.random() * 100000)}`,
+          isGift: true,
+          giftOption: giftOption,
+          giftIIN: giftOption === 'iin' ? giftIIN : null
+        }
+      }
+    });
   };
   
   // Handle balance top-up
@@ -151,8 +144,26 @@ const SubscriptionPage = () => {
     event.preventDefault();
     clearMessages();
     
-    // Implement balance top-up logic
-    console.log('Top up balance');
+    // Get the selected amount from the form
+    const formElement = event.target;
+    const amount = formElement.querySelector('#amount')?.value || topUpAmount;
+    
+    if (!amount || isNaN(amount) || parseInt(amount) < 500) {
+      setError(tLang.minAmountError || "Минимальная сумма для пополнения: 500 ₸");
+      return;
+    }
+    
+    // Navigate to the payment page with top-up details
+    navigate('/dashboard/payment', {
+      state: {
+        paymentDetails: {
+          isTopUp: true,
+          price: parseInt(amount),
+          date: new Date().toLocaleDateString(),
+          orderId: `ORD-${Math.floor(Math.random() * 100000)}`
+        }
+      }
+    });
   };
   
   // Handle promo code activation
@@ -160,8 +171,46 @@ const SubscriptionPage = () => {
     event.preventDefault();
     clearMessages();
     
-    // Implement promo code activation logic
-    console.log('Activate promo code');
+    try {
+      // Get promo code from the form
+      const formElement = event.target;
+      const promoCode = formElement.querySelector('#promoCode')?.value;
+      
+      if (!promoCode || promoCode.trim() === '') {
+        setError(tLang.promoCodeRequired || "Пожалуйста, введите промокод");
+        return;
+      }
+      
+      setPurchaseLoading(true);
+      
+      // Make API request to activate promo code
+      const response = await axios.post('/api/subscriptions/activate-promo', { promo_code: promoCode.trim() }, {
+        withCredentials: true
+      });
+      
+      if (response.status === 200) {
+        setSuccess(
+          response.data.message || 
+          tLang.promoCodeActivated || 
+          "Промокод успешно активирован"
+        );
+        
+        // Clear input field
+        formElement.querySelector('#promoCode').value = '';
+        
+        // Refresh subscription data
+        await fetchSubscription();
+      }
+    } catch (error) {
+      console.error('Error activating promo code:', error);
+      setError(
+        error.response?.data?.message || 
+        tLang.promoCodeError || 
+        "Произошла ошибка при активации промокода. Пожалуйста, проверьте его правильность и попробуйте снова."
+      );
+    } finally {
+      setPurchaseLoading(false);
+    }
   };
   
   // Handle gift by IIN
@@ -174,34 +223,24 @@ const SubscriptionPage = () => {
       return;
     }
     
-    try {
-      setPurchaseLoading(true);
-      
-      // Validate the IIN by checking if a user exists with this IIN
-      const response = await axios.post('/api/users/check-iin', { iin: giftIIN }, {
-        withCredentials: true
-      });
-      
-      if (response.status === 200) {
-        if (response.data.exists) {
-          // IIN is valid, proceed with gift purchase
-          await handlePurchaseGift({
-            preventDefault: () => {}
-          });
-        } else {
-          setError(tLang.iinNotFound || "No user found with this IIN. Please check and try again.");
+    // Calculate price based on subscription type and duration
+    const price = getSubscriptionPrice(selectedSubscriptionType, selectedDuration);
+    
+    // Navigate to the payment page with gift details
+    navigate('/dashboard/payment', {
+      state: {
+        paymentDetails: {
+          subscriptionType: selectedSubscriptionType,
+          duration: selectedDuration,
+          price: price,
+          date: new Date().toLocaleDateString(),
+          orderId: `ORD-${Math.floor(Math.random() * 100000)}`,
+          isGift: true,
+          giftOption: 'iin',
+          giftIIN: giftIIN
         }
       }
-    } catch (error) {
-      console.error('Error validating IIN:', error);
-      setError(
-        error.response?.data?.message || 
-        tLang.iinValidationError || 
-        "There was an error validating the IIN. Please try again."
-      );
-    } finally {
-      setPurchaseLoading(false);
-    }
+    });
   };
   
   // Get subscription color based on type
@@ -270,7 +309,7 @@ const SubscriptionPage = () => {
             }`}
             onClick={() => setSelectedSubscriptionType('economy')}
           >
-            <div className="p-6">
+            <div className="p-6 flex flex-col h-full">
               <div className="flex items-center mb-4">
                 <div className={`p-2.5 rounded-full mr-3 ${selectedSubscriptionType === 'economy' ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'} text-white`}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -290,7 +329,7 @@ const SubscriptionPage = () => {
                 </div>
               </div>
               
-              <ul className="space-y-3 mb-6">
+              <ul className="space-y-3 mb-6 flex-grow min-h-[200px]">
                 <li className="flex items-start">
                   <svg className="h-5 w-5 text-blue-500 mt-0.5 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -313,7 +352,7 @@ const SubscriptionPage = () => {
               
               <button
                 type="button"
-                className={`w-full py-2.5 px-4 rounded-lg text-center font-medium transition-colors ${
+                className={`w-full py-2.5 px-4 rounded-lg text-center font-medium transition-colors mt-auto ${
                   selectedSubscriptionType === 'economy'
                     ? 'bg-blue-500 hover:bg-blue-600 text-white'
                     : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200'
@@ -342,7 +381,7 @@ const SubscriptionPage = () => {
                 {tLang.popular || "Popular"}
               </span>
             </div>
-            <div className="p-6">
+            <div className="p-6 flex flex-col h-full">
               <div className="flex items-center mb-4">
                 <div className={`p-2.5 rounded-full mr-3 ${selectedSubscriptionType === 'vip' ? 'bg-purple-500' : 'bg-gray-200 dark:bg-gray-700'} text-white`}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -362,7 +401,7 @@ const SubscriptionPage = () => {
                 </div>
               </div>
               
-              <ul className="space-y-3 mb-6">
+              <ul className="space-y-3 mb-6 flex-grow min-h-[200px]">
                 <li className="flex items-start">
                   <svg className="h-5 w-5 text-purple-500 mt-0.5 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -391,7 +430,7 @@ const SubscriptionPage = () => {
               
               <button
                 type="button"
-                className={`w-full py-2.5 px-4 rounded-lg text-center font-medium transition-colors ${
+                className={`w-full py-2.5 px-4 rounded-lg text-center font-medium transition-colors mt-auto ${
                   selectedSubscriptionType === 'vip'
                     ? 'bg-purple-500 hover:bg-purple-600 text-white'
                     : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200'
@@ -415,7 +454,7 @@ const SubscriptionPage = () => {
             }`}
             onClick={() => setSelectedSubscriptionType('royal')}
           >
-            <div className="p-6">
+            <div className="p-6 flex flex-col h-full">
               <div className="flex items-center mb-4">
                 <div className={`p-2.5 rounded-full mr-3 ${selectedSubscriptionType === 'royal' ? 'bg-amber-500' : 'bg-gray-200 dark:bg-gray-700'} text-white`}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -435,7 +474,7 @@ const SubscriptionPage = () => {
                 </div>
               </div>
               
-              <ul className="space-y-3 mb-6">
+              <ul className="space-y-3 mb-6 flex-grow min-h-[200px]">
                 <li className="flex items-start">
                   <svg className="h-5 w-5 text-amber-500 mt-0.5 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -464,7 +503,7 @@ const SubscriptionPage = () => {
               
               <button
                 type="button"
-                className={`w-full py-2.5 px-4 rounded-lg text-center font-medium transition-colors ${
+                className={`w-full py-2.5 px-4 rounded-lg text-center font-medium transition-colors mt-auto ${
                   selectedSubscriptionType === 'royal'
                     ? 'bg-amber-500 hover:bg-amber-600 text-white'
                     : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200'
@@ -877,78 +916,100 @@ const SubscriptionPage = () => {
   // Render balance and promo code section
   const renderBalanceAndPromo = () => {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Top Up Balance */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-            {tLang.topUpBalance || "Top Up Balance"}
-          </h2>
-          
-          <div className="mb-4">
-            <label htmlFor="currentBalance" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {tLang.currentBalance || "Current Balance"}
-            </label>
-            <div className="w-full p-3 bg-gray-100 dark:bg-gray-700 rounded-md text-gray-900 dark:text-white font-medium">
-              {formatMoney(subscription?.balance || 0)}
+      <div className="row mt-4">
+        <div className="col-md-6 mb-4">
+          <div className="card shadow-sm h-100">
+            <div className="card-body">
+              <h5 className="card-title mb-3">{tLang.topUpBalance || "Пополнить баланс"}</h5>
+              <p className="text-muted mb-3">
+                {tLang.currentBalance || "Текущий баланс"}: {formatMoney(balance || 0)}
+              </p>
+              <form onSubmit={handleTopUp}>
+                <div className="mb-3">
+                  <label htmlFor="topUpAmount" className="form-label">
+                    {tLang.amount || "Сумма"}
+                  </label>
+                  <div className="input-group">
+                    <input
+                      type="number"
+                      className="form-control"
+                      id="topUpAmount"
+                      value={topUpAmount}
+                      onChange={(e) => setTopUpAmount(e.target.value)}
+                      min="500"
+                      placeholder={tLang.enterAmount || "Введите сумму"}
+                      required
+                    />
+                    <span className="input-group-text">₸</span>
+                  </div>
+                  <small className="form-text text-muted">
+                    {tLang.minAmount || "Минимальная сумма"}: 500 ₸
+                  </small>
+                </div>
+                <button
+                  type="submit"
+                  className="btn btn-primary w-100"
+                  disabled={purchaseLoading}
+                >
+                  {purchaseLoading ? (
+                    <span>
+                      <i className="fas fa-circle-notch fa-spin me-2"></i>
+                      {tLang.processing || "Обработка..."}
+                    </span>
+                  ) : (
+                    tLang.topUp || "Пополнить"
+                  )}
+                </button>
+              </form>
             </div>
           </div>
-          
-          <form onSubmit={handleTopUp} className="space-y-4">
-            <div>
-              <label htmlFor="amount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {tLang.amount || "Amount"}
-              </label>
-              <select
-                id="amount"
-                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
-              >
-                <option value="1000">1,000 ₸</option>
-                <option value="2000">2,000 ₸</option>
-                <option value="5000">5,000 ₸</option>
-                <option value="10000">10,000 ₸</option>
-                <option value="15000">15,000 ₸</option>
-                <option value="20000">20,000 ₸</option>
-              </select>
-            </div>
-            
-            <button
-              type="submit"
-              className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
-            >
-              {tLang.topUp || "Top Up"}
-            </button>
-          </form>
         </div>
         
         {/* Activate Promo Code */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-            {tLang.activatePromoCode || "Activate Promo Code"}
-          </h2>
-          
-          <form onSubmit={handleActivatePromo} className="space-y-4">
-            <div>
-              <label htmlFor="promoCode" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {tLang.promoCode || "Promo Code"}
-              </label>
-              <input
-                id="promoCode"
-                type="text"
-                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
-                placeholder={tLang.enterPromoCode || "Enter promo code"}
-              />
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                {tLang.promoCodeDescription || "Enter a promo code to activate a subscription or receive a bonus"}
-              </p>
+        <div className="col-md-6 mb-4">
+          <div className="card shadow-sm h-100">
+            <div className="card-body">
+              <h5 className="card-title mb-3">{tLang.activatePromoCode || "Активировать промокод"}</h5>
+              <p className="mb-3">{tLang.promoDescription || "Введите промокод для активации подписки или получения бонуса"}</p>
+              
+              <form onSubmit={handleActivatePromo} className="space-y-4">
+                <div>
+                  <label htmlFor="promoCode" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {tLang.promoCode || "Promo Code"}
+                  </label>
+                  <input
+                    id="promoCode"
+                    type="text"
+                    required
+                    minLength="6"
+                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+                    placeholder={tLang.enterPromoCode || "Enter promo code"}
+                  />
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                    {tLang.promoCodeDescription || "Enter a promo code to activate a subscription or receive a bonus"}
+                  </p>
+                </div>
+                
+                <button
+                  type="submit"
+                  disabled={purchaseLoading}
+                  className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-70 text-white rounded-lg font-medium transition-colors"
+                >
+                  {purchaseLoading ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      {tLang.processing || "Processing..."}
+                    </span>
+                  ) : (
+                    tLang.activate || "Activate"
+                  )}
+                </button>
+              </form>
             </div>
-            
-            <button
-              type="submit"
-              className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
-            >
-              {tLang.activate || "Activate"}
-            </button>
-          </form>
+          </div>
         </div>
       </div>
     );

@@ -10,6 +10,7 @@ import LoginPage from './pages/LoginPage';
 import RegistrationPage from './pages/RegistrationPage';
 import DashboardHome from './pages/dashboard/DashboardHome';
 import SubscriptionPage from './pages/dashboard/SubscriptionPage';
+import PaymentPage from './pages/dashboard/PaymentPage';
 import './App.css';
 
 function App() {
@@ -30,6 +31,7 @@ function App() {
               <Route path="statistics" element={<div className="p-4 bg-white dark:bg-gray-800 rounded-lg"><h1 className="text-xl font-bold mb-2">Статистика</h1><p>Страница статистики находится в разработке</p></div>} />
               <Route path="referrals" element={<div className="p-4 bg-white dark:bg-gray-800 rounded-lg"><h1 className="text-xl font-bold mb-2">Реферальная система</h1><p>Страница реферальной системы находится в разработке</p></div>} />
               <Route path="subscription" element={<SubscriptionPage />} />
+              <Route path="payment" element={<PaymentPage />} />
               <Route path="profile" element={<div className="p-4 bg-white dark:bg-gray-800 rounded-lg"><h1 className="text-xl font-bold mb-2">Профиль</h1><p>Страница профиля находится в разработке</p></div>} />
               <Route path="settings" element={<div className="p-4 bg-white dark:bg-gray-800 rounded-lg"><h1 className="text-xl font-bold mb-2">Настройки</h1><p>Страница настроек находится в разработке</p></div>} />
             </Route>
