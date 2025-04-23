@@ -44,8 +44,34 @@ const SubscriptionPage = () => {
       
       if (response.ok) {
         const data = await response.json();
-        setSubscription(data.subscription);
-        setBalance(data.balance);
+        
+        // Check if response format has the new structure with "data" property
+        if (data.data && data.status === "ok") {
+          // Handle new API response format
+          const subscriptionData = data.data;
+          
+          if (subscriptionData.has_subscription) {
+            setSubscription({
+              subscription_type: subscriptionData.subscription_type,
+              expiry_date: subscriptionData.expires_at,
+              created_at: new Date().toISOString(), // Use current date if not provided by API
+              active: true,
+              auto_renewal: false, // Default value if not provided by API
+              days_left: subscriptionData.days_left
+            });
+          } else {
+            setSubscription(null);
+          }
+          
+          // Set balance if available
+          if (data.data.balance !== undefined) {
+            setBalance(data.data.balance);
+          }
+        } else {
+          // Handle legacy API response format
+          setSubscription(data.subscription);
+          setBalance(data.balance);
+        }
       }
     } catch (error) {
       console.error('Error fetching subscription:', error);
@@ -916,99 +942,137 @@ const SubscriptionPage = () => {
   // Render balance and promo code section
   const renderBalanceAndPromo = () => {
     return (
-      <div className="row mt-4">
-        <div className="col-md-6 mb-4">
-          <div className="card shadow-sm h-100">
-            <div className="card-body">
-              <h5 className="card-title mb-3">{tLang.topUpBalance || "Пополнить баланс"}</h5>
-              <p className="text-muted mb-3">
-                {tLang.currentBalance || "Текущий баланс"}: {formatMoney(balance || 0)}
-              </p>
-              <form onSubmit={handleTopUp}>
-                <div className="mb-3">
-                  <label htmlFor="topUpAmount" className="form-label">
-                    {tLang.amount || "Сумма"}
-                  </label>
-                  <div className="input-group">
-                    <input
-                      type="number"
-                      className="form-control"
-                      id="topUpAmount"
-                      value={topUpAmount}
-                      onChange={(e) => setTopUpAmount(e.target.value)}
-                      min="500"
-                      placeholder={tLang.enterAmount || "Введите сумму"}
-                      required
-                    />
-                    <span className="input-group-text">₸</span>
-                  </div>
-                  <small className="form-text text-muted">
-                    {tLang.minAmount || "Минимальная сумма"}: 500 ₸
-                  </small>
-                </div>
-                <button
-                  type="submit"
-                  className="btn btn-primary w-100"
-                  disabled={purchaseLoading}
-                >
-                  {purchaseLoading ? (
-                    <span>
-                      <i className="fas fa-circle-notch fa-spin me-2"></i>
-                      {tLang.processing || "Обработка..."}
-                    </span>
-                  ) : (
-                    tLang.topUp || "Пополнить"
-                  )}
-                </button>
-              </form>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        {/* Balance Top-Up Card */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden border border-gray-200 dark:border-gray-700">
+          <div className="p-6">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+              {tLang.topUpBalance || "Пополнить баланс"}
+            </h3>
+            
+            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/10 rounded-lg flex justify-between items-center">
+              <span className="text-gray-700 dark:text-gray-300">
+                {tLang.currentBalance || "Текущий баланс"}:
+              </span>
+              <span className="text-lg font-bold text-gray-900 dark:text-white">
+                {formatMoney(balance || 0)}
+              </span>
             </div>
+            
+            <form onSubmit={handleTopUp} className="space-y-4">
+              <div>
+                <label htmlFor="topUpAmount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {tLang.amount || "Сумма"}
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    id="topUpAmount"
+                    value={topUpAmount}
+                    onChange={(e) => setTopUpAmount(e.target.value)}
+                    min="500"
+                    placeholder={tLang.enterAmount || "Введите сумму"}
+                    className="w-full pl-3 pr-10 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+                    required
+                  />
+                  <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500 dark:text-gray-400">
+                    ₸
+                  </div>
+                </div>
+                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {tLang.minAmount || "Минимальная сумма"}: 500 ₸
+                </p>
+              </div>
+              
+              {/* Quick Amount Selection */}
+              <div className="grid grid-cols-3 gap-2 my-3">
+                {[500, 1000, 5000].map(amount => (
+                  <button
+                    key={amount}
+                    type="button"
+                    onClick={() => setTopUpAmount(amount.toString())}
+                    className={`py-2 px-4 rounded-md text-center transition ${
+                      topUpAmount === amount.toString() 
+                        ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 border border-primary-300 dark:border-primary-700' 
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {formatMoney(amount)}
+                  </button>
+                ))}
+              </div>
+              
+              <button
+                type="submit"
+                className="w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-400 dark:disabled:bg-primary-800 text-white rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+                disabled={purchaseLoading}
+              >
+                {purchaseLoading ? (
+                  <span className="flex items-center justify-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    {tLang.processing || "Обработка..."}
+                  </span>
+                ) : (
+                  tLang.topUp || "Пополнить"
+                )}
+              </button>
+            </form>
           </div>
         </div>
         
-        {/* Activate Promo Code */}
-        <div className="col-md-6 mb-4">
-          <div className="card shadow-sm h-100">
-            <div className="card-body">
-              <h5 className="card-title mb-3">{tLang.activatePromoCode || "Активировать промокод"}</h5>
-              <p className="mb-3">{tLang.promoDescription || "Введите промокод для активации подписки или получения бонуса"}</p>
+        {/* Activate Promo Code Card */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden border border-gray-200 dark:border-gray-700">
+          <div className="p-6">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+              {tLang.activatePromoCode || "Активировать промокод"}
+            </h3>
+            
+            <p className="mb-4 text-gray-600 dark:text-gray-400">
+              {tLang.promoDescription || "Введите промокод для активации подписки или получения бонуса"}
+            </p>
+            
+            <form onSubmit={handleActivatePromo} className="space-y-4">
+              <div>
+                <label htmlFor="promoCode" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {tLang.promoCode || "Promo Code"}
+                </label>
+                <input
+                  id="promoCode"
+                  type="text"
+                  required
+                  minLength="6"
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+                  placeholder={tLang.enterPromoCode || "Enter promo code"}
+                />
+                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                  {tLang.promoCodeDescription || "Enter a promo code to activate a subscription or receive a bonus"}
+                </p>
+              </div>
               
-              <form onSubmit={handleActivatePromo} className="space-y-4">
-                <div>
-                  <label htmlFor="promoCode" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    {tLang.promoCode || "Promo Code"}
-                  </label>
-                  <input
-                    id="promoCode"
-                    type="text"
-                    required
-                    minLength="6"
-                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
-                    placeholder={tLang.enterPromoCode || "Enter promo code"}
-                  />
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                    {tLang.promoCodeDescription || "Enter a promo code to activate a subscription or receive a bonus"}
-                  </p>
-                </div>
-                
-                <button
-                  type="submit"
-                  disabled={purchaseLoading}
-                  className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-70 text-white rounded-lg font-medium transition-colors"
-                >
-                  {purchaseLoading ? (
-                    <span className="flex items-center justify-center">
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      {tLang.processing || "Processing..."}
-                    </span>
-                  ) : (
-                    tLang.activate || "Activate"
-                  )}
-                </button>
-              </form>
-            </div>
+              <button
+                type="submit"
+                disabled={purchaseLoading}
+                className="w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-400 dark:disabled:bg-primary-800 text-white rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+              >
+                {purchaseLoading ? (
+                  <span className="flex items-center justify-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    {tLang.processing || "Processing..."}
+                  </span>
+                ) : (
+                  tLang.activate || "Activate"
+                )}
+              </button>
+            </form>
           </div>
         </div>
       </div>

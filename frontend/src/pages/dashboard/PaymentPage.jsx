@@ -61,7 +61,7 @@ const PaymentPage = () => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
+    <div className="max-w-3xl mx-auto px-4 py-8 text-gray-900 dark:text-white">
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
           {getPaymentTitle()}
@@ -116,7 +116,7 @@ const PaymentPage = () => {
               {tLang.orderDetails || 'Order Details'}
             </h3>
             
-            <div className="bg-gray-50 dark:bg-gray-750 rounded-lg p-4">
+            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
               {paymentDetails.isTopUp ? (
                 <div className="flex justify-between mb-2">
                   <span className="text-gray-700 dark:text-gray-300">
@@ -155,7 +155,7 @@ const PaymentPage = () => {
               {tLang.priceBreakdown || 'Price Breakdown'}
             </h3>
             
-            <div className="bg-gray-50 dark:bg-gray-750 rounded-lg p-4">
+            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
               <div className="flex justify-between mb-2">
                 <span className="text-gray-700 dark:text-gray-300">
                   {paymentDetails.isTopUp 
@@ -195,7 +195,7 @@ const PaymentPage = () => {
           {/* Payment Notice */}
           <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
             <div className="flex items-center">
-              <svg className="h-6 w-6 text-yellow-500 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <svg className="h-6 w-6 text-yellow-500 dark:text-yellow-400 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
               <div>
@@ -238,7 +238,7 @@ const PaymentPage = () => {
         </div>
         
         {/* Receipt Footer */}
-        <div className="bg-gray-50 dark:bg-gray-750 px-6 py-4 text-center">
+        <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 text-center">
           <p className="text-gray-500 dark:text-gray-400 text-sm">
             {tLang.receiptFooter || 'Thank you for your purchase!'}
           </p>
