@@ -1,7 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { translations } from '../../translations/translations';
-import { useTranslation } from 'react-i18next';
 import { useMediaQuery } from 'react-responsive';
 import React from 'react';
 
@@ -9,7 +8,6 @@ const DashboardSidebar = ({ isOpen, toggleSidebar }) => {
   const { language } = useLanguage();
   const t = translations[language];
   const location = useLocation();
-  const { t: i18nT } = useTranslation();
   const isMobile = useMediaQuery({ maxWidth: 768 });
 
   // Navigation items - can be expanded later
@@ -72,7 +70,7 @@ const DashboardSidebar = ({ isOpen, toggleSidebar }) => {
                 onClick={toggleSidebar} 
                 className="p-1 rounded-full text-gray-500 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700"
               >
-                <span className="sr-only">{i18nT.closeSidebar}</span>
+                <span className="sr-only">{t.closeSidebar || "Close sidebar"}</span>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
@@ -83,7 +81,7 @@ const DashboardSidebar = ({ isOpen, toggleSidebar }) => {
               onClick={toggleSidebar} 
               className="p-1 rounded-full text-gray-500 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700 w-full flex justify-center"
             >
-              <span className="sr-only">{i18nT.openSidebar}</span>
+              <span className="sr-only">{t.openSidebar || "Open sidebar"}</span>
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
