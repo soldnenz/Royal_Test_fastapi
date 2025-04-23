@@ -148,21 +148,51 @@ const SubscriptionPage = () => {
     // Calculate price based on subscription type and duration
     const price = getSubscriptionPrice(selectedSubscriptionType, selectedDuration);
     
-    // Navigate to the payment page with gift details
-    navigate('/dashboard/payment', {
-      state: {
-        paymentDetails: {
-          subscriptionType: selectedSubscriptionType,
-          duration: selectedDuration,
-          price: price,
-          date: new Date().toLocaleDateString(),
-          orderId: `ORD-${Math.floor(Math.random() * 100000)}`,
-          isGift: true,
-          giftOption: giftOption,
-          giftIIN: giftOption === 'iin' ? giftIIN : null
+    // Check if user has enough balance
+    if (balance < price) {
+      setError(tLang.notEnoughBalance || "У вас недостаточно средств на балансе для совершения этой покупки");
+      return;
+    }
+    
+    try {
+      setPurchaseLoading(true);
+      
+      // Make API call to purchase gift subscription directly from balance
+      const response = await axios.post('/api/subscriptions/purchase-gift', {
+        subscription_type: selectedSubscriptionType,
+        duration: selectedDuration,
+        gift_option: giftOption,
+        gift_iin: giftOption === 'iin' ? giftIIN : null,
+        use_balance: true
+      }, {
+        withCredentials: true
+      });
+      
+      if (response.status === 200) {
+        setSuccess(
+          response.data.message || 
+          tLang.giftPurchaseSuccess || 
+          "Подарочная подписка успешно приобретена и будет доставлена получателю"
+        );
+        
+        // Refresh subscription data and balance
+        await fetchSubscription();
+        
+        // Reset form
+        if (giftOption === 'iin') {
+          setGiftIIN('');
         }
       }
-    });
+    } catch (error) {
+      console.error('Error purchasing gift subscription:', error);
+      setError(
+        error.response?.data?.message || 
+        tLang.giftPurchaseError || 
+        "Произошла ошибка при покупке подарочной подписки. Пожалуйста, попробуйте снова позже."
+      );
+    } finally {
+      setPurchaseLoading(false);
+    }
   };
   
   // Handle balance top-up
@@ -576,12 +606,16 @@ const SubscriptionPage = () => {
     const today = new Date();
     const daysLeft = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
     
+    // Calculate percentage of time left
+    const totalDaysInSubscription = 30; // Assuming monthly subscription as base
+    const percentLeft = Math.min(100, Math.max(0, (daysLeft / totalDaysInSubscription) * 100));
+    
     // Get subscription color styling
     const colors = getSubscriptionColor(subscription.subscription_type);
     
     return (
       <div className={`bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden`}>
-        <div className={`${colors.background} py-4 px-6 text-white`}>
+        <div className={`${colors.background} py-4 px-6 text-white relative`}>
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-2xl font-bold">
@@ -605,6 +639,16 @@ const SubscriptionPage = () => {
               </p>
             </div>
           </div>
+          
+          {/* Time Progress Bar */}
+          <div className="mt-4">
+            <div className="w-full bg-white bg-opacity-20 rounded-full h-2.5">
+              <div 
+                className="h-2.5 rounded-full bg-white" 
+                style={{ width: `${percentLeft}%` }}
+              ></div>
+            </div>
+          </div>
         </div>
         
         <div className="py-4 px-6">
@@ -620,7 +664,7 @@ const SubscriptionPage = () => {
             
             <div className="mt-3 md:mt-0">
               <div className="text-sm text-gray-500 dark:text-gray-400">
-                {tLang.purchasedOn || "Purchased on"}
+                {tLang.purchasedOn || "Приобретена"}
               </div>
               <div className="text-lg font-medium text-gray-900 dark:text-white">
                 {new Date(subscription.created_at).toLocaleDateString()}
@@ -718,6 +762,25 @@ const SubscriptionPage = () => {
             </p>
           </div>
         )}
+        
+        <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/10 rounded-lg">
+          <div className="flex justify-between items-center">
+            <span className="text-gray-700 dark:text-gray-300">
+              {tLang.paymentSource || "Payment Source"}:
+            </span>
+            <span className="font-medium text-gray-900 dark:text-white">
+              {tLang.fromBalance || "С баланса аккаунта"}
+            </span>
+          </div>
+          <div className="flex justify-between items-center mt-2">
+            <span className="text-gray-700 dark:text-gray-300">
+              {tLang.yourBalance || "Ваш баланс"}:
+            </span>
+            <span className="font-medium text-gray-900 dark:text-white">
+              {formatMoney(balance || 0)}
+            </span>
+          </div>
+        </div>
       </div>
     );
   };
@@ -1037,10 +1100,10 @@ const SubscriptionPage = () => {
               {tLang.promoDescription || "Введите промокод для активации подписки или получения бонуса"}
             </p>
             
-            <form onSubmit={handleActivatePromo} className="space-y-4">
+            <form onSubmit={handleActivatePromo} className="flex flex-col h-full justify-between space-y-4">
               <div>
                 <label htmlFor="promoCode" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {tLang.promoCode || "Promo Code"}
+                  {tLang.promoCode || "Промокод"}
                 </label>
                 <input
                   id="promoCode"
@@ -1048,30 +1111,32 @@ const SubscriptionPage = () => {
                   required
                   minLength="6"
                   className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
-                  placeholder={tLang.enterPromoCode || "Enter promo code"}
+                  placeholder={tLang.enterPromoCode || "Введите промокод"}
                 />
                 <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  {tLang.promoCodeDescription || "Enter a promo code to activate a subscription or receive a bonus"}
+                  {tLang.promoCodeDescription || "Введите промокод для активации подписки или получения бонуса"}
                 </p>
               </div>
               
-              <button
-                type="submit"
-                disabled={purchaseLoading}
-                className="w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-400 dark:disabled:bg-primary-800 text-white rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
-              >
-                {purchaseLoading ? (
-                  <span className="flex items-center justify-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    {tLang.processing || "Processing..."}
-                  </span>
-                ) : (
-                  tLang.activate || "Activate"
-                )}
-              </button>
+              <div className="mt-auto pt-4">
+                <button
+                  type="submit"
+                  disabled={purchaseLoading}
+                  className="w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-400 dark:disabled:bg-primary-800 text-white rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+                >
+                  {purchaseLoading ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      {tLang.processing || "Обработка..."}
+                    </span>
+                  ) : (
+                    tLang.activate || "Активировать"
+                  )}
+                </button>
+              </div>
             </form>
           </div>
         </div>
