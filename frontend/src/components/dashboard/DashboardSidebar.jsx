@@ -55,23 +55,32 @@ const DashboardSidebar = ({ isOpen, toggleSidebar }) => {
     >
       {/* Logo and toggle button */}
       <div className="flex items-center justify-between h-16 px-4 bg-primary-600 text-white">
-        <Link to="/dashboard" className="flex items-center">
+        <div className="flex items-center">
+          {/* Only show logo in desktop or when sidebar is open */}
+          {isOpen || window.innerWidth >= 768 ? (
+            <Link to="/dashboard" className="flex items-center">
+              {isOpen ? (
+                <span className="text-xl font-bold truncate">Royal Test</span>
+              ) : (
+                <span className={`text-xl font-bold ${window.innerWidth < 640 ? 'hidden' : ''}`}>RT</span>
+              )}
+            </Link>
+          ) : null}
+        </div>
+        <button 
+          onClick={toggleSidebar}
+          className={`p-1 rounded-full hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-white ${isOpen ? 'md:hidden' : ''}`}
+        >
           {isOpen ? (
-            <span className="text-xl font-bold truncate">Royal Test</span>
-          ) : (
-            <span className="text-xl font-bold">RT</span>
-          )}
-        </Link>
-        {isOpen && (
-          <button 
-            onClick={toggleSidebar}
-            className="p-1 rounded-full hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-white md:hidden"
-          >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
-          </button>
-        )}
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          )}
+        </button>
       </div>
 
       {/* Navigation */}

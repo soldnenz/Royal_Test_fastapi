@@ -187,72 +187,160 @@ const SubscriptionPage = () => {
       : getSubscriptionColor('default');
       
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
-        <div className={`h-2 bg-gradient-to-r ${colors.gradient}`}></div>
-        <div className="p-6">
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-            {t.currentSubscription}
-          </h3>
-          
-          {subscription?.has_subscription ? (
-            <>
-              <div className="mb-6">
-                <div className="flex items-center mb-2">
-                  <span className="font-medium text-gray-700 dark:text-gray-300 mr-2">{t.type}:</span>
-                  <span className="capitalize px-3 py-1 bg-gradient-to-r rounded-full text-white text-sm font-medium shadow-sm ${colors.bg}">
-                    {subscription.subscription_type}
-                  </span>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+          <div className={`h-2 bg-gradient-to-r ${colors.gradient}`}></div>
+          <div className="p-6">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+              {t.currentSubscription}
+            </h3>
+            
+            {subscription?.has_subscription ? (
+              <>
+                <div className="mb-6">
+                  <div className="flex items-center mb-4">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${colors.bg} text-white`}>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                      </svg>
+                    </div>
+                    <div className="ml-4">
+                      <span className="capitalize text-2xl font-bold text-gray-900 dark:text-white">
+                        {subscription.subscription_type}
+                      </span>
+                      {subscription.days_left > 0 && (
+                        <span className="ml-2 px-3 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 text-sm rounded-full">
+                          {subscription.days_left} {t.days}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                
+                  <div className="mt-6 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                    <div className="flex items-center mb-2">
+                      <svg className="h-5 w-5 text-primary-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span className="font-medium text-gray-700 dark:text-gray-300">{t.expiresAt}:</span>
+                      <span className="ml-2 text-gray-900 dark:text-gray-100">
+                        {new Date(subscription.expires_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  
+                    <div className="flex items-center">
+                      <svg className="h-5 w-5 text-primary-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="font-medium text-gray-700 dark:text-gray-300">{t.daysLeft}:</span>
+                      <span className="ml-2 text-gray-900 dark:text-gray-100">
+                        {subscription.days_left} {t.days}
+                      </span>
+                    </div>
+                  </div>
                 </div>
                 
-                <div className="flex items-center mb-2">
-                  <span className="font-medium text-gray-700 dark:text-gray-300 mr-2">{t.expiresAt}:</span>
-                  <span className="text-gray-900 dark:text-gray-100">
-                    {new Date(subscription.expires_at).toLocaleDateString()}
-                  </span>
+                <button 
+                  onClick={() => {
+                    setActiveTab('buy');
+                    setSelectedSubscriptionType(subscription.subscription_type);
+                  }} 
+                  className={`w-full ${colors.bg} ${colors.bgHover} text-white py-3 px-4 rounded-lg shadow-sm hover:shadow-md transition-all font-medium flex items-center justify-center`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  {t.extendSubscription}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="mb-6 text-center">
+                  <div className="w-24 h-24 mx-auto mb-4 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                  </div>
+                  <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">{t.noActiveSubscription}</h4>
+                  <p className="text-gray-500 dark:text-gray-400 mb-6">
+                    {t.subscriptionBenefits}
+                  </p>
                 </div>
                 
-                <div className="flex items-center">
-                  <span className="font-medium text-gray-700 dark:text-gray-300 mr-2">{t.daysLeft}:</span>
-                  <span className="text-gray-900 dark:text-gray-100">
-                    {subscription.days_left} {t.days}
-                  </span>
-                </div>
-              </div>
-              
-              <button 
-                onClick={() => {
-                  setActiveTab('buy');
-                  setSelectedSubscriptionType(subscription.subscription_type);
-                }} 
-                className={`w-full ${colors.bg} ${colors.bgHover} text-white py-2 px-4 rounded-lg shadow-sm hover:shadow-md transition-all font-medium`}
-              >
-                {t.extendSubscription}
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="mb-6 text-center">
-                <div className="text-gray-600 dark:text-gray-400 mb-2">
-                  {t.noActiveSubscription}
-                </div>
-                <div className="w-24 h-24 mx-auto mb-4 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-full">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                <button 
+                  onClick={() => setActiveTab('buy')} 
+                  className="w-full bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white py-3 px-4 rounded-lg shadow-sm hover:shadow-md transition-all font-medium flex items-center justify-center"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  {t.getSubscription}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+        
+        {/* Subscription benefits */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+          <div className="h-2 bg-gradient-to-r from-purple-400 to-indigo-600"></div>
+          <div className="p-6">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+              {t.benefitsTitle || "Преимущества подписки"}
+            </h3>
+            
+            <ul className="space-y-3">
+              <li className="flex items-start">
+                <div className="flex-shrink-0 h-6 w-6 rounded-full bg-green-100 dark:bg-green-900/30 text-green-500 dark:text-green-400 flex items-center justify-center">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                   </svg>
                 </div>
-                <p className="text-gray-500 dark:text-gray-400 mb-6">
-                  {t.subscriptionBenefits}
+                <p className="ml-3 text-base text-gray-700 dark:text-gray-300">
+                  {t.benefitFullAccess || "Полный доступ ко всем тестам и категориям"}
                 </p>
-              </div>
-              
-              <button 
-                onClick={() => setActiveTab('buy')} 
-                className="w-full bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white py-2 px-4 rounded-lg shadow-sm hover:shadow-md transition-all font-medium"
-              >
-                {t.getSubscription}
-              </button>
-            </>
-          )}
+              </li>
+              <li className="flex items-start">
+                <div className="flex-shrink-0 h-6 w-6 rounded-full bg-green-100 dark:bg-green-900/30 text-green-500 dark:text-green-400 flex items-center justify-center">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                </div>
+                <p className="ml-3 text-base text-gray-700 dark:text-gray-300">
+                  {t.benefitStatistics || "Подробная аналитика и статистика результатов"}
+                </p>
+              </li>
+              <li className="flex items-start">
+                <div className="flex-shrink-0 h-6 w-6 rounded-full bg-green-100 dark:bg-green-900/30 text-green-500 dark:text-green-400 flex items-center justify-center">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                </div>
+                <p className="ml-3 text-base text-gray-700 dark:text-gray-300">
+                  {t.benefitWithoutAds || "Тесты без рекламы и ограничений"}
+                </p>
+              </li>
+              <li className="flex items-start">
+                <div className="flex-shrink-0 h-6 w-6 rounded-full bg-green-100 dark:bg-green-900/30 text-green-500 dark:text-green-400 flex items-center justify-center">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                </div>
+                <p className="ml-3 text-base text-gray-700 dark:text-gray-300">
+                  {t.benefitMultiplayer || "Мультиплеер режим с друзьями"}
+                </p>
+              </li>
+              <li className="flex items-start">
+                <div className="flex-shrink-0 h-6 w-6 rounded-full bg-green-100 dark:bg-green-900/30 text-green-500 dark:text-green-400 flex items-center justify-center">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                </div>
+                <p className="ml-3 text-base text-gray-700 dark:text-gray-300">
+                  {t.benefitPriority || "Приоритетная поддержка"}
+                </p>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     );
@@ -261,16 +349,47 @@ const SubscriptionPage = () => {
   // Render subscription plans
   const renderSubscriptionPlans = () => {
     const plans = [
-      { id: 'economy', title: t.economyTitle, price: 1990, features: [t.economyFeature1, t.economyFeature2, t.economyFeature3] },
-      { id: 'Vip', title: t.vipTitle, price: 3990, featured: true, features: [t.vipFeature1, t.vipFeature2, t.vipFeature3, t.vipFeature4] },
-      { id: 'Royal', title: t.royalTitle, price: 6990, features: [t.royalFeature1, t.royalFeature2, t.royalFeature3, t.royalFeature4, t.royalFeature5] }
+      { 
+        id: 'economy', 
+        title: t.economyTitle, 
+        price: 1990, 
+        features: [
+          t.economyFeature1 || "Доступ к категориям A, A1, B", 
+          t.economyFeature2 || "Полная база вопросов", 
+          t.economyFeature3 || "Доступ к базовой статистике"
+        ] 
+      },
+      { 
+        id: 'Vip', 
+        title: t.vipTitle, 
+        price: 3990, 
+        featured: true, 
+        features: [
+          t.vipFeature1 || "Доступ ко всем категориям", 
+          t.vipFeature2 || "Создание реферальной ссылки", 
+          t.vipFeature3 || "Доступ к полной статистике", 
+          t.vipFeature4 || "Создание лобби для мультиплеера"
+        ] 
+      },
+      { 
+        id: 'Royal', 
+        title: t.royalTitle, 
+        price: 6990, 
+        features: [
+          t.royalFeature1 || "Все функции VIP тарифа", 
+          t.royalFeature2 || "Дарение тестов и групповые коды", 
+          t.royalFeature3 || "Скидка 15% в автошколу", 
+          t.royalFeature4 || "Приоритетная поддержка", 
+          t.royalFeature5 || "Ранний доступ к новым функциям"
+        ] 
+      }
     ];
     
     const durations = [
-      { value: 1, label: t.month1 },
-      { value: 3, label: t.months3, discount: '10%' },
-      { value: 6, label: t.months6, discount: '15%' },
-      { value: 12, label: t.year1, discount: '25%' }
+      { value: 1, label: t.month1 || "1 месяц" },
+      { value: 3, label: t.months3 || "3 месяца", discount: '10%' },
+      { value: 6, label: t.months6 || "6 месяцев", discount: '15%' },
+      { value: 12, label: t.year1 || "1 год", discount: '25%' }
     ];
     
     return (

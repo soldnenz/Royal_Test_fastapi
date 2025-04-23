@@ -333,6 +333,22 @@ export const translations = {
     balance: "Баланс",
     days: "дней",
     upgrade: "Улучшить",
+    
+    // Subscription benefits
+    benefitsTitle: "Преимущества подписки",
+    benefitFullAccess: "Полный доступ ко всем тестам и категориям",
+    benefitStatistics: "Подробная аналитика и статистика результатов",
+    benefitWithoutAds: "Тесты без рекламы и ограничений",
+    benefitMultiplayer: "Мультиплеер режим с друзьями",
+    benefitPriority: "Приоритетная поддержка",
+    
+    // No subscription
+    noActiveSubscription: "У вас нет активной подписки",
+    subscriptionBenefits: "Активируйте подписку, чтобы получить доступ ко всем функциям",
+    getSubscription: "Получить подписку",
+    
+    // Subscription details
+    extendSubscription: "Продлить подписку",
   },
   
   kz: {
@@ -669,6 +685,22 @@ export const translations = {
     balance: "Баланс",
     days: "күн",
     upgrade: "Жаңарту",
+    
+    // Subscription benefits
+    benefitsTitle: "Жазылымның артықшылықтары",
+    benefitFullAccess: "Барлық тесттер мен санаттарға толық қол жеткізу",
+    benefitStatistics: "Егжей-тегжейлі талдау және нәтиже статистикасы",
+    benefitWithoutAds: "Жарнамасыз және шектеусіз тесттер",
+    benefitMultiplayer: "Достармен мультиплеер режимі",
+    benefitPriority: "Басым қолдау",
+    
+    // No subscription
+    noActiveSubscription: "Сізде белсенді жазылым жоқ",
+    subscriptionBenefits: "Барлық мүмкіндіктерге қол жеткізу үшін жазылымды белсендіріңіз",
+    getSubscription: "Жазылымды алу",
+    
+    // Subscription details
+    extendSubscription: "Жазылымды ұзарту",
   },
   
   en: {
@@ -1005,5 +1037,21 @@ export const translations = {
     balance: "Balance",
     days: "days",
     upgrade: "Upgrade",
+    
+    // Subscription benefits
+    benefitsTitle: "Subscription Benefits",
+    benefitFullAccess: "Full access to all tests and categories",
+    benefitStatistics: "Detailed analytics and result statistics",
+    benefitWithoutAds: "Ad-free and unlimited tests",
+    benefitMultiplayer: "Multiplayer mode with friends",
+    benefitPriority: "Priority support",
+    
+    // No subscription
+    noActiveSubscription: "You don't have an active subscription",
+    subscriptionBenefits: "Activate a subscription to access all features",
+    getSubscription: "Get subscription",
+    
+    // Subscription details
+    extendSubscription: "Extend subscription",
   }
 }; 
