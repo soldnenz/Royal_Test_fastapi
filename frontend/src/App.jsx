@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { ToastContainer } from 'react-toastify';
 import MainLayout from './layouts/MainLayout';
 import CleLayout from './layouts/cleLayout';
 import DashboardLayout from './layouts/DashboardLayout';
@@ -36,6 +37,7 @@ function App() {
               <Route index element={<HomePage />} />
             </Route>
           </Routes>
+          <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} newestOnTop closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover />
         </Router>
       </LanguageProvider>
     </ThemeProvider>
