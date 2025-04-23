@@ -192,7 +192,7 @@ const SubscriptionPage = () => {
           <div className={`h-2 bg-gradient-to-r ${colors.gradient}`}></div>
           <div className="p-6">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              {t.currentSubscription}
+              {t.currentSubscription || "Текущая подписка"}
             </h3>
             
             {subscription?.has_subscription ? (
@@ -288,54 +288,54 @@ const SubscriptionPage = () => {
               {t.benefitsTitle || "Преимущества подписки"}
             </h3>
             
-            <ul className="space-y-3">
-              <li className="flex items-start">
+            <ul className="space-y-4">
+              <li className="flex items-start bg-gray-50 dark:bg-gray-700/40 p-3 rounded-lg transition-all hover:shadow-sm">
                 <div className="flex-shrink-0 h-6 w-6 rounded-full bg-green-100 dark:bg-green-900/30 text-green-500 dark:text-green-400 flex items-center justify-center">
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                   </svg>
                 </div>
-                <p className="ml-3 text-base text-gray-700 dark:text-gray-300">
+                <p className="ml-3 text-base text-gray-700 dark:text-gray-300 font-medium">
                   {t.benefitFullAccess || "Полный доступ ко всем тестам и категориям"}
                 </p>
               </li>
-              <li className="flex items-start">
+              <li className="flex items-start bg-gray-50 dark:bg-gray-700/40 p-3 rounded-lg transition-all hover:shadow-sm">
                 <div className="flex-shrink-0 h-6 w-6 rounded-full bg-green-100 dark:bg-green-900/30 text-green-500 dark:text-green-400 flex items-center justify-center">
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                   </svg>
                 </div>
-                <p className="ml-3 text-base text-gray-700 dark:text-gray-300">
+                <p className="ml-3 text-base text-gray-700 dark:text-gray-300 font-medium">
                   {t.benefitStatistics || "Подробная аналитика и статистика результатов"}
                 </p>
               </li>
-              <li className="flex items-start">
+              <li className="flex items-start bg-gray-50 dark:bg-gray-700/40 p-3 rounded-lg transition-all hover:shadow-sm">
                 <div className="flex-shrink-0 h-6 w-6 rounded-full bg-green-100 dark:bg-green-900/30 text-green-500 dark:text-green-400 flex items-center justify-center">
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                   </svg>
                 </div>
-                <p className="ml-3 text-base text-gray-700 dark:text-gray-300">
+                <p className="ml-3 text-base text-gray-700 dark:text-gray-300 font-medium">
                   {t.benefitWithoutAds || "Тесты без рекламы и ограничений"}
                 </p>
               </li>
-              <li className="flex items-start">
+              <li className="flex items-start bg-gray-50 dark:bg-gray-700/40 p-3 rounded-lg transition-all hover:shadow-sm">
                 <div className="flex-shrink-0 h-6 w-6 rounded-full bg-green-100 dark:bg-green-900/30 text-green-500 dark:text-green-400 flex items-center justify-center">
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                   </svg>
                 </div>
-                <p className="ml-3 text-base text-gray-700 dark:text-gray-300">
+                <p className="ml-3 text-base text-gray-700 dark:text-gray-300 font-medium">
                   {t.benefitMultiplayer || "Мультиплеер режим с друзьями"}
                 </p>
               </li>
-              <li className="flex items-start">
+              <li className="flex items-start bg-gray-50 dark:bg-gray-700/40 p-3 rounded-lg transition-all hover:shadow-sm">
                 <div className="flex-shrink-0 h-6 w-6 rounded-full bg-green-100 dark:bg-green-900/30 text-green-500 dark:text-green-400 flex items-center justify-center">
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                   </svg>
                 </div>
-                <p className="ml-3 text-base text-gray-700 dark:text-gray-300">
+                <p className="ml-3 text-base text-gray-700 dark:text-gray-300 font-medium">
                   {t.benefitPriority || "Приоритетная поддержка"}
                 </p>
               </li>
@@ -351,12 +351,12 @@ const SubscriptionPage = () => {
     const plans = [
       { 
         id: 'economy', 
-        title: t.economyTitle || "Эконом", 
+        title: t.economyTitle || "Economy", 
         price: 1990, 
         features: [
-          t.economyFeature1 || "Доступ к категориям A, A1, B", 
-          t.economyFeature2 || "Полная база вопросов", 
-          t.economyFeature3 || "Доступ к базовой статистике"
+          t.accessToCategories || "Доступ к категориям A, A1, B", 
+          t.fullQuestionDatabase || "Полная база вопросов", 
+          t.accessBasicStats || "Доступ к базовой статистике"
         ] 
       },
       { 
@@ -365,10 +365,10 @@ const SubscriptionPage = () => {
         price: 3990, 
         featured: true, 
         features: [
-          t.vipFeature1 || "Доступ ко всем категориям", 
-          t.vipFeature2 || "Создание реферальной ссылки", 
-          t.vipFeature3 || "Доступ к полной статистике", 
-          t.vipFeature4 || "Создание лобби для мультиплеера"
+          t.accessAllCats || "Доступ ко всем категориям", 
+          t.createRefLink || "Создание реферальной ссылки", 
+          t.accessFullStats || "Доступ к полной статистике", 
+          t.createLobby || "Создание лобби для мультиплеера"
         ] 
       },
       { 
@@ -377,9 +377,9 @@ const SubscriptionPage = () => {
         price: 6990, 
         features: [
           t.royalFeature1 || "Все функции VIP тарифа", 
-          t.royalFeature2 || "Дарение тестов и групповые коды", 
-          t.royalFeature3 || "Скидка 15% в автошколу", 
-          t.royalFeature4 || "Приоритетная поддержка", 
+          t.giftTestsGroupCodes || "Дарение тестов и групповые коды", 
+          t.discount15 || "Скидка 15% в автошколу", 
+          t.benefitPriority || "Приоритетная поддержка", 
           t.royalFeature5 || "Ранний доступ к новым функциям"
         ] 
       }
@@ -554,16 +554,25 @@ const SubscriptionPage = () => {
                     required
                   />
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    {t.iinDescription || "Введите 12-значный ИИН получателя подарка"}
+                    {t.iinDescription || "Введите 12-значный ИИН получателя подарка или купите промо-код"}
                   </p>
                 </div>
                 
-                <button
-                  type="submit"
-                  className="w-full py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
-                >
-                  {t.sendGift || "Отправить подарок"}
-                </button>
+                <div className="flex justify-between space-x-4">
+                  <button
+                    type="submit"
+                    className="flex-1 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
+                  >
+                    {t.sendGift || "Отправить подарок"}
+                  </button>
+                  
+                  <button
+                    type="button"
+                    className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
+                  >
+                    {t.buyPromoCode || "Купить промо-код"}
+                  </button>
+                </div>
               </form>
             </div>
           </div>
@@ -622,7 +631,7 @@ const SubscriptionPage = () => {
               
               <button
                 type="submit"
-                className="w-full py-2 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
+                className="w-full py-3 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
               >
                 {t.topUp || "Пополнить"}
               </button>
@@ -657,7 +666,7 @@ const SubscriptionPage = () => {
               
               <button
                 type="submit"
-                className="w-full py-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
+                className="w-full py-3 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
               >
                 {t.activate || "Активировать"}
               </button>

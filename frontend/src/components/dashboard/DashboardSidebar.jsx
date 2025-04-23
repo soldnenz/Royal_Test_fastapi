@@ -1,11 +1,16 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { translations } from '../../translations/translations';
+import { useTranslation } from 'react-i18next';
+import { useMediaQuery } from 'react-responsive';
+import React from 'react';
 
 const DashboardSidebar = ({ isOpen, toggleSidebar }) => {
   const { language } = useLanguage();
   const t = translations[language];
   const location = useLocation();
+  const { t: i18nT } = useTranslation();
+  const isMobile = useMediaQuery({ maxWidth: 768 });
 
   // Navigation items - can be expanded later
   const navItems = [
@@ -49,74 +54,80 @@ const DashboardSidebar = ({ isOpen, toggleSidebar }) => {
 
   return (
     <aside 
-      className={`z-40 flex flex-col bg-white dark:bg-gray-800 shadow-md transition-all duration-300 ease-in-out ${
-        isOpen ? 'w-64' : 'w-0 sm:w-20'
-      } fixed inset-y-0 left-0 md:relative overflow-hidden`}
+      className={`fixed left-0 top-0 z-40 h-screen overflow-hidden transition-all duration-300 
+                  bg-white border-r border-gray-200 dark:bg-gray-800 dark:border-gray-700
+                  ${isOpen ? 'w-64' : isMobile ? 'w-0' : 'w-16'}`}
     >
-      {/* Logo and toggle button */}
-      <div className={`flex items-center justify-between h-16 px-4 bg-primary-600 text-white ${!isOpen && 'sm:justify-center'}`}>
-        {isOpen && (
-          <div className="flex items-center">
-            <Link to="/dashboard" className="flex items-center">
-              <span className="text-xl font-bold truncate">Royal Test</span>
-            </Link>
-          </div>
-        )}
-        {(!isOpen && window.innerWidth >= 640) && (
-          <Link to="/dashboard" className="flex items-center">
-            <span className="text-xl font-bold">RT</span>
-          </Link>
-        )}
-        <button 
-          onClick={toggleSidebar}
-          className={`p-1 rounded-full hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-white ${isOpen ? 'md:hidden' : ''}`}
-        >
+      <div className="h-full flex flex-col">
+        {/* Sidebar header */}
+        <div className={`flex items-center px-4 py-3 ${isOpen ? 'justify-between' : 'justify-center'} 
+                        border-b border-gray-200 dark:border-gray-700`}>
           {isOpen ? (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          )}
-        </button>
-      </div>
-
-      {/* Navigation */}
-      <nav className={`flex-1 overflow-y-auto pt-5 pb-4 ${!isOpen && 'sm:pt-5'}`}>
-        <ul className="space-y-1 px-2">
-          {navItems.map((item) => (
-            <li key={item.path}>
-              <Link
-                to={item.path}
-                className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                  location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)
-                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-100'
-                    : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                } ${!isOpen && 'sm:justify-center'}`}
-              >
-                <span className="min-w-[24px]">{item.icon}</span>
-                {isOpen && <span className="ml-3">{item.name}</span>}
+            <>
+              <Link to="/" className="flex items-center">
+                <img src="/logo.png" alt="Royal Test Logo" className="h-8" />
+                <span className="ml-2 text-xl font-bold text-gray-800 dark:text-white">Royal Test</span>
               </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
+              <button 
+                onClick={toggleSidebar} 
+                className="p-1 rounded-full text-gray-500 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700"
+              >
+                <span className="sr-only">{i18nT.closeSidebar}</span>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+            </>
+          ) : (
+            <button 
+              onClick={toggleSidebar} 
+              className="p-1 rounded-full text-gray-500 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700 w-full flex justify-center"
+            >
+              <span className="sr-only">{i18nT.openSidebar}</span>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
+        </div>
 
-      {/* Mobile close button at the bottom */}
-      <div className="md:hidden p-4">
-        <button
-          onClick={toggleSidebar}
-          className={`block md:hidden w-full text-left px-4 py-2 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 ${
-            isOpen ? 'flex items-center' : 'hidden'
-          }`}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-          </svg>
-          {t.closeSidebar}
-        </button>
+        {/* Sidebar content */}
+        <div className="flex-1 px-2 py-4 overflow-y-auto">
+          <ul className="space-y-2">
+            {navItems.map((item) => {
+              const isActive = location.pathname === item.path;
+              const linkClasses = `flex ${isOpen ? 'items-center justify-start px-4' : 'flex-col items-center justify-center px-2'} 
+                py-2.5 text-base font-normal rounded-lg transition-all duration-200 group
+                ${isActive 
+                  ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-500' 
+                  : 'text-gray-900 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700'
+                }`;
+
+              return (
+                <li key={item.path}>
+                  <Link to={item.path} className={linkClasses}>
+                    {/* Icon with style adjustments based on sidebar state */}
+                    <div className={`flex items-center justify-center ${isOpen ? 'mr-2' : 'mb-1'}`}>
+                      {React.cloneElement(item.icon, { 
+                        className: `h-6 w-6 ${isActive ? 'text-primary-600 dark:text-primary-500' : ''}`
+                      })}
+                    </div>
+                    
+                    {/* Text - only show if sidebar is open */}
+                    {isOpen && <span>{item.name}</span>}
+
+                    {/* Show smaller text under icon when sidebar is collapsed */}
+                    {!isOpen && (
+                      <span className="text-xs text-center mt-0.5 max-w-10 truncate">
+                        {item.name}
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       </div>
     </aside>
   );
