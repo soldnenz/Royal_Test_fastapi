@@ -32,7 +32,7 @@ const DashboardSidebar = ({ isOpen, toggleSidebar }) => {
     { name: translations[language].statistics, icon: <FaChartBar className="mr-3 text-lg" />, path: '/dashboard/statistics' },
     { name: translations[language].referralSystem, icon: <FaUserFriends className="mr-3 text-lg" />, path: '/dashboard/referrals' },
     { name: translations[language].subscription, icon: <FaCrown className="mr-3 text-lg" />, path: '/dashboard/subscription' },
-    { name: translations[language].promoCodes, icon: <FaGift className="mr-3 text-lg" />, path: '/dashboard/promo-codes' }
+    { name: translations[language].promoCodes, icon: <FaGift className="mr-3 text-lg" />, path: '/dashboard/promo-codes' },
   ];
 
   return (

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -8,8 +8,24 @@ const Header = () => {
   const { theme, toggleTheme } = useTheme();
   const { language, changeLanguage } = useLanguage();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   
   const t = translations[language];
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/users/me', { credentials: 'include' });
+        if (!response.ok) { setIsAuthenticated(false); return; }
+        let data;
+        try { data = await response.json(); } catch { setIsAuthenticated(false); return; }
+        setIsAuthenticated(data.status === 'ok');
+      } catch {
+        setIsAuthenticated(false);
+      }
+    };
+    checkAuth();
+  }, []);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -64,20 +80,31 @@ const Header = () => {
 
         {/* Desktop Navigation */}
         <nav className="hidden lg:flex items-center space-x-6">
-          {/* Login/Register Buttons */}
+          {/* Auth Buttons */}
           <div className="flex items-center space-x-3">
-            <Link 
-              to="/login" 
-              className="px-4 py-2 text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-            >
-              {t.login}
-            </Link>
-            <Link 
-              to="/registration" 
-              className="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200"
-            >
-              {t.register}
-            </Link>
+            {isAuthenticated ? (
+              <Link
+                to="/dashboard"
+                className="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200"
+              >
+                {t.goToDashboard}
+              </Link>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="px-4 py-2 bg-gray-100 dark:bg-dark-700 rounded-lg shadow-md text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-dark-600 transition-colors"
+                >
+                  {t.login}
+                </Link>
+                <Link
+                  to="/registration"
+                  className="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200"
+                >
+                  {t.register}
+                </Link>
+              </>
+            )}
           </div>
           
           {/* Language Selector */}
@@ -136,22 +163,34 @@ const Header = () => {
       {isMenuOpen && (
         <div className="lg:hidden bg-white/95 dark:bg-dark-800/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-700 shadow-lg">
           <div className="container-custom py-4 flex flex-col space-y-4">
-            {/* Login/Register Buttons */}
+            {/* Auth Buttons Mobile */}
             <div className="flex flex-col space-y-2">
-              <Link 
-                to="/login" 
-                className="py-2 text-gray-900 dark:text-white hover:text-primary-600 transition-colors"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                {t.login}
-              </Link>
-              <Link 
-                to="/registration" 
-                className="py-2 px-4 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-lg text-center shadow-md"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                {t.register}
-              </Link>
+              {isAuthenticated ? (
+                <Link
+                  to="/dashboard"
+                  className="py-2 px-4 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-lg shadow-md text-center transition-all duration-200"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  {t.goToDashboard}
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    className="py-2 px-4 bg-gray-100 dark:bg-dark-700 rounded-lg shadow-md text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-dark-600 text-center transition-colors"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    {t.login}
+                  </Link>
+                  <Link
+                    to="/registration"
+                    className="py-2 px-4 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-lg text-center shadow-md"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    {t.register}
+                  </Link>
+                </>
+              )}
             </div>
             
             {/* Language Options */}

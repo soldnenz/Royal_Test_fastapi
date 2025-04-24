@@ -5,8 +5,9 @@ from typing import Optional, Literal
 import secrets
 import string
 import json
+import math
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Body, BackgroundTasks
 from bson import ObjectId
 from fastapi.security import HTTPBearer
 from app.db.database import db
@@ -21,12 +22,11 @@ from app.schemas.subscription_schemas import SubscriptionCreate, GiftSubscriptio
 from app.schemas.promo_code_schemas import PromoCodeActivate, PromoCodeCreate, PromoCodeOut, PromoCodeAdminUpdate
 from pydantic import BaseModel, Field
 from app.core.finance import process_referral
+from enum import Enum
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-
-from fastapi import HTTPException
 
 @router.get("/me")
 async def get_current_profile(actor = Depends(get_current_actor)):
@@ -41,6 +41,7 @@ async def get_current_profile(actor = Depends(get_current_actor)):
             "phone": actor["phone"],
             "iin": actor["iin"],
             "money": actor["money"],
+            "created_at": actor["created_at"].isoformat()
         }
 
     elif actor["type"] == "admin":           # включает и модераторов
@@ -311,165 +312,182 @@ async def get_user_history(
     })
 
 # New user subscription endpoints below:
-
+class SubscriptionType(str, Enum):
+    economy = "economy"
+    vip     = "vip"
+    royal   = "royal"
+    
 class PurchaseSubscription(BaseModel):
-    subscription_type: Literal["economy", "vip", "royal"]
-    duration_days: int = Field(..., gt=0, le=365)
-    use_balance: bool = True
+    subscription_type: SubscriptionType
+    duration_days:     int = Field(..., gt=0, le=365)
+    use_balance:       bool = True
 
 @router.post("/purchase-subscription", summary="Покупка подписки для себя")
 async def purchase_subscription(
     sub_data: PurchaseSubscription,
-    current_user: dict = Depends(get_current_actor),
-    db = Depends(get_database)
+    background_tasks: BackgroundTasks,          # ← нет дефолта, идёт сразу после sub_data
+    current_user: dict       = Depends(get_current_actor),
+    db:           any        = Depends(get_database),
 ):
-    """
-    Пользователь покупает подписку для себя с баланса.
-    """
+    # Только обычные пользователи
     if current_user["role"] != "user":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"message": "Только пользователи могут покупать подписки", "path": "/purchase-subscription"}
+            detail={"message": "Только пользователи могут покупать подписки"}
         )
-    
-    user_id = current_user["id"]
+
+    user_id  = current_user["id"]
     user_iin = current_user["iin"]
-    
-    # Получаем полные данные пользователя из БД (включая поля referred_by и referred_use)
+
+    # Подтягиваем полный профиль
     full_user = await db.users.find_one({"_id": ObjectId(user_id)})
     if not full_user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"message": "Пользователь не найден"}
         )
-    
-    # Проверяем, есть ли уже активная подписка
+
+    # Проверяем, нет ли уже активной подписки
     existing = await db.subscriptions.find_one({
-        "user_id": ObjectId(user_id),
+        "user_id":   ObjectId(user_id),
         "is_active": True
     })
-    
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={"message": "У вас уже есть активная подписка"}
         )
-    
-    # Рассчитываем стоимость подписки
-    price = calculate_subscription_price(sub_data.subscription_type, sub_data.duration_days)
-    
-    # Проверяем достаточность средств на балансе
-    if current_user["money"] < price:
+
+    # Рассчитываем цену и проверяем баланс
+    price = calculate_subscription_price(
+        sub_data.subscription_type,
+        sub_data.duration_days
+    )
+    if sub_data.use_balance and full_user.get("money", 0) < price:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"message": f"Недостаточно средств на балансе. Требуется: {price} тг."}
+            detail={"message": f"Недостаточно средств. Требуется: {price} тг."}
         )
-    
+
+    # Готовим документы
+    now        = datetime.utcnow()
+    expires_at = now + timedelta(days=sub_data.duration_days)
+
+    subscription_doc = {
+        "user_id":           ObjectId(user_id),
+        "iin":               user_iin,
+        "created_at":        now,
+        "updated_at":        now,
+        "is_active":         True,
+        "cancelled_at":      None,
+        "cancelled_by":      None,
+        "cancel_reason":     None,
+        "amount":            price,
+        "activation_method": "payment",
+        "issued_by": {
+            "admin_iin": None,
+            "full_name": "Самостоятельная покупка"
+        },
+        "subscription_type": sub_data.subscription_type.value,
+        "duration_days":     sub_data.duration_days,
+        "expires_at":        expires_at,
+        "payment": {
+            "payment_id":    str(ObjectId()),
+            "price":         price,
+            "payment_method": "balance"
+        }
+    }
+
+    transaction_doc = {
+        "user_id":    ObjectId(user_id),
+        "amount":     -price,
+        "type":       "subscription_purchase",
+        "description": f"Покупка {sub_data.subscription_type.value} на {sub_data.duration_days} дн.",
+        "created_at": now,
+        # "subscription_id" добавим после вставки
+    }
+
+    # Выполняем всё в Mongo-транзакции
     try:
-        now = datetime.utcnow()
-        expires_at = now + timedelta(days=sub_data.duration_days)
-        
-        # Создаем подписку
-        subscription = {
-            "user_id": ObjectId(user_id),
-            "iin": user_iin,
-            "created_at": now,
-            "updated_at": now,
-            "is_active": True,
-            "cancelled_at": None,
-            "cancelled_by": None,
-            "cancel_reason": None,
-            "amount": price,
-            "activation_method": "payment",
-            "issued_by": {
-                "admin_iin": None,
-                "full_name": "Самостоятельная покупка"
-            },
-            "subscription_type": sub_data.subscription_type,
-            "duration_days": sub_data.duration_days,
-            "expires_at": expires_at,
-            "payment": {
-                "payment_id": str(ObjectId()),
-                "price": price,
-                "payment_method": "balance"
-            }
-        }
-        
-        # Вставляем подписку в базу данных
-        subscription_result = await db.subscriptions.insert_one(subscription)
-        subscription_id = str(subscription_result.inserted_id)
-        
-        # Снимаем средства с баланса пользователя
-        await db.users.update_one(
-            {"_id": ObjectId(user_id)},
-            {"$inc": {"money": -price}}
+        async with await db.client.start_session() as session:
+            async with session.start_transaction():
+                res = await db.subscriptions.insert_one(subscription_doc, session=session)
+                subscription_id = str(res.inserted_id)
+
+                if sub_data.use_balance:
+                    await db.users.update_one(
+                        {"_id": ObjectId(user_id)},
+                        {"$inc": {"money": -price}},
+                        session=session
+                    )
+                    transaction_doc["subscription_id"] = subscription_id
+                    await db.transactions.insert_one(transaction_doc, session=session)
+
+        # Реферальный бонус
+        background_tasks.add_task(
+            process_referral,
+            str(user_id),
+            price,
+            f"Реферальный бонус за {sub_data.subscription_type.value}"
         )
-        
-        # Создаем транзакцию в истории платежей
-        transaction = {
-            "user_id": ObjectId(user_id),
-            "amount": -price,
-            "type": "subscription_purchase",
-            "description": f"Покупка подписки {sub_data.subscription_type} на {sub_data.duration_days} дней",
-            "created_at": now,
-            "subscription_id": subscription_id
-        }
-        
-        await db.transactions.insert_one(transaction)
-        
-        # Обработка реферальной системы через finance.process_referral
-        description = f"Реферальный бонус за покупку подписки {sub_data.subscription_type}"
-        process_referral(str(user_id), price, description)
-        
-        logger.info(f"[PURCHASE] Пользователь {user_id} купил подписку {sub_data.subscription_type} на {sub_data.duration_days} дней за {price} тг.")
-        
-        # Формируем ответ
+
         return success(
             data={
-                "subscription_id": subscription_id,
-                "subscription_type": sub_data.subscription_type,
-                "duration_days": sub_data.duration_days,
-                "expires_at": expires_at.isoformat(),
-                "price": price,
-                "balance_after": current_user["money"] - price
+                "subscription_id":   subscription_id,
+                "subscription_type": sub_data.subscription_type.value,
+                "duration_days":     sub_data.duration_days,
+                "expires_at":        expires_at.isoformat(),
+                "price":             price,
+                "balance_after":     full_user.get("money", 0) - price
             },
             message="Подписка успешно приобретена"
         )
-        
+
+    except HTTPException:
+        # Пробрасываем наши 400/403/409 ошибки
+        raise
     except Exception as e:
-        logger.error(f"[PURCHASE ERROR] Ошибка при покупке подписки: {e}")
+        logger.error(f"[PURCHASE ERROR] {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"message": f"Ошибка при покупке подписки: {str(e)}"}
+            detail={"message": f"Не удалось оформить подписку: {e}"}
         )
 
-def calculate_subscription_price(subscription_type: str, duration_days: int) -> int:
+    
+
+def calculate_subscription_price(
+    subscription_type: SubscriptionType,
+    duration_days: int
+) -> int:
     """
-    Рассчитывает стоимость подписки на основе типа и продолжительности в днях.
+    Рассчитывает стоимость подписки по daily-prorated модели и скидкам:
+      - 5% скидка за 90–95 дней (~3 месяца)
+      - 10% скидка за 180–185 дней (~6 месяцев)
     """
+    # Базовая цена за месяц
     base_prices = {
-        "economy": 5000,
-        "vip": 10000, 
-        "royal": 15000
+        SubscriptionType.economy: 5000,
+        SubscriptionType.vip:    10000,
+        SubscriptionType.royal:  15000,
     }
-    
-    base_price = base_prices.get(subscription_type.lower(), 5000)
-    
-    # Convert days to months for calculation
-    months = duration_days / 30
-    
-    # Применяем скидку в зависимости от продолжительности
-    discount = 0
-    if 80 <= duration_days <= 95:  # ~3 months
-        discount = 0.05  # 5% скидка на 3 месяца
-    elif 175 <= duration_days <= 185:  # ~6 months
-        discount = 0.10  # 10% скидка на 6 месяцев
-    
-    # Рассчитываем общую цену с учетом скидки
-    # Monthly price * number of months * (1 - discount)
-    total_price = base_price * months * (1 - discount)
-    
-    return int(total_price)
+
+    # Получаем базовую ценУ и считаем цену за 1 день
+    monthly_price = base_prices[subscription_type]
+    daily_price   = monthly_price / 30.0
+
+    # Вычисляем скидку
+    if 180 <= duration_days <= 185:
+        discount = 0.10
+    elif 90 <= duration_days <= 95:
+        discount = 0.05
+    else:
+        discount = 0.0
+
+    # Считаем сумму по дням с учётом скидки
+    total = daily_price * duration_days * (1 - discount)
+
+    # Округляем вверх до целого тенге
+    return math.ceil(total)
 
 @router.post("/purchase-gift-subscription", summary="Покупка подписки в подарок по ИИН")
 async def purchase_gift_subscription(
@@ -571,32 +589,36 @@ async def purchase_gift_subscription(
             }
         }
         
-        # Вставляем подписку в базу данных
-        result = await db.subscriptions.insert_one(subscription)
-        subscription_id = str(result.inserted_id)
-        
-        # Снимаем средства с баланса дарителя
-        await db.users.update_one(
-            {"_id": ObjectId(user_id)},
-            {"$inc": {"money": -price}}
-        )
-        
-        # Создаем транзакцию
-        transaction = {
-            "user_id": ObjectId(user_id),
-            "amount": -price,
-            "type": "gift_subscription",
-            "description": f"Подарок подписки {gift_data.subscription_type} на {gift_data.duration_days} дней пользователю {gift_data.gift_iin}",
-            "created_at": now,
-            "subscription_id": subscription_id,
-            "recipient_iin": gift_data.gift_iin
-        }
-        
-        await db.transactions.insert_one(transaction)
+        # Выполняем всё в Mongo-транзакции
+        async with await db.client.start_session() as session:
+            async with session.start_transaction():
+                # Вставляем подписку в базу данных
+                result = await db.subscriptions.insert_one(subscription, session=session)
+                subscription_id = str(result.inserted_id)
+                
+                # Снимаем средства с баланса дарителя
+                await db.users.update_one(
+                    {"_id": ObjectId(user_id)},
+                    {"$inc": {"money": -price}},
+                    session=session
+                )
+                
+                # Создаем транзакцию
+                transaction = {
+                    "user_id": ObjectId(user_id),
+                    "amount": -price,
+                    "type": "gift_subscription",
+                    "description": f"Подарок подписки {gift_data.subscription_type} на {gift_data.duration_days} дней пользователю {gift_data.gift_iin}",
+                    "created_at": now,
+                    "subscription_id": subscription_id,
+                    "recipient_iin": gift_data.gift_iin
+                }
+                
+                await db.transactions.insert_one(transaction, session=session)
         
         # Обработка реферальной системы через finance.process_referral
         description = f"Реферальный бонус за покупку подарочной подписки {gift_data.subscription_type}"
-        process_referral(str(user_id), price, description)
+        await process_referral(str(user_id), price, description)
         
         logger.info(
             f"[GIFT] Пользователь {user_id} подарил подписку {gift_data.subscription_type} " +
@@ -639,258 +661,306 @@ def generate_promo_code(length=10):
 
 @router.post("/generate-promo-code", summary="Покупка подписки в виде промокода")
 async def purchase_promo_code(
-    promo_data: PromoCodeCreate,
-    current_user: dict = Depends(get_current_actor),
-    db = Depends(get_database)
+    promo_data:   PromoCodeCreate,
+    request:      Request,
+    current_user: dict      = Depends(get_current_actor),
+    db:           any       = Depends(get_database)
 ):
-    """
-    Пользователь покупает подписку и получает промокод, который можно активировать позже.
-    """
-    if current_user["role"] != "user":
+    ip = request.client.host
+
+    # Только для обычных пользователей
+    if current_user.get("role") != "user":
+        logger.warning(
+            f"[PROMO][{ip}] Пользователь {current_user.get('id')} с ролью "
+            f"{current_user.get('role')} попытался создать промокод"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"message": "Только пользователи могут покупать промокоды", "path": "/generate-promo-code"}
+            detail={"message": "Только пользователи могут покупать промокоды"}
         )
-    
-    # Рассчитываем стоимость подписки
-    price = calculate_subscription_price(promo_data.subscription_type, promo_data.duration_days)
-    
-    # Проверяем достаточность средств
-    if current_user["money"] < price:
+
+    user_id = current_user["id"]
+    balance = current_user.get("money", 0)
+
+    # Рассчитываем цену
+    price = calculate_subscription_price(
+        promo_data.subscription_type,
+        promo_data.duration_days
+    )
+
+    # Проверяем баланс
+    if balance < price:
+        logger.info(
+            f"[PROMO][{ip}] Недостаточно средств у пользователя {user_id}: "
+            f"баланс={balance}, требуется={price}"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"message": f"Недостаточно средств на балансе. Требуется: {price} тг."}
         )
-    
+
+    now = datetime.utcnow()
+    expires_at = promo_data.expires_at or (now + timedelta(days=90))
+
     try:
-        now = datetime.utcnow()
-        
-        # Срок действия промокода - 3 месяца от даты создания, если не указано иное
-        expires_at = promo_data.expires_at if promo_data.expires_at else now + timedelta(days=90)  
-        
-        # Генерируем уникальный промокод, если он не был указан в запросе
-        promo_code = promo_data.code if promo_data.code else generate_promo_code()
-        
-        # Проверяем, что такого промокода еще нет в системе
-        existing_promo = await db.promo_codes.find_one({"code": promo_code})
-        if existing_promo:
-            # В реальном приложении здесь должна быть генерация нового кода
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail={"message": "Ошибка при генерации уникального промокода"}
-            )
-        
-        # Создаем промокод в БД
-        promo = {
-            "code": promo_code,
-            "subscription_type": promo_data.subscription_type,
-            "duration_days": promo_data.duration_days,
-            "is_active": True,
-            "created_by_user_id": ObjectId(current_user["id"]),
-            "expires_at": expires_at,
-            "created_at": now,
-            "updated_at": now,
-            "usage_count": 0,
-            "used_by": [],
-            "usage_limit": promo_data.usage_limit,
-            "purchase_amount": price
+        # Генерируем или принимаем код
+        code = promo_data.code or generate_promo_code()
+        # Гарантируем уникальность
+        while await db.promo_codes.find_one({"code": code}):
+            code = generate_promo_code()
+
+        # Документ промокода
+        promo_doc = {
+            "code":               code,
+            "subscription_type":  promo_data.subscription_type,
+            "duration_days":      promo_data.duration_days,
+            "usage_limit":        promo_data.usage_limit,
+            "usage_count":        0,
+            "used_by":            [],
+            "is_active":          True,
+            "purchase_amount":    price,
+            "created_by_user_id": ObjectId(user_id),
+            "created_at":         now,
+            "updated_at":         now,
+            "expires_at":         expires_at
         }
         
-        promo_result = await db.promo_codes.insert_one(promo)
-        promo_id = str(promo_result.inserted_id)
-        
-        # Снимаем средства с баланса пользователя
-        await db.users.update_one(
-            {"_id": ObjectId(current_user["id"])},
-            {"$inc": {"money": -price}}
+        # Выполняем всё в Mongo-транзакции
+        async with await db.client.start_session() as session:
+            async with session.start_transaction():
+                await db.promo_codes.insert_one(promo_doc, session=session)
+
+                # Списание средств
+                await db.users.update_one(
+                    {"_id": ObjectId(user_id)},
+                    {"$inc": {"money": -price}},
+                    session=session
+                )
+
+                # Лог транзакции
+                txn = {
+                    "user_id":     ObjectId(user_id),
+                    "amount":      -price,
+                    "type":        "promo_code_purchase",
+                    "description": f"Покупка промокода {code}",
+                    "created_at":  now,
+                    "promo_code":  code
+                }
+                await db.transactions.insert_one(txn, session=session)
+
+        logger.info(
+            f"[PROMO][{ip}] Промокод {code} создан для пользователя {user_id}, "
+            f"цена={price}, баланс_после={balance - price}"
         )
-        
-        # Создаем транзакцию
-        transaction = {
-            "user_id": ObjectId(current_user["id"]),
-            "amount": -price,
-            "type": "promo_code_purchase",
-            "description": f"Покупка промокода на подписку {promo_data.subscription_type} на {promo_data.duration_days} дней",
-            "created_at": now,
-            "promo_code": promo_code
-        }
-        
-        await db.transactions.insert_one(transaction)
-        
-        logger.info(f"[PROMO] Пользователь {current_user['id']} купил промокод {promo_code} за {price} тг.")
-        
+
         return success(
             data={
-                "promo_code": promo_code,
+                "promo_code":        code,
                 "subscription_type": promo_data.subscription_type,
-                "duration_days": promo_data.duration_days,
-                "expires_at": expires_at.isoformat(),
-                "price": price,
-                "balance_after": current_user["money"] - price
+                "duration_days":     promo_data.duration_days,
+                "expires_at":        expires_at.isoformat(),
+                "price":             price,
+                "balance_after":     balance - price
             },
             message="Промокод успешно создан и оплачен"
         )
-        
+
+    except HTTPException:
+        # пробрасываем 403/400
+        raise
     except Exception as e:
-        logger.error(f"[PROMO ERROR] Ошибка при создании промокода: {e}")
+        logger.error(f"[PROMO ERROR][{ip}] Ошибка создания промокода для {user_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"message": f"Ошибка при создании промокода: {str(e)}"}
+            detail={"message": "Внутренняя ошибка при создании промокода"}
         )
+
+# Схема для активации
+class PromoCodeActivate(BaseModel):
+    promo_code: str = Field(..., min_length=1)
+
 
 @router.post("/activate-promo-code", summary="Активация промокода")
 async def activate_promo_code(
-    promo_data: PromoCodeActivate,
-    current_user: dict = Depends(get_current_actor),
+    promo_data:    PromoCodeActivate,
+    request:       Request,
+    current_user:  dict   = Depends(get_current_actor),
     db = Depends(get_database)
 ):
-    """
-    Пользователь активирует промокод для получения подписки.
-    """
-    if current_user["role"] != "user":
+    ip = request.client.host
+    user_id = current_user.get("id")
+    user_role = current_user.get("role")
+
+    logger.info(f"[PROMO ACT][{ip}] Пользователь {user_id} (role={user_role}) пытается активировать промокод '{promo_data.promo_code}'")
+
+    # Только для обычных пользователей
+    if user_role != "user":
+        logger.warning(f"[PROMO ACT][{ip}] Отказ: роль {user_role} не может активировать промокоды")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"message": "Только пользователи могут активировать промокоды", "path": "/activate-promo-code"}
+            detail={"message": "Только пользователи могут активировать промокоды"}
         )
-    
-    user_id = current_user["id"]
-    user_iin = current_user["iin"]
-    
-    # Проверяем, существует ли промокод
-    promo = await db.promo_codes.find_one({"code": promo_data.promo_code.strip().upper()})
+
+    # Санитизация и нормализация кода
+    code = promo_data.promo_code.strip().upper()
+    if not code:
+        logger.warning(f"[PROMO ACT][{ip}] Пустой промокод после очистки")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": "Промокод не может быть пустым"}
+        )
+
+    now = datetime.utcnow()
+
+    # Проверяем существование промокода
+    promo = await db.promo_codes.find_one({"code": code})
     if not promo:
+        logger.info(f"[PROMO ACT][{ip}] Промокод '{code}' не найден")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"message": "Промокод не найден"}
         )
-    
-    # Проверяем, активен ли промокод
-    if not promo["is_active"]:
+
+    # Проверяем, активен ли он
+    if not promo.get("is_active", False):
+        logger.info(f"[PROMO ACT][{ip}] Промокод '{code}' не активен")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"message": "Промокод недействителен или уже использован"}
         )
-    
-    # Проверяем, не истек ли срок действия промокода
-    now = datetime.utcnow()
-    if promo["expires_at"] < now:
-        # Деактивируем промокод
-        await db.promo_codes.update_one(
-            {"_id": promo["_id"]},
-            {"$set": {"is_active": False, "updated_at": now}}
-        )
-        
+
+    # Проверяем срок действия
+    expires_at = promo.get("expires_at")
+    if expires_at and expires_at < now:
+        # Выполняем обновление в транзакции
+        async with await db.client.start_session() as session:
+            async with session.start_transaction():
+                await db.promo_codes.update_one(
+                    {"_id": promo["_id"]},
+                    {"$set": {"is_active": False, "updated_at": now}},
+                    session=session
+                )
+        logger.info(f"[PROMO ACT][{ip}] Срок промокода '{code}' истёк, деактивирован")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"message": "Срок действия промокода истек"}
         )
-    
-    # Проверяем тип подписки - demo и school только для админов
-    subscription_type = promo["subscription_type"].lower()
-    if subscription_type in ["demo", "school"] and current_user["role"] != "admin":
+
+    # Специальные типы только для админов
+    sub_type = promo.get("subscription_type", "").lower()
+    if sub_type in ["demo", "school"]:
+        logger.warning(f"[PROMO ACT][{ip}] Промокод '{code}' типа '{sub_type}' недоступен для user")
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, 
-            detail={"message": f"Тип подписки '{subscription_type}' не доступен для обычных пользователей"}
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"message": f"Тип подписки '{sub_type}' не доступен для обычных пользователей"}
         )
-    
-    # Проверяем, не превышен ли лимит использований
-    if promo["usage_count"] >= promo.get("usage_limit", 1):
-        # Деактивируем промокод
-        await db.promo_codes.update_one(
-            {"_id": promo["_id"]},
-            {"$set": {"is_active": False, "updated_at": now}}
-        )
-        
+
+    # Проверяем лимит использования
+    usage_limit = promo.get("usage_limit", 1)
+    usage_count = promo.get("usage_count", 0)
+    if usage_count >= usage_limit:
+        # деактивируем в транзакции
+        async with await db.client.start_session() as session:
+            async with session.start_transaction():
+                await db.promo_codes.update_one(
+                    {"_id": promo["_id"]},
+                    {"$set": {"is_active": False, "updated_at": now}},
+                    session=session
+                )
+        logger.info(f"[PROMO ACT][{ip}] Промокод '{code}' превысил лимит использования ({usage_count}/{usage_limit})")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"message": "Промокод уже использован максимальное количество раз"}
         )
-    
-    # Проверяем, не использовал ли этот пользователь уже этот промокод
+
+    # Проверяем, не активировал ли пользователь уже
     used_by = promo.get("used_by", [])
     if str(user_id) in used_by:
+        logger.info(f"[PROMO ACT][{ip}] Пользователь {user_id} уже использовал промокод '{code}'")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"message": "Вы уже активировали этот промокод ранее"}
         )
-    
-    # Проверяем, нет ли у пользователя уже активной подписки
+
+    # Нет ли у пользователя уже подписки?
     existing = await db.subscriptions.find_one({
-        "user_id": ObjectId(user_id),
+        "user_id":   ObjectId(user_id),
         "is_active": True
     })
-    
     if existing:
+        logger.info(f"[PROMO ACT][{ip}] Пользователь {user_id} уже имеет активную подписку, невозможно активировать промокод")
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={"message": "У вас уже есть активная подписка"}
         )
-    
+
     try:
-        # Определяем параметры подписки из промокода
-        subscription_type = promo["subscription_type"]
+        # Параметры подписки
         duration_days = promo["duration_days"]
-        expires_at = now + timedelta(days=duration_days)
-        
-        # Создаем подписку
-        subscription = {
-            "user_id": ObjectId(user_id),
-            "iin": user_iin,
-            "created_at": now,
-            "updated_at": now,
-            "is_active": True,
-            "cancelled_at": None,
-            "cancelled_by": None,
-            "cancel_reason": None,
-            "amount": promo.get("purchase_amount", 0),
-            "activation_method": "promocode",
-            "issued_by": {
-                "admin_iin": None,
-                "full_name": "Активация по промокоду"
-            },
-            "subscription_type": subscription_type,
-            "duration_days": duration_days,
-            "expires_at": expires_at,
-            "promo_code": promo_data.promo_code
-        }
-        
-        # Вставляем подписку в базу данных
-        result = await db.subscriptions.insert_one(subscription)
-        subscription_id = str(result.inserted_id)
-        
-        # Обновляем данные промокода
-        used_by.append(str(user_id))
-        
-        # Деактивируем промокод, если достигнут лимит использования
-        is_still_active = (promo["usage_count"] + 1) < promo.get("usage_limit", 1)
-        
-        await db.promo_codes.update_one(
-            {"_id": promo["_id"]},
-            {"$set": {
-                "updated_at": now,
-                "used_by": used_by,
-                "is_active": is_still_active
-            },
-            "$inc": {"usage_count": 1}}
-        )
-        
-        logger.info(f"[PROMO ACTIVATION] Пользователь {user_id} активировал промокод {promo_data.promo_code}")
-        
+        new_expires = now + timedelta(days=duration_days)
+
+        # Вставка подписки и обновление промокода в транзакции
+        async with await db.client.start_session() as session:
+            async with session.start_transaction():
+                # Вставка подписки
+                sub_doc = {
+                    "user_id":          ObjectId(user_id),
+                    "iin":              current_user.get("iin"),
+                    "created_at":       now,
+                    "updated_at":       now,
+                    "is_active":        True,
+                    "cancelled_at":     None,
+                    "amount":           promo.get("purchase_amount", 0),
+                    "activation_method": "promocode",
+                    "issued_by": {
+                        "admin_iin": None,
+                        "full_name": "Активация по промокоду"
+                    },
+                    "subscription_type": promo.get("subscription_type"),
+                    "duration_days":     duration_days,
+                    "expires_at":        new_expires,
+                    "promo_code":        code
+                }
+                res = await db.subscriptions.insert_one(sub_doc, session=session)
+                subscription_id = str(res.inserted_id)
+
+                # Обновляем сам промокод
+                used_by.append(str(user_id))
+                is_active_now = (usage_count + 1) < usage_limit
+
+                await db.promo_codes.update_one(
+                    {"_id": promo["_id"]},
+                    {
+                        "$set": {
+                            "updated_at": now,
+                            "used_by":    used_by,
+                            "is_active":  is_active_now
+                        },
+                        "$inc": {"usage_count": 1}
+                    },
+                    session=session
+                )
+
+        logger.info(f"[PROMO ACT][{ip}] Пользователь {user_id} активировал промокод '{code}', подписка {subscription_id}")
+
         return success(
             data={
-                "subscription_id": subscription_id,
-                "subscription_type": subscription_type,
-                "duration_days": duration_days,
-                "expires_at": expires_at.isoformat()
+                "subscription_id":    subscription_id,
+                "subscription_type":  promo.get("subscription_type"),
+                "duration_days":      duration_days,
+                "expires_at":         new_expires.isoformat()
             },
             message="Промокод успешно активирован"
         )
-        
+
+    except HTTPException:
+        # пропускаем контролируемые ошибки
+        raise
     except Exception as e:
-        logger.error(f"[PROMO ACTIVATION ERROR] Ошибка при активации промокода: {e}")
+        logger.error(f"[PROMO ACT ERROR][{ip}] Ошибка при активации промокода '{code}' для {user_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"message": f"Ошибка при активации промокода: {str(e)}"}
+            detail={"message": "Ошибка при активации промокода"}
         )
 
 @router.get("/admin/promo-codes", summary="Получение списка промокодов (для админов)")
@@ -1232,107 +1302,167 @@ async def admin_create_promo_code(
 
 @router.get("/my/promo-codes", summary="Получение списка промокодов пользователя")
 async def get_user_promo_codes(
-    current_user: dict = Depends(get_current_actor),
-    db = Depends(get_database)
+    request: Request,
+    current_user: dict       = Depends(get_current_actor),
+    db                      = Depends(get_database),
 ):
     """
     Получение списка всех промокодов, созданных или использованных текущим пользователем.
     """
+    ip      = request.client.host
+    user_id = current_user.get("id")
+    role    = current_user.get("role")
+
+    logger.info(f"[PROMO LIST][{ip}] Пользователь {user_id} (role={role}) запросил список своих промокодов")
+
+    if role != "user":
+        logger.warning(f"[PROMO LIST][{ip}] Отказ в доступе: роль {role} не может просматривать свои промокоды")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"message": "Только пользователи могут просматривать свои промокоды"}
+        )
+
+    try:
+        # Промокоды, созданные пользователем
+        created = []
+        cursor = db.promo_codes.find({"created_by_user_id": ObjectId(user_id)}).sort("created_at", -1)
+        async for promo in cursor:
+            promo_id = str(promo["_id"])
+            created.append({
+                "id":               promo_id,
+                "code":             promo["code"],
+                "subscription_type":promo["subscription_type"],
+                "duration_days":    promo["duration_days"],
+                "is_active":        promo.get("is_active", False),
+                "expires_at":       promo.get("expires_at").isoformat() if promo.get("expires_at") else None,
+                "created_at":       promo.get("created_at").isoformat() if promo.get("created_at") else None,
+                "usage_count":      promo.get("usage_count", 0),
+                "usage_limit":      promo.get("usage_limit", 1),
+                "status":           "active" if promo.get("is_active", False) else "inactive",
+                "used_by_info":     []  # см. ниже
+            })
+
+            # собираем информацию о юзерах, если есть
+            used = promo.get("used_by", [])
+            info = []
+            for u in used:
+                usr = await db.users.find_one({"_id": ObjectId(u)})
+                if usr:
+                    info.append({
+                        "full_name": usr.get("full_name", ""),
+                        "iin":       usr.get("iin", "")
+                    })
+            created[-1]["used_by_info"] = info
+
+        # Промокоды, которыми пользователь воспользовался
+        used_list = []
+        subs = await db.subscriptions.find({
+            "user_id":           ObjectId(user_id),
+            "activation_method": "promocode"
+        }).to_list(length=100)
+        for sub in subs:
+            code = sub.get("promo_code")
+            promo = await db.promo_codes.find_one({"code": code})
+            if not promo:
+                continue
+            promo_id    = str(promo["_id"])
+            creator_id  = promo.get("created_by_user_id")
+            creator_info = None
+            if creator_id:
+                cr = await db.users.find_one({"_id": ObjectId(creator_id)})
+                if cr:
+                    creator_info = {
+                        "user_id":   str(cr["_id"]),
+                        "full_name": cr.get("full_name", "")
+                    }
+            used_list.append({
+                "id":                promo_id,
+                "code":              code,
+                "subscription_type": promo["subscription_type"],
+                "duration_days":     promo["duration_days"],
+                "created_at":        promo.get("created_at").isoformat() if promo.get("created_at") else None,
+                "status":            "used",
+                "creator_info":      creator_info,
+                "activated_at":      sub.get("created_at").isoformat() if sub.get("created_at") else None,
+                "subscription_id":   str(sub["_id"])
+            })
+
+        logger.info(f"[PROMO LIST][{ip}] Пользователь {user_id} получил {len(created)} созданных и {len(used_list)} использованных промокодов")
+
+        return success(
+            data={
+                "created_promo_codes": created,
+                "used_promo_codes":    used_list
+            },
+            message=f"Найдено {len(created)} созданных и {len(used_list)} использованных промокодов"
+        )
+
+    except HTTPException:
+        # пробрасываем контролируемые ошибки
+        raise
+    except Exception as e:
+        logger.error(f"[PROMO LIST ERROR][{ip}] Ошибка при получении промокодов для {user_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"message": "Внутренняя ошибка сервера при получении промокодов"}
+        )
+
+@router.get("/my/transactions", summary="Получение истории транзакций пользователя")
+async def get_my_transactions(
+    limit: int = 50,
+    offset: int = 0,
+    request: Request = None,
+    current_user: dict = Depends(get_current_actor),
+    db = Depends(get_database)
+):
+    """
+    Возвращает историю транзакций пользователя с пагинацией.
+    """
     if current_user["role"] != "user":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"message": "Только пользователи могут просматривать свои промокоды", "path": "/my/promo-codes"}
+            detail={"message": "Только для пользователей", "path": "/my/transactions"}
         )
     
     user_id = current_user["id"]
     
-    # Находим все промокоды, созданные пользователем
-    created_promo_codes_cursor = db.promo_codes.find({
-        "created_by_user_id": ObjectId(user_id)
-    }).sort("created_at", -1)
+    # Подсчитываем общее количество транзакций пользователя
+    total = await db.transactions.count_documents({"user_id": ObjectId(user_id)})
     
-    created_promo_codes = []
-    async for promo in created_promo_codes_cursor:
-        # Форматируем даты
-        promo["_id"] = str(promo["_id"])
-        if "created_at" in promo:
-            promo["created_at"] = promo["created_at"].isoformat()
-        if "updated_at" in promo:
-            promo["updated_at"] = promo["updated_at"].isoformat()
-        if "expires_at" in promo:
-            promo["expires_at"] = promo["expires_at"].isoformat()
+    # Получаем транзакции с пагинацией
+    cursor = db.transactions.find(
+        {"user_id": ObjectId(user_id)}
+    ).sort("created_at", -1).skip(offset).limit(limit)
+    
+    transactions = []
+    async for txn in cursor:
+        # Удаляем чувствительные данные и преобразуем ObjectId
+        filtered_txn = {
+            "amount": txn.get("amount", 0),
+            "type": txn.get("type", ""),
+            "description": txn.get("description", ""),
+            "created_at": txn.get("created_at").isoformat() if txn.get("created_at") else None,
+        }
         
-        # Добавляем информацию о пользователях, использовавших промокод
-        if "used_by" in promo and promo["used_by"]:
-            used_by_info = []
-            for used_user_id in promo["used_by"]:
-                user = await db.users.find_one({"_id": ObjectId(used_user_id)})
-                if user:
-                    used_by_info.append({
-                        "full_name": user.get("full_name", ""),
-                        "iin": user.get("iin", "")
-                    })
-            promo["used_by_info"] = used_by_info
+        # Добавляем дополнительные поля при необходимости
+        if txn.get("type") == "referral" and "referred_user_id" in txn:
+            # Находим информацию о пользователе, которого пригласили
+            referred_user = await db.users.find_one({"_id": ObjectId(txn["referred_user_id"])})
+            if referred_user:
+                filtered_txn["referred_user"] = {
+                    "full_name": referred_user.get("full_name", "")
+                }
         
-        created_promo_codes.append({
-            "code": promo["code"],
-            "subscription_type": promo["subscription_type"],
-            "duration_days": promo["duration_days"],
-            "is_active": promo["is_active"],
-            "expires_at": promo["expires_at"],
-            "created_at": promo["created_at"],
-            "usage_count": promo.get("usage_count", 0),
-            "usage_limit": promo.get("usage_limit", 1),
-            "status": "active" if promo["is_active"] else "inactive",
-            "used_by_info": promo.get("used_by_info", [])
-        })
+        transactions.append(filtered_txn)
     
-    # Находим все промокоды, использованные пользователем
-    used_promo_codes = []
-    # Сначала находим подписки, созданные через промокоды
-    promo_subscriptions = await db.subscriptions.find({
-        "user_id": ObjectId(user_id),
-        "activation_method": "promocode"
-    }).to_list(length=100)
-    
-    # Собираем коды из этих подписок
-    for sub in promo_subscriptions:
-        if "promo_code" in sub and sub["promo_code"]:
-            promo = await db.promo_codes.find_one({"code": sub["promo_code"]})
-            if promo:
-                # Форматируем даты
-                promo["_id"] = str(promo["_id"])
-                if "created_at" in promo:
-                    promo["created_at"] = promo["created_at"].isoformat()
-                if "expires_at" in promo:
-                    promo["expires_at"] = promo["expires_at"].isoformat()
-                
-                # Добавляем информацию о создателе
-                creator_info = None
-                if "created_by_user_id" in promo and promo["created_by_user_id"]:
-                    creator = await db.users.find_one({"_id": ObjectId(promo["created_by_user_id"])})
-                    if creator:
-                        creator_info = {
-                            "user_id": str(creator["_id"]),
-                            "full_name": creator.get("full_name", "")
-                        }
-                
-                used_promo_codes.append({
-                    "id": promo["_id"],
-                    "code": promo["code"],
-                    "subscription_type": promo["subscription_type"],
-                    "duration_days": promo["duration_days"],
-                    "created_at": promo["created_at"],
-                    "status": "used",
-                    "creator_info": creator_info,
-                    "activated_at": sub.get("created_at", "").isoformat() if isinstance(sub.get("created_at"), datetime) else None,
-                    "subscription_id": str(sub["_id"])
-                })
+    logger.info(f"Получено {len(transactions)} транзакций для пользователя {user_id}")
     
     return success(
         data={
-            "created_promo_codes": created_promo_codes,
-            "used_promo_codes": used_promo_codes
+            "transactions": transactions,
+            "total": total,
+            "limit": limit,
+            "offset": offset
         },
-        message=f"Найдено {len(created_promo_codes)} созданных и {len(used_promo_codes)} использованных промокодов"
+        message="История транзакций успешно получена"
     )

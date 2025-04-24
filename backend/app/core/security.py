@@ -181,6 +181,7 @@ async def get_current_actor(request: Request) -> dict:
             "phone": user.get("phone"),
             "iin": user.get("iin"),
             "money": user.get("money"),
+            "created_at": user.get("created_at")
         }
 
     # ─────────────────────── ADMIN / MODER ──────────────────────────────────

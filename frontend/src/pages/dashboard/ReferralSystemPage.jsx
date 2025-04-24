@@ -170,7 +170,7 @@ const ReferralSystemPage = () => {
   };
 
   const getReferralUrl = () => {
-    return `${window.location.origin}/register?ref=${referralCode?.code}`;
+    return `${window.location.origin}/registration?ref=${referralCode?.code}`;
   };
 
   return (

@@ -14,7 +14,8 @@ from app.schemas.test_schemas import (
     QuestionCreate,
     QuestionOut,
     QuestionEdit,
-    QuestionDelete
+    QuestionDelete,
+    MultilingualText
 )
 from app.admin.permissions import get_current_admin_user
 from app.db.database import get_database
@@ -47,7 +48,7 @@ async def create_question(
     """
     Создание вопроса с защитой:
       - Парсит входящую JSON-строку по схеме QuestionCreate.
-      - Проверяет, что пользователь имеет достаточные права (например, роль "admin").
+      - Проверяет, что пользователь имеет достаточные права (админ или создатель тестов).
       - Валидирует MIME‑тип и размер файла, если он передан.
       - Генерирует уникальный 10-значный uid.
       - Сохраняет медиафайл в GridFS (если передан) с обработкой ошибок.
@@ -60,9 +61,9 @@ async def create_question(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Ошибка парсинга JSON: {e}")
 
-    # Проверка прав доступа (требуется роль "admin")
-    if not current_user or current_user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Доступ запрещён. Администратор требуется.")
+    # Проверка прав доступа (требуется роль "admin" или "tests_creator")
+    if not current_user or current_user.get("role") not in ["admin", "tests_creator"]:
+        raise HTTPException(status_code=403, detail="Доступ запрещён. Требуется роль администратора или создателя тестов.")
 
     # Проверка наличия обязательных полей у пользователя
     if "full_name" not in current_user or "iin" not in current_user:
@@ -90,15 +91,22 @@ async def create_question(
     # Формирование вариантов ответа с метками (A, B, C, …)
     try:
         options_with_labels = [
-            {"label": string.ascii_uppercase[i], "text": opt.text}
+            {"label": string.ascii_uppercase[i], "text": opt.text.dict()}
             for i, opt in enumerate(question_data.options)
         ]
         correct_label = string.ascii_uppercase[question_data.correct_index]
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Ошибка формирования вариантов ответа: {e}")
 
+    # Подготовка объяснения
+    explanation = question_data.explanation.dict() if question_data.explanation else {
+        "ru": "данный вопрос без объяснения",
+        "kz": "бұл сұрақтың түсіндірмесі жоқ",
+        "en": "this question has no explanation"
+    }
+
     question_dict = {
-        "question_text": question_data.question_text,
+        "question_text": question_data.question_text.dict(),
         "options": options_with_labels,
         "correct_label": correct_label,
         "categories": question_data.categories,
@@ -113,7 +121,7 @@ async def create_question(
         "deleted_at": None,
         "media_file_id": str(media_file_id) if media_file_id else None,
         "media_filename": media_filename,
-        "explanation": question_data.explanation or "данный вопрос без объяснения"
+        "explanation": explanation
     }
 
     try:
@@ -141,15 +149,15 @@ async def edit_question(
     update_fields = {}
     labels = list(string.ascii_uppercase)
 
-    if not current_user or current_user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Доступ запрещён. Администратор требуется.")
+    if not current_user or current_user.get("role") not in ["admin", "tests_creator"]:
+        raise HTTPException(status_code=403, detail="Доступ запрещён. Требуется роль администратора или создателя тестов.")
 
     # Проверка наличия обязательных данных пользователя
     if "full_name" not in current_user or "iin" not in current_user:
         raise HTTPException(status_code=400, detail="Данные пользователя неполные.")
 
     if payload_data.new_question_text:
-        update_fields["question_text"] = payload_data.new_question_text
+        update_fields["question_text"] = payload_data.new_question_text.dict()
 
     if payload_data.new_pdd_section_uids:
         update_fields["pdd_section_uids"] = payload_data.new_pdd_section_uids
@@ -157,7 +165,7 @@ async def edit_question(
     if payload_data.new_options:
         try:
             new_options = [
-                {"label": labels[i], "text": opt.text}
+                {"label": labels[i], "text": opt.text.dict()}
                 for i, opt in enumerate(payload_data.new_options)
             ]
             update_fields["options"] = new_options
@@ -172,7 +180,7 @@ async def edit_question(
         update_fields["categories"] = payload_data.new_categories
 
     if payload_data.new_explanation:
-        update_fields["explanation"] = payload_data.new_explanation
+        update_fields["explanation"] = payload_data.new_explanation.dict()
 
     # Если пользователь решил удалить медиа, сбрасываем поля
     if payload_data.remove_media:
@@ -234,8 +242,8 @@ async def delete_question(
       - Обновляет поля deleted, deleted_by и deleted_at.
       - Производит проверку корректности идентификатора.
     """
-    if not current_user or current_user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Доступ запрещён. Администратор требуется.")
+    if not current_user or current_user.get("role") not in ["admin", "tests_creator"]:
+        raise HTTPException(status_code=403, detail="Доступ запрещён. Требуется роль администратора или создателя тестов.")
 
     # Проверка наличия обязательных полей у пользователя
     if "full_name" not in current_user or "iin" not in current_user:
@@ -273,7 +281,7 @@ async def get_question_by_uid(
     current_user: dict = Depends(get_current_admin_user),
     db=Depends(get_database)
 ):
-    if current_user["role"] not in {"admin", "moderator"}:
+    if current_user["role"] not in {"admin", "moderator", "tests_creator"}:
         raise HTTPException(status_code=403, detail="Доступ запрещён")
 
     question = await db.questions.find_one({"uid": uid, "deleted": False})
@@ -296,6 +304,32 @@ async def get_question_by_uid(
             print(e)
             question["media_file_base64"] = None
 
+    # Преобразование данных из БД к модели MultilingualText
+    # Если данные старые (до обновления) и хранятся как строка
+    if isinstance(question.get("question_text"), str):
+        question["question_text"] = {
+            "ru": question["question_text"],
+            "kz": question["question_text"], 
+            "en": question["question_text"]
+        }
+    
+    if isinstance(question.get("explanation"), str):
+        question["explanation"] = {
+            "ru": question["explanation"],
+            "kz": question["explanation"],
+            "en": question["explanation"]
+        }
+    
+    # Обработка вариантов ответа
+    if "options" in question:
+        for option in question["options"]:
+            if isinstance(option.get("text"), str):
+                option["text"] = {
+                    "ru": option["text"],
+                    "kz": option["text"],
+                    "en": option["text"]
+                }
+
     return success(data=jsonable_encoder(question))
 
 @router.get("/all", response_model=list[dict])
@@ -306,9 +340,9 @@ async def get_all_questions(
     """
     Возвращает все активные вопросы (без base64-медиа),
     но с информацией о наличии медиа.
-    Доступ только для admin и moderator.
+    Доступ для admin, moderator и tests_creator.
     """
-    if "role" not in current_user or current_user["role"] not in {"admin", "moderator"}:
+    if "role" not in current_user or current_user["role"] not in {"admin", "moderator", "tests_creator"}:
         raise HTTPException(status_code=403, detail="Доступ запрещён")
 
     cursor = db.questions.find({"deleted": False})
@@ -321,6 +355,33 @@ async def get_all_questions(
             q["media_file_id"] = str(q["media_file_id"])
         # Добавляем признак наличия медиа
         q["has_media"] = bool(q.get("media_file_id") and q.get("media_filename"))
+
+        # Преобразование данных из БД к модели MultilingualText
+        # Если данные старые (до обновления) и хранятся как строка
+        if isinstance(q.get("question_text"), str):
+            q["question_text"] = {
+                "ru": q["question_text"],
+                "kz": q["question_text"], 
+                "en": q["question_text"]
+            }
+        
+        if isinstance(q.get("explanation"), str):
+            q["explanation"] = {
+                "ru": q["explanation"],
+                "kz": q["explanation"],
+                "en": q["explanation"]
+            }
+        
+        # Обработка вариантов ответа
+        if "options" in q:
+            for option in q["options"]:
+                if isinstance(option.get("text"), str):
+                    option["text"] = {
+                        "ru": option["text"],
+                        "kz": option["text"],
+                        "en": option["text"]
+                    }
+
         # Очищаем тяжелые поля
         q.pop("media_file_id", None)
         q.pop("media_filename", None)

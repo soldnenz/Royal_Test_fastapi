@@ -13,6 +13,7 @@ from app.schemas.referral_schemas import Referral, ReferralSearchParams, Referra
 from app.models.referral_model import Referral as ReferralModel
 import random
 from app.core.config import settings
+from app.core.finance import process_referral
 
 
 
@@ -34,6 +35,15 @@ async def create_referral_user(data: ReferralCreateUser, request: Request, curre
 
     owner_id_str = str(current_user["id"]) if isinstance(current_user, dict) else str(
         getattr(current_user, "id", "") or getattr(current_user, "_id", ""))
+    # Проверка наличия активной подписки (economy, vip или royal)
+    subscription = await db.subscriptions.find_one({
+        "user_id": ObjectId(owner_id_str),
+        "is_active": True,
+        "subscription_type": {"$in": ["economy", "vip", "royal"]}
+    })
+    if not subscription:
+        logger.warning(f"[REFERRAL_CREATE][{request.client.host}] Попытка создания кода без подписки (user_id={owner_id_str})")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"message": "Система реферальных ссылок недоступна. Для создания реферального кода вам нужно иметь активный Economy, VIP или Royal подписку."})
     existing = await db.referrals.find_one({"owner_user_id": owner_id_str, "active": True})
     if existing:
         logger.info(f"[REFERRAL_CREATE][{request.client.host}] У пользователя уже есть код (user_id={owner_id_str})")
@@ -58,7 +68,12 @@ async def create_referral_user(data: ReferralCreateUser, request: Request, curre
             current_user, "full_name", "Пользователь"),
         "created_at": datetime.utcnow()
     }
-    await db.referrals.insert_one(referral_doc)
+    
+    # Выполняем в Mongo-транзакции
+    async with await db.client.start_session() as session:
+        async with session.start_transaction():
+            await db.referrals.insert_one(referral_doc, session=session)
+            
     logger.info(
         f"[REFERRAL_CREATE][{request.client.host}] Создан реферальный код {code} для пользователя {owner_id_str}")
     response_data = {
@@ -118,7 +133,12 @@ async def create_referral_admin(data: ReferralCreate, request: Request, current_
         "created_by": created_by,
         "created_at": datetime.utcnow()
     }
-    result = await db.referrals.insert_one(referral_doc)
+    
+    # Выполняем в Mongo-транзакции
+    async with await db.client.start_session() as session:
+        async with session.start_transaction():
+            result = await db.referrals.insert_one(referral_doc, session=session)
+            
     logger.info(f"[REFERRAL_CREATE_ADMIN][{request.client.host}] Админ {created_by} создал код {code} для пользователя {data.owner_user_id}")
     # Готовим данные для ответа (все поля созданной записи)
     referral_doc["id"] = str(result.inserted_id)
@@ -140,89 +160,111 @@ async def get_my_referral(request: Request, current_user = Depends(get_current_a
     # Формируем ответ с нужными полями
     response_data = {
         "code": referral["code"],
-        "rate": referral["rate"],
+           "rate": referral["rate"],
         "created_at": referral["created_at"].isoformat() if isinstance(referral["created_at"], datetime) else str(referral["created_at"])
     }
     return success(data=response_data)
 
 @router.get("/transactions", summary="Получить данные по реферальным транзакциям")
-async def get_referral_transactions(request: Request, current_user = Depends(get_current_actor)):
+async def get_referral_transactions(
+    request: Request,
+    current_user=Depends(get_current_actor),
+):
     """
-    Получение информации о пользователях, зарегистрировавшихся по реферальному коду текущего пользователя,
-    включая статистику по заработку и платежам.
+    Получение информации о пользователях, зарегистрировавшихся по реферальному коду
+    текущего пользователя, включая статистику по заработку и платежам.
     """
+    # Только для обычных пользователей
     if current_user.get("role") != "user":
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, 
+            status_code=status.HTTP_403_FORBIDDEN,
             detail={"message": "Доступно только для пользователей"}
         )
-    
+
     user_id_str = str(current_user["id"])
-    
-    # Проверяем наличие реферального кода у пользователя
-    referral = await db.referrals.find_one({"owner_user_id": user_id_str, "active": True})
+
+    # Ищем активный реферальный код
+    referral = await db.referrals.find_one({
+        "owner_user_id": user_id_str,
+        "active": True
+    })
     if not referral:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
+            status_code=status.HTTP_404_NOT_FOUND,
             detail={"message": "У вас нет активного реферального кода"}
         )
-    
     referral_code = referral["code"]
-    
-    # Находим пользователей, зарегистрировавшихся по этому коду
-    referred_users = await db.users.find({"referred_by": referral_code}).to_list(length=1000)
-    
-    # Находим все транзакции типа "referral" для этого пользователя
+
+    # Пользователи, зарегистрировавшиеся по коду
+    referred_users = await db.users.find(
+        {"referred_by": referral_code}
+    ).to_list(length=1000)
+
+    # Список ObjectId этих пользователей
+    referred_ids = [u["_id"] for u in referred_users]
+
+    # Транзакции типа "referral" именно для этих пользователей
     transactions = await db.transactions.find({
         "type": "referral",
-        "referred_by": referral_code
+        "referred_user_id": {"$in": referred_ids}
     }).sort("created_at", -1).to_list(length=1000)
-    
-    # Подсчитываем статистику
-    total_earned = sum(tx.get("amount", 0) for tx in transactions)
-    total_registered = len(referred_users)
-    total_purchased = len([user for user in referred_users if user.get("referred_use", False)])
-    
-    # Формируем список пользователей с информацией о транзакциях
+
+    # Общие метрики
+    total_earned    = sum(tx.get("amount", 0) for tx in transactions)
+    total_registered= len(referred_users)
+    total_purchased = sum(1 for u in referred_users if u.get("referred_use", False))
+
+    # Формируем детальный список
     result_transactions = []
     for user in referred_users:
-        user_id = str(user["_id"])
-        user_transactions = [tx for tx in transactions if tx.get("user_id") == user_id]
-        
-        # Находим транзакцию с максимальной суммой для данного пользователя (если есть)
-        amount = None
-        transaction_date = None
-        if user_transactions:
-            # Берем транзакцию с максимальной суммой
-            max_tx = max(user_transactions, key=lambda tx: tx.get("amount", 0))
-            amount = max_tx.get("amount")
-            transaction_date = max_tx.get("created_at")
-        
+        uid = str(user["_id"])
+        # Все транзакции, где referred_user_id == uid
+        user_tx = [
+            tx for tx in transactions
+            if str(tx.get("referred_user_id")) == uid
+        ]
+
+        amount  = None
+        tx_date = None
+        if user_tx:
+            best   = max(user_tx, key=lambda t: t.get("amount", 0))
+            amount = best.get("amount")
+            tx_date = best.get("created_at")
+
+        reg_date = user.get("created_at")
         result_transactions.append({
-            "id": user_id,
-            "user_iin": user.get("iin", ""),
-            "user_name": user.get("full_name", ""),
-            "registration_date": user.get("created_at"),
-            "has_purchased": user.get("referred_use", False),
-            "amount": amount,
-            "transaction_date": transaction_date
+            "id":                 uid,
+            "user_iin":           user.get("iin", ""),
+            "user_name":          user.get("full_name", ""),
+            "registration_date":  (
+                reg_date.isoformat()
+                if isinstance(reg_date, datetime)
+                else str(reg_date)
+            ),
+            "has_purchased":      user.get("referred_use", False),
+            "amount":             amount,
+            "transaction_date":   (
+                tx_date.isoformat()
+                if isinstance(tx_date, datetime)
+                else (str(tx_date) if tx_date is not None else None)
+            )
         })
-    
-    # Сортируем по дате транзакции (если есть), потом по дате регистрации
+
+    # Сортируем: сначала с транзакцией, потом по дате
     result_transactions.sort(
         key=lambda x: (
-            x.get("transaction_date") is not None,
-            x.get("transaction_date", x.get("registration_date"))
+            x["transaction_date"] is not None,
+            x["transaction_date"] or x["registration_date"]
         ),
         reverse=True
     )
-    
+
     return success(
         data={
-            "transactions": result_transactions,
-            "totalEarned": total_earned,
-            "totalRegistered": total_registered,
-            "totalPurchased": total_purchased
+            "transactions":     result_transactions,
+            "totalEarned":      total_earned,
+            "totalRegistered":  total_registered,
+            "totalPurchased":   total_purchased
         },
         message="Данные по реферальным транзакциям получены"
     )
@@ -282,8 +324,16 @@ async def deactivate_referral(referral_id: str, request: Request, current_actor 
     # Если код уже не активен, нельзя деактивировать его повторно
     if not referral.get("active", False):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"message": "Реферальный код уже деактивирован"})
-    # Выполняем деактивацию (устанавливаем active=False)
-    await db.referrals.update_one({"_id": oid}, {"$set": {"active": False}})
+    
+    # Выполняем деактивацию в Mongo-транзакции
+    async with await db.client.start_session() as session:
+        async with session.start_transaction():
+            await db.referrals.update_one(
+                {"_id": oid}, 
+                {"$set": {"active": False}},
+                session=session
+            )
+            
     logger.info(f"[REFERRAL_DEACTIVATE][{request.client.host}] Код деактивирован (code={referral['code']}, owner={owner_id_str})")
     return success(message="Реферальный код деактивирован")
 
@@ -336,8 +386,16 @@ async def update_referral(referral_id: str, data: ReferralUpdateAdmin, request: 
     if not updates:
         # Нет данных для обновления
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"message": "Нет данных для обновления"})
-    # Применяем обновления в базе данных
-    await db.referrals.update_one({"_id": oid}, {"$set": updates})
+    
+    # Применяем обновления в базе данных в транзакции
+    async with await db.client.start_session() as session:
+        async with session.start_transaction():
+            await db.referrals.update_one(
+                {"_id": oid}, 
+                {"$set": updates},
+                session=session
+            )
+            
     # Получаем обновлённый документ из базы
     updated = await db.referrals.find_one({"_id": oid})
     if not updated:

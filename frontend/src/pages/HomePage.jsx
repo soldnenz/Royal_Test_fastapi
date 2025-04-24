@@ -274,14 +274,13 @@ const HomePage = () => {
       <section id="categories" className="py-20 bg-gradient-to-br from-gray-50 to-white dark:from-dark-900 dark:to-dark-800">
         <div className="container-custom">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-gray-900 dark:text-white">
-              {language === 'kz' ? t.testCategories : 'Категории'} <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-primary-500">{language === 'ru' ? 'тестов' : language === 'kz' ? '' : 'tests'}</span>
-            </h2>
-            <p className="text-xl text-gray-700 dark:text-gray-300 max-w-3xl mx-auto">
-              {language === 'kz' ? t.categoriesSubtitle : 'Выберите категорию для подготовки к экзамену по ПДД в СПЕЦЦОН'}
-            </p>
-          </div>
-
+              <h2 className="text-3xl md:text-4xl font-bold mb-4 text-gray-900 dark:text-white">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-primary-500">{t.categoriesTitle}</span>
+              </h2>
+              <p className="text-xl text-gray-700 dark:text-gray-300 max-w-3xl mx-auto">
+                {t.categoriesSubtitle}
+              </p>
+            </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {/* PDD Category */}
             <div className="group bg-white dark:bg-dark-800 rounded-xl shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 relative p-6">

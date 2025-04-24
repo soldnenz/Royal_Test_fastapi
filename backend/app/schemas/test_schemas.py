@@ -1,23 +1,28 @@
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime
 from pydantic import BaseModel, Field, validator
 from app.core.config import settings
 
+class MultilingualText(BaseModel):
+    ru: str
+    kz: str
+    en: str
+
 class OptionCreate(BaseModel):
-    text: str
+    text: MultilingualText
 
 class OptionOut(BaseModel):
     label: str
-    text: str
+    text: MultilingualText
 
 class QuestionCreate(BaseModel):
-    question_text: str
+    question_text: MultilingualText
     options: List[OptionCreate]
     correct_index: int  # Индекс правильного варианта в списке options
     categories: List[str]  # Массив категорий
     pdd_section_uids: List[str]
     media_filename: Optional[str] = None  # Если с фронта передается имя медиафайла
-    explanation: Optional[str] = "данный вопрос без объяснения"  # Новое поле
+    explanation: Optional[MultilingualText] = None
 
     @validator('options')
     def validate_options(cls, value):
@@ -44,7 +49,7 @@ class QuestionCreate(BaseModel):
 
 class QuestionOut(BaseModel):
     id: str
-    question_text: str
+    question_text: MultilingualText
     options: List[OptionOut]
     correct_label: str  # Например, "B"
     categories: List[str]
@@ -59,19 +64,18 @@ class QuestionOut(BaseModel):
     deleted_at: Optional[datetime] = None
     media_file_id: Optional[str] = None  # Идентификатор медиафайла (в виде строки)
     media_filename: Optional[str] = None
-    explanation: str = "данный вопрос без объяснения"  # Новое поле
+    explanation: MultilingualText  # Мультиязычное объяснение
     modified_by: Optional[str] = None  # Кто изменил вопрос
 
 class QuestionEdit(BaseModel):
     question_id: str
-    new_question_text: Optional[str] = None
+    new_question_text: Optional[MultilingualText] = None
     new_options: Optional[List[OptionCreate]] = None
     new_correct_index: Optional[int] = None
     new_categories: Optional[List[str]] = None
     replace_media: Optional[bool] = False
     new_pdd_section_uids: Optional[List[str]] = None
-    new_explanation: Optional[str] = "данный вопрос без объяснения"  # Новое поле
-    replace_media: Optional[bool] = False
+    new_explanation: Optional[MultilingualText] = None
     remove_media: Optional[bool] = False
 
     @validator('new_options')

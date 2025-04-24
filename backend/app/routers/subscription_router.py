@@ -82,10 +82,10 @@ async def create_subscription(
 
         # Если рефералка использована, обработать реферал
         if referral_used:
-            process_referral(
-                user_id=user_object_id,
-                amount=amount,
-                description=description
+            await process_referral(
+                str(user_object_id),
+                amount,
+                description
             )
             user["referred_use"] = True
             await db.users.find_one_and_update(

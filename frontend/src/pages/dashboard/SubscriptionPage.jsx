@@ -4,6 +4,8 @@ import { translations } from '../../translations/translations';
 import { toast } from 'react-toastify';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import 'react-toastify/dist/ReactToastify.css';
+import { ToastContainer } from 'react-toastify';
 
 const SubscriptionPage = () => {
   const { language } = useLanguage();
@@ -17,8 +19,6 @@ const SubscriptionPage = () => {
   const [activeTab, setActiveTab] = useState('subscription');
   const [selectedSubscriptionType, setSelectedSubscriptionType] = useState('economy');
   const [selectedDuration, setSelectedDuration] = useState(1);
-  const [success, setSuccess] = useState(null);
-  const [error, setError] = useState(null);
   const [isGiftMode, setIsGiftMode] = useState(false);
   const [giftOption, setGiftOption] = useState('iin');
   const [giftIIN, setGiftIIN] = useState('');
@@ -122,22 +122,10 @@ const SubscriptionPage = () => {
     return basePrice * months * (1 - discount);
   };
   
-  // Clear error and success messages
-  const clearMessages = () => {
-    setError(null);
-    setSuccess(null);
-  };
-  
   // Handle subscription purchase
   const handlePurchaseSubscription = async (event) => {
     event.preventDefault();
-    clearMessages();
-    const price = getSubscriptionPrice(selectedSubscriptionType, selectedDuration);
-    // Use balance to purchase
-    if (balance < price) {
-      setError(tLang.notEnoughBalance || "Недостаточно средств на балансе");
-      return;
-    }
+    
     try {
       setPurchaseLoading(true);
       
@@ -154,11 +142,7 @@ const SubscriptionPage = () => {
       });
       
       if (response.data.status === "ok") {
-        setSuccess(
-          response.data.message || 
-          tLang.purchaseSubscriptionSuccess || 
-          "Подписка успешно приобретена"
-        );
+        toast.success(tLang.purchaseSuccess || "Subscription purchased successfully!");
         
         // Update balance from response
         if (response.data.data && typeof response.data.data.balance_after === 'number') {
@@ -171,22 +155,27 @@ const SubscriptionPage = () => {
         // Refresh subscription details
         await fetchSubscription();
       } else {
-        throw new Error(response.data.message || "Ошибка при покупке подписки");
+        throw new Error(response.data.message || "Failed to purchase subscription");
       }
-    } catch (err) {
-      console.error('Error purchasing subscription:', err);
+    } catch (error) {
+      console.error("Error purchasing subscription:", error);
       
-      // Get a better error message
-      let errorMessage = tLang.purchaseError || "Ошибка при покупке подписки";
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err.response?.data?.detail?.message) {
-        errorMessage = err.response.data.detail.message;
-      } else if (err.message) {
-        errorMessage = err.message;
+      // Extract error message from different possible response formats
+      let errorMessage = tLang.errorPurchasingSubscription || "Error purchasing subscription";
+      
+      if (error.response && error.response.data) {
+        // Server returned an error response
+        const errorData = error.response.data;
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.details && errorData.details.message) {
+          errorMessage = errorData.details.message;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
       }
       
-      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setPurchaseLoading(false);
     }
@@ -195,11 +184,10 @@ const SubscriptionPage = () => {
   // Handle gift purchase
   const handlePurchaseGift = async (event) => {
     event.preventDefault();
-    clearMessages();
     
     // Validate IIN if gift by IIN is selected
     if (giftOption === 'iin' && (!giftIIN || giftIIN.length !== 12)) {
-      setError(tLang.invalidIIN || "Please enter a valid 12-digit IIN");
+      toast.error(tLang.invalidIIN || "Please enter a valid 12-digit IIN");
       return;
     }
     
@@ -208,7 +196,7 @@ const SubscriptionPage = () => {
     
     // Check if user has enough balance
     if (balance < price) {
-      setError(tLang.notEnoughBalance || "У вас недостаточно средств на балансе для совершения этой покупки");
+      toast.error(tLang.notEnoughBalance || "У вас недостаточно средств на балансе для совершения этой покупки");
       return;
     }
     
@@ -230,11 +218,7 @@ const SubscriptionPage = () => {
         });
         
         if (response.data.status === "ok") {
-          setSuccess(
-            response.data.message || 
-            tLang.giftPurchaseSuccess || 
-            "Подарочная подписка успешно приобретена и будет доставлена получателю"
-          );
+          toast.success(tLang.giftPurchaseSuccess || "Gift purchased successfully!");
           
           // Update balance from response
           if (response.data.data && typeof response.data.data.balance_after === 'number') {
@@ -246,7 +230,7 @@ const SubscriptionPage = () => {
           // Reset form
           setGiftIIN('');
         } else {
-          throw new Error(response.data.message || "Ошибка при покупке подарочной подписки");
+          throw new Error(response.data.message || "Failed to purchase gift");
         }
       } else if (giftOption === 'promo') {
         // Purchase as a promo code instead
@@ -262,7 +246,7 @@ const SubscriptionPage = () => {
         
         if (response.data.status === "ok") {
           const promoCode = response.data.data?.promo_code;
-          setSuccess(
+          toast.success(
             (promoCode ? `Ваш промокод: ${promoCode}. ` : '') +
             (response.data.message || 
             tLang.promoCodeCreated || 
@@ -276,23 +260,28 @@ const SubscriptionPage = () => {
             await fetchUserProfile();
           }
         } else {
-          throw new Error(response.data.message || "Ошибка при создании промокода");
+          throw new Error(response.data.message || "Failed to create promo code");
         }
       }
-    } catch (err) {
-      console.error('Error with gift/promo purchase:', err);
+    } catch (error) {
+      console.error("Error purchasing gift:", error);
       
-      // Get a better error message
-      let errorMessage = tLang.giftPurchaseError || "Произошла ошибка при обработке запроса. Пожалуйста, попробуйте снова позже.";
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err.response?.data?.detail?.message) {
-        errorMessage = err.response.data.detail.message;
-      } else if (err.message) {
-        errorMessage = err.message;
+      // Extract error message from different possible response formats
+      let errorMessage = tLang.errorPurchasingGift || "Error purchasing gift";
+      
+      if (error.response && error.response.data) {
+        // Server returned an error response
+        const errorData = error.response.data;
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.details && errorData.details.message) {
+          errorMessage = errorData.details.message;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
       }
       
-      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setPurchaseLoading(false);
     }
@@ -301,7 +290,6 @@ const SubscriptionPage = () => {
   // Handle balance top-up
   const handleTopUp = async (event) => {
     event.preventDefault();
-    clearMessages();
     
     try {
       // Get the selected amount from the form
@@ -309,7 +297,7 @@ const SubscriptionPage = () => {
       const amount = formElement.querySelector('#amount')?.value || topUpAmount;
       
       if (!amount || isNaN(amount) || parseInt(amount) < 500) {
-        setError(tLang.minAmountError || "Минимальная сумма для пополнения: 500 ₸");
+        toast.error(tLang.minAmountError || "Минимальная сумма для пополнения: 500 ₸");
         return;
       }
       
@@ -324,27 +312,35 @@ const SubscriptionPage = () => {
           }
         }
       });
-    } catch (err) {
-      console.error('Error with top-up process:', err);
       
-      // Get error message
-      let errorMessage = tLang.generalError || "Произошла ошибка. Пожалуйста, попробуйте снова позже.";
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err.response?.data?.detail?.message) {
-        errorMessage = err.response.data.detail.message;
-      } else if (err.message) {
-        errorMessage = err.message;
+      // Note: The success toast will be shown after successful payment in the payment page
+      // We're just navigating away here, so we don't need to show a toast yet
+      
+    } catch (error) {
+      console.error("Error processing top up request:", error);
+      
+      // Extract error message from different possible response formats
+      let errorMessage = tLang.errorProcessingPayment || "Error processing payment";
+      
+      if (error.response && error.response.data) {
+        // Server returned an error response
+        const errorData = error.response.data;
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.details && errorData.details.message) {
+          errorMessage = errorData.details.message;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
       }
       
-      setError(errorMessage);
+      toast.error(errorMessage);
     }
   };
   
   // Handle promo code activation
   const handleActivatePromo = async (event) => {
     event.preventDefault();
-    clearMessages();
     
     try {
       // Get promo code from the form
@@ -352,7 +348,7 @@ const SubscriptionPage = () => {
       const promoCode = formElement.querySelector('#promoCode')?.value;
       
       if (!promoCode || promoCode.trim() === '') {
-        setError(tLang.promoCodeRequired || "Пожалуйста, введите промокод");
+        toast.error(tLang.promoCodeRequired || "Пожалуйста, введите промокод");
         return;
       }
       
@@ -369,11 +365,7 @@ const SubscriptionPage = () => {
       });
       
       if (response.data.status === "ok") {
-        setSuccess(
-          response.data.message || 
-          tLang.promoCodeActivated || 
-          "Промокод успешно активирован"
-        );
+        toast.success(tLang.promoActivatedSuccess || "Promo code activated successfully!");
         
         // Clear input field
         formElement.querySelector('#promoCode').value = '';
@@ -381,28 +373,27 @@ const SubscriptionPage = () => {
         // Refresh subscription data
         await fetchSubscription();
       } else {
-        throw new Error(response.data.message || "Ошибка при активации промокода");
+        throw new Error(response.data.message || "Failed to activate promo code");
       }
-    } catch (err) {
-      console.error('Error activating promo code:', err);
+    } catch (error) {
+      console.error("Error activating promo code:", error);
       
-      // Get the error message from the response if available
-      let errorMessage = tLang.promoCodeError || "Произошла ошибка при активации промокода. Пожалуйста, проверьте его правильность и попробуйте снова.";
+      // Extract error message from different possible response formats
+      let errorMessage = tLang.errorActivatingPromo || "Error activating promo code";
       
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err.response?.data?.detail?.message) {
-        errorMessage = err.response.data.detail.message;
-      } else if (err.message) {
-        errorMessage = err.message;
+      if (error.response && error.response.data) {
+        // Server returned an error response
+        const errorData = error.response.data;
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.details && errorData.details.message) {
+          errorMessage = errorData.details.message;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
       }
       
-      // Check if the error relates to already activated promo code
-      if (errorMessage.includes("уже активировали")) {
-        setError(errorMessage);
-      } else {
-        setError(errorMessage);
-      }
+      toast.error(errorMessage);
     } finally {
       setPurchaseLoading(false);
     }
@@ -411,10 +402,9 @@ const SubscriptionPage = () => {
   // Handle gift by IIN
   const handleGiftByIIN = async (event) => {
     event.preventDefault();
-    clearMessages();
     
     if (!giftIIN || giftIIN.length !== 12) {
-      setError(tLang.invalidIIN || "Please enter a valid 12-digit IIN");
+      toast.error(tLang.invalidIIN || "Please enter a valid 12-digit IIN");
       return;
     }
     
@@ -423,7 +413,7 @@ const SubscriptionPage = () => {
     
     // Check if user has enough balance
     if (balance < price) {
-      setError(tLang.notEnoughBalance || "У вас недостаточно средств на балансе для совершения этой покупки");
+      toast.error(tLang.notEnoughBalance || "У вас недостаточно средств на балансе для совершения этой покупки");
       return;
     }
     
@@ -444,11 +434,7 @@ const SubscriptionPage = () => {
       });
       
       if (response.data.status === "ok") {
-        setSuccess(
-          response.data.message || 
-          tLang.giftPurchaseSuccess || 
-          "Подарочная подписка успешно приобретена и будет доставлена получателю"
-        );
+        toast.success(tLang.giftSentSuccess || "Gift sent successfully!");
         
         // Update balance from response
         if (response.data.data && typeof response.data.data.balance_after === 'number') {
@@ -460,22 +446,27 @@ const SubscriptionPage = () => {
         // Reset gift IIN
         setGiftIIN('');
       } else {
-        throw new Error(response.data.message || "Ошибка при покупке подарочной подписки");
+        throw new Error(response.data.message || "Failed to send gift");
       }
-    } catch (err) {
-      console.error('Error purchasing gift subscription:', err);
+    } catch (error) {
+      console.error("Error sending gift:", error);
       
-      // Get a better error message
-      let errorMessage = tLang.giftPurchaseError || "Произошла ошибка при покупке подарочной подписки. Пожалуйста, попробуйте снова позже.";
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err.response?.data?.detail?.message) {
-        errorMessage = err.response.data.detail.message;
-      } else if (err.message) {
-        errorMessage = err.message;
+      // Extract error message from different possible response formats
+      let errorMessage = tLang.errorSendingGift || "Error sending gift";
+      
+      if (error.response && error.response.data) {
+        // Server returned an error response
+        const errorData = error.response.data;
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.details && errorData.details.message) {
+          errorMessage = errorData.details.message;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
       }
       
-      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setPurchaseLoading(false);
     }
@@ -1332,37 +1323,11 @@ const SubscriptionPage = () => {
         </div>
       )}
       
-      {/* Success and Error Messages */}
-      {success && (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 text-green-800 dark:text-green-300">
-          <div className="flex">
-            <svg className="h-5 w-5 mr-2 text-green-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-            <span>{success}</span>
-          </div>
-        </div>
-      )}
-      
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-800 dark:text-red-300">
-          <div className="flex">
-            <svg className="h-5 w-5 mr-2 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-            </svg>
-            <span>{error}</span>
-          </div>
-        </div>
-      )}
-      
       {/* Tabs */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
         <div className="flex border-b border-gray-200 dark:border-gray-700">
           <button
-            onClick={() => {
-              setActiveTab('subscription');
-              clearMessages();
-            }}
+            onClick={() => setActiveTab('subscription')}
             className={`flex-1 py-4 px-6 text-center font-medium ${
               activeTab === 'subscription'
                 ? 'text-primary-600 dark:text-primary-400 border-b-2 border-primary-500'
@@ -1375,7 +1340,6 @@ const SubscriptionPage = () => {
             onClick={() => {
               setActiveTab('buy');
               setIsGiftMode(false);
-              clearMessages();
             }}
             className={`flex-1 py-4 px-6 text-center font-medium ${
               activeTab === 'buy'
@@ -1386,10 +1350,7 @@ const SubscriptionPage = () => {
             {tLang.buySubscription || "Buy Subscription"}
           </button>
           <button
-            onClick={() => {
-              setActiveTab('balance');
-              clearMessages();
-            }}
+            onClick={() => setActiveTab('balance')}
             className={`flex-1 py-4 px-6 text-center font-medium ${
               activeTab === 'balance'
                 ? 'text-primary-600 dark:text-primary-400 border-b-2 border-primary-500'
@@ -1405,6 +1366,20 @@ const SubscriptionPage = () => {
       {activeTab === 'subscription' && renderCurrentSubscription()}
       {activeTab === 'buy' && renderPurchaseOptions()}
       {activeTab === 'balance' && renderBalanceAndPromo()}
+      
+      {/* Toast container for notifications */}
+      <ToastContainer
+        position="top-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="colored"
+      />
     </div>
   );
 };

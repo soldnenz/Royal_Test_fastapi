@@ -230,7 +230,7 @@ const DashboardHome = () => {
                     </h3>
                     {subscription?.has_subscription && (
                       <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        {`До окончания: ${subscription.days_left} ${daysLabel(subscription.days_left)}`}
+                        {`${t.until_finish}: ${subscription.days_left} ${daysLabel(subscription.days_left)}`}
                       </p>
                     )}
                   </div>

@@ -238,6 +238,19 @@ async def register_user(user_data: UserCreate, request: Request):
             detail={"message": "Пользователь с таким ИИН, Email или телефоном уже существует"}
         )
 
+    existing_admin = await db.admins.find_one({
+        "$or": [
+            {"iin": user_data.iin},
+            {"email": user_data.email.lower()}
+        ]
+    })
+    if existing_admin:
+        logger.warning(f"[REGISTER][{ip}] Попытка регистрации под Admin IIN/Email: {user_data.iin}/{user_data.email}")
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "Пользователь с таким ИИН, Email или телефоном уже существует"}
+        )
+
     # ✅ Проверяем, существует ли пригласивший
     referred_by = None
     if user_data.referred_by:

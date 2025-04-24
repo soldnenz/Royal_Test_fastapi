@@ -1,26 +1,25 @@
-# app/db/database.py
-
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 
-# Загрузим переменные из .env (если используете python-dotenv)
+# 1) читаем .env
 load_dotenv()
 
-# Извлекаем необходимые переменные окружения
-MONGO_URI = os.environ.get("MONGO_URI")
-MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME")
+# 2) вытягиваем из окружения
+MONGO_URI     = os.getenv("MONGO_URI")
+MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")
 
 if not MONGO_URI:
-    raise ValueError("MONGO_URI is not set in environment variables.")
+    raise RuntimeError("MONGO_URI is not set in .env")
 if not MONGO_DB_NAME:
-    raise ValueError("MONGO_DB_NAME is not set in environment variables.")
+    raise RuntimeError("MONGO_DB_NAME is not set in .env")
 
-# Создаём асинхронный клиент MongoDB
+# 3) создаём клиент с поддержкой replica set
 client = AsyncIOMotorClient(MONGO_URI)
 
-# Получаем нужную базу
+# 4) получаем базу
 db = client[MONGO_DB_NAME]
 
+# 5) dependency для FastAPI
 async def get_database():
     return db

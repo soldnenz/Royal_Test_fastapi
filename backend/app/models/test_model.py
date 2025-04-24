@@ -1,28 +1,39 @@
 from bson import ObjectId
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict
 from pydantic import BaseModel, Field
+
+class MultilingualText(BaseModel):
+    ru: str
+    kz: str
+    en: str
 
 class OptionModel(BaseModel):
     label: str    # Например: "A", "B", "C", …
-    text: str     # Текст варианта ответа
+    text: MultilingualText  # Текст варианта ответа на трех языках
 
 class QuestionModel(BaseModel):
     _id: Optional[ObjectId] = None
-    question_text: str                       # Текст вопроса
-    options: List[OptionModel]               # Список вариантов ответа
-    correct_label: str                       # Метка правильного варианта (например, "B")
-    categories: List[str]                    # Массив категорий, к которым относится вопрос\
+    question_text: MultilingualText  # Текст вопроса на трех языках
+    options: List[OptionModel]       # Список вариантов ответа
+    correct_label: str               # Метка правильного варианта (например, "B")
+    categories: List[str]            # Массив категорий, к которым относится вопрос\
     pdd_section_uids: List[str]
-    created_by_name: str                     # ФИО пользователя, создавшего вопрос
-    created_by_iin: str                      # ИИН пользователя, создавшего вопрос
+    created_by_name: str             # ФИО пользователя, создавшего вопрос
+    created_by_iin: str              # ИИН пользователя, создавшего вопрос
     uid: str = Field(..., min_length=10, max_length=10)  # Уникальный идентификатор вопроса (10-значное число)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = None
-    deleted: bool = False                    # Флаг мягкого удаления
-    deleted_by: Optional[str] = None         # Кто удалил (например, ФИО или идентификатор)
+    deleted: bool = False            # Флаг мягкого удаления
+    deleted_by: Optional[str] = None # Кто удалил (например, ФИО или идентификатор)
     deleted_at: Optional[datetime] = None    # Когда удалено
     media_file_id: Optional[ObjectId] = None # Идентификатор медиафайла в GridFS (если есть)
     media_filename: Optional[str] = None     # Имя медиафайла (если есть)
-    explanation: str = "данный вопрос без объяснения"  # Новое поле
+    explanation: MultilingualText = Field(  # Объяснение на трех языках
+        default_factory=lambda: MultilingualText(
+            ru="данный вопрос без объяснения",
+            kz="бұл сұрақтың түсіндірмесі жоқ",
+            en="this question has no explanation"
+        )
+    )
     modified_by: Optional[str] = None         # Кто изменил вопрос
