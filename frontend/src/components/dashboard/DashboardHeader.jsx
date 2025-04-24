@@ -4,7 +4,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { translations } from '../../translations/translations';
 
-const DashboardHeader = ({ profileData, toggleSidebar }) => {
+const DashboardHeader = ({ profileData, toggleSidebar, isSidebarOpen }) => {
   const { theme, toggleTheme } = useTheme();
   const { language, changeLanguage } = useLanguage();
   const navigate = useNavigate();
@@ -31,6 +31,22 @@ const DashboardHeader = ({ profileData, toggleSidebar }) => {
     };
   }, [profileRef, languageRef]);
 
+  // Handle language change with forced component update
+  const handleLanguageChange = (newLang) => {
+    if (language !== newLang) {
+      changeLanguage(newLang);
+      setIsLanguageOpen(false);
+      
+      // Force a re-render by setting a state or reloading the translations
+      // This is just to ensure the UI updates immediately
+      setTimeout(() => {
+        // This will cause a small delay and then reset the state, 
+        // which should trigger a re-render if needed
+        setIsLanguageOpen(false);
+      }, 50);
+    }
+  };
+
   // Handle logout
   const handleLogout = async () => {
     try {
@@ -56,16 +72,15 @@ const DashboardHeader = ({ profileData, toggleSidebar }) => {
       <div className="flex items-center">
         <button
           onClick={toggleSidebar}
-          className="p-2 mr-3 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
-          aria-label="Toggle sidebar"
+          className="p-2 mr-3 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 flex items-center"
+          aria-label={isSidebarOpen ? t.closeSidebar : t.navigation}
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
           </svg>
+          <span className="ml-2 text-sm">{isSidebarOpen ? t.closeSidebar : t.navigation}</span>
         </button>
         
-        {/* Brand name - visible on larger screens */}
-        <h1 className="hidden sm:block text-xl font-bold text-gray-800 dark:text-white">Royal Test</h1>
       </div>
       
       {/* Right: User info and settings */}
@@ -111,10 +126,7 @@ const DashboardHeader = ({ profileData, toggleSidebar }) => {
           {isLanguageOpen && (
             <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700">
               <button
-                onClick={() => {
-                  changeLanguage('ru');
-                  setIsLanguageOpen(false);
-                }}
+                onClick={() => handleLanguageChange('ru')}
                 className={`block w-full text-left px-4 py-2 text-sm ${
                   language === 'ru'
                     ? 'bg-primary-50 text-primary-700 dark:bg-primary-900 dark:text-primary-100'
@@ -124,10 +136,7 @@ const DashboardHeader = ({ profileData, toggleSidebar }) => {
                 {t.russian}
               </button>
               <button
-                onClick={() => {
-                  changeLanguage('kz');
-                  setIsLanguageOpen(false);
-                }}
+                onClick={() => handleLanguageChange('kz')}
                 className={`block w-full text-left px-4 py-2 text-sm ${
                   language === 'kz'
                     ? 'bg-primary-50 text-primary-700 dark:bg-primary-900 dark:text-primary-100'
@@ -137,10 +146,7 @@ const DashboardHeader = ({ profileData, toggleSidebar }) => {
                 {t.kazakh}
               </button>
               <button
-                onClick={() => {
-                  changeLanguage('en');
-                  setIsLanguageOpen(false);
-                }}
+                onClick={() => handleLanguageChange('en')}
                 className={`block w-full text-left px-4 py-2 text-sm ${
                   language === 'en'
                     ? 'bg-primary-50 text-primary-700 dark:bg-primary-900 dark:text-primary-100'

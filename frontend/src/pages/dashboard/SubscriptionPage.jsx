@@ -31,7 +31,11 @@ const SubscriptionPage = () => {
   
   // Fetch current subscription data
   useEffect(() => {
-    fetchSubscription();
+    const initData = async () => {
+      await fetchSubscription();
+      await fetchUserProfile();
+    };
+    initData();
   }, []);
   
   // Fetch subscription data from the server
@@ -44,39 +48,51 @@ const SubscriptionPage = () => {
       
       if (response.ok) {
         const data = await response.json();
-        
-        // Check if response format has the new structure with "data" property
+        // Handle new API response format with `data` property
         if (data.data && data.status === "ok") {
-          // Handle new API response format
-          const subscriptionData = data.data;
-          
-          if (subscriptionData.has_subscription) {
+          const subData = data.data;
+          if (subData.has_subscription) {
             setSubscription({
-              subscription_type: subscriptionData.subscription_type,
-              expiry_date: subscriptionData.expires_at,
-              created_at: new Date().toISOString(), // Use current date if not provided by API
+              subscription_type: subData.subscription_type,
+              expiry_date: subData.expires_at,
+              created_at: new Date().toISOString(),
               active: true,
-              auto_renewal: false, // Default value if not provided by API
-              days_left: subscriptionData.days_left
+              auto_renewal: false,
+              days_left: subData.days_left,
+              duration_days: subData.duration_days
             });
           } else {
             setSubscription(null);
           }
-          
-          // Set balance if available
-          if (data.data.balance !== undefined) {
-            setBalance(data.data.balance);
-          }
+          // (balance comes from user profile, so skip here)
         } else {
-          // Handle legacy API response format
-          setSubscription(data.subscription);
-          setBalance(data.balance);
+          // Legacy API response format
+          setSubscription({
+            ...data.subscription,
+            duration_days: data.subscription.duration_days || 30
+          });
+          // (balance comes from user profile, so skip here)
         }
       }
     } catch (error) {
       console.error('Error fetching subscription:', error);
     } finally {
       setLoading(false);
+    }
+  };
+  
+  // Fetch user profile to get wallet balance
+  const fetchUserProfile = async () => {
+    try {
+      const response = await fetch('/api/users/me', { credentials: 'include' });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.data && typeof result.data.money === 'number') {
+          setBalance(result.data.money);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching user profile balance:', err);
     }
   };
   
@@ -116,22 +132,64 @@ const SubscriptionPage = () => {
   const handlePurchaseSubscription = async (event) => {
     event.preventDefault();
     clearMessages();
-    
-    // Calculate price
     const price = getSubscriptionPrice(selectedSubscriptionType, selectedDuration);
-    
-    // Navigate to the payment page with selected subscription details
-    navigate('/dashboard/payment', {
-      state: {
-        paymentDetails: {
-          subscriptionType: selectedSubscriptionType,
-          duration: selectedDuration,
-          price: price,
-          date: new Date().toLocaleDateString(),
-          orderId: `ORD-${Math.floor(Math.random() * 100000)}`
+    // Use balance to purchase
+    if (balance < price) {
+      setError(tLang.notEnoughBalance || "Недостаточно средств на балансе");
+      return;
+    }
+    try {
+      setPurchaseLoading(true);
+      
+      // Call our new API endpoint to purchase subscription
+      const response = await axios.post('/api/users/purchase-subscription', {
+        subscription_type: selectedSubscriptionType,
+        duration_days: selectedDuration * 30, // Convert months to days
+        use_balance: true
+      }, {
+        withCredentials: true,
+        headers: {
+          'Content-Type': 'application/json'
         }
+      });
+      
+      if (response.data.status === "ok") {
+        setSuccess(
+          response.data.message || 
+          tLang.purchaseSubscriptionSuccess || 
+          "Подписка успешно приобретена"
+        );
+        
+        // Update balance from response
+        if (response.data.data && typeof response.data.data.balance_after === 'number') {
+          setBalance(response.data.data.balance_after);
+        } else {
+          // Fallback to fetching profile
+          await fetchUserProfile();
+        }
+        
+        // Refresh subscription details
+        await fetchSubscription();
+      } else {
+        throw new Error(response.data.message || "Ошибка при покупке подписки");
       }
-    });
+    } catch (err) {
+      console.error('Error purchasing subscription:', err);
+      
+      // Get a better error message
+      let errorMessage = tLang.purchaseError || "Ошибка при покупке подписки";
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.data?.detail?.message) {
+        errorMessage = err.response.data.detail.message;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
+    } finally {
+      setPurchaseLoading(false);
+    }
   };
   
   // Handle gift purchase
@@ -157,39 +215,84 @@ const SubscriptionPage = () => {
     try {
       setPurchaseLoading(true);
       
-      // Make API call to purchase gift subscription directly from balance
-      const response = await axios.post('/api/subscriptions/purchase-gift', {
-        subscription_type: selectedSubscriptionType,
-        duration: selectedDuration,
-        gift_option: giftOption,
-        gift_iin: giftOption === 'iin' ? giftIIN : null,
-        use_balance: true
-      }, {
-        withCredentials: true
-      });
-      
-      if (response.status === 200) {
-        setSuccess(
-          response.data.message || 
-          tLang.giftPurchaseSuccess || 
-          "Подарочная подписка успешно приобретена и будет доставлена получателю"
-        );
+      if (giftOption === 'iin') {
+        // Make API call to purchase gift subscription by IIN
+        const response = await axios.post('/api/users/purchase-gift-subscription', {
+          gift_iin: giftIIN,
+          subscription_type: selectedSubscriptionType,
+          duration_days: selectedDuration * 30, // Convert months to days
+          use_balance: true
+        }, {
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
         
-        // Refresh subscription data and balance
-        await fetchSubscription();
-        
-        // Reset form
-        if (giftOption === 'iin') {
+        if (response.data.status === "ok") {
+          setSuccess(
+            response.data.message || 
+            tLang.giftPurchaseSuccess || 
+            "Подарочная подписка успешно приобретена и будет доставлена получателю"
+          );
+          
+          // Update balance from response
+          if (response.data.data && typeof response.data.data.balance_after === 'number') {
+            setBalance(response.data.data.balance_after);
+          } else {
+            await fetchUserProfile();
+          }
+          
+          // Reset form
           setGiftIIN('');
+        } else {
+          throw new Error(response.data.message || "Ошибка при покупке подарочной подписки");
+        }
+      } else if (giftOption === 'promo') {
+        // Purchase as a promo code instead
+        const response = await axios.post('/api/users/generate-promo-code', {
+          subscription_type: selectedSubscriptionType,
+          duration_days: selectedDuration * 30 // Convert months to days
+        }, {
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.data.status === "ok") {
+          const promoCode = response.data.data?.promo_code;
+          setSuccess(
+            (promoCode ? `Ваш промокод: ${promoCode}. ` : '') +
+            (response.data.message || 
+            tLang.promoCodeCreated || 
+            "Промокод успешно создан. Вы можете поделиться им с кем угодно.")
+          );
+          
+          // Update balance from response
+          if (response.data.data && typeof response.data.data.balance_after === 'number') {
+            setBalance(response.data.data.balance_after);
+          } else {
+            await fetchUserProfile();
+          }
+        } else {
+          throw new Error(response.data.message || "Ошибка при создании промокода");
         }
       }
-    } catch (error) {
-      console.error('Error purchasing gift subscription:', error);
-      setError(
-        error.response?.data?.message || 
-        tLang.giftPurchaseError || 
-        "Произошла ошибка при покупке подарочной подписки. Пожалуйста, попробуйте снова позже."
-      );
+    } catch (err) {
+      console.error('Error with gift/promo purchase:', err);
+      
+      // Get a better error message
+      let errorMessage = tLang.giftPurchaseError || "Произошла ошибка при обработке запроса. Пожалуйста, попробуйте снова позже.";
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.data?.detail?.message) {
+        errorMessage = err.response.data.detail.message;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
     } finally {
       setPurchaseLoading(false);
     }
@@ -200,26 +303,42 @@ const SubscriptionPage = () => {
     event.preventDefault();
     clearMessages();
     
-    // Get the selected amount from the form
-    const formElement = event.target;
-    const amount = formElement.querySelector('#amount')?.value || topUpAmount;
-    
-    if (!amount || isNaN(amount) || parseInt(amount) < 500) {
-      setError(tLang.minAmountError || "Минимальная сумма для пополнения: 500 ₸");
-      return;
-    }
-    
-    // Navigate to the payment page with top-up details
-    navigate('/dashboard/payment', {
-      state: {
-        paymentDetails: {
-          isTopUp: true,
-          price: parseInt(amount),
-          date: new Date().toLocaleDateString(),
-          orderId: `ORD-${Math.floor(Math.random() * 100000)}`
-        }
+    try {
+      // Get the selected amount from the form
+      const formElement = event.target;
+      const amount = formElement.querySelector('#amount')?.value || topUpAmount;
+      
+      if (!amount || isNaN(amount) || parseInt(amount) < 500) {
+        setError(tLang.minAmountError || "Минимальная сумма для пополнения: 500 ₸");
+        return;
       }
-    });
+      
+      // Navigate to the payment page with top-up details
+      navigate('/dashboard/payment', {
+        state: {
+          paymentDetails: {
+            isTopUp: true,
+            price: parseInt(amount),
+            date: new Date().toLocaleDateString(),
+            orderId: `ORD-${Math.floor(Math.random() * 100000)}`
+          }
+        }
+      });
+    } catch (err) {
+      console.error('Error with top-up process:', err);
+      
+      // Get error message
+      let errorMessage = tLang.generalError || "Произошла ошибка. Пожалуйста, попробуйте снова позже.";
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.data?.detail?.message) {
+        errorMessage = err.response.data.detail.message;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
+    }
   };
   
   // Handle promo code activation
@@ -239,12 +358,17 @@ const SubscriptionPage = () => {
       
       setPurchaseLoading(true);
       
-      // Make API request to activate promo code
-      const response = await axios.post('/api/subscriptions/activate-promo', { promo_code: promoCode.trim() }, {
-        withCredentials: true
+      // Make API request to activate promo code using our new endpoint
+      const response = await axios.post('/api/users/activate-promo-code', { 
+        promo_code: promoCode.trim() 
+      }, {
+        withCredentials: true,
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
       
-      if (response.status === 200) {
+      if (response.data.status === "ok") {
         setSuccess(
           response.data.message || 
           tLang.promoCodeActivated || 
@@ -256,14 +380,29 @@ const SubscriptionPage = () => {
         
         // Refresh subscription data
         await fetchSubscription();
+      } else {
+        throw new Error(response.data.message || "Ошибка при активации промокода");
       }
-    } catch (error) {
-      console.error('Error activating promo code:', error);
-      setError(
-        error.response?.data?.message || 
-        tLang.promoCodeError || 
-        "Произошла ошибка при активации промокода. Пожалуйста, проверьте его правильность и попробуйте снова."
-      );
+    } catch (err) {
+      console.error('Error activating promo code:', err);
+      
+      // Get the error message from the response if available
+      let errorMessage = tLang.promoCodeError || "Произошла ошибка при активации промокода. Пожалуйста, проверьте его правильность и попробуйте снова.";
+      
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.data?.detail?.message) {
+        errorMessage = err.response.data.detail.message;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      // Check if the error relates to already activated promo code
+      if (errorMessage.includes("уже активировали")) {
+        setError(errorMessage);
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setPurchaseLoading(false);
     }
@@ -282,21 +421,64 @@ const SubscriptionPage = () => {
     // Calculate price based on subscription type and duration
     const price = getSubscriptionPrice(selectedSubscriptionType, selectedDuration);
     
-    // Navigate to the payment page with gift details
-    navigate('/dashboard/payment', {
-      state: {
-        paymentDetails: {
-          subscriptionType: selectedSubscriptionType,
-          duration: selectedDuration,
-          price: price,
-          date: new Date().toLocaleDateString(),
-          orderId: `ORD-${Math.floor(Math.random() * 100000)}`,
-          isGift: true,
-          giftOption: 'iin',
-          giftIIN: giftIIN
+    // Check if user has enough balance
+    if (balance < price) {
+      setError(tLang.notEnoughBalance || "У вас недостаточно средств на балансе для совершения этой покупки");
+      return;
+    }
+    
+    try {
+      setPurchaseLoading(true);
+      
+      // Call API to purchase gift subscription directly
+      const response = await axios.post('/api/users/purchase-gift-subscription', {
+        gift_iin: giftIIN,
+        subscription_type: selectedSubscriptionType,
+        duration_days: selectedDuration * 30, // Convert months to days
+        use_balance: true
+      }, {
+        withCredentials: true,
+        headers: {
+          'Content-Type': 'application/json'
         }
+      });
+      
+      if (response.data.status === "ok") {
+        setSuccess(
+          response.data.message || 
+          tLang.giftPurchaseSuccess || 
+          "Подарочная подписка успешно приобретена и будет доставлена получателю"
+        );
+        
+        // Update balance from response
+        if (response.data.data && typeof response.data.data.balance_after === 'number') {
+          setBalance(response.data.data.balance_after);
+        } else {
+          await fetchUserProfile();
+        }
+        
+        // Reset gift IIN
+        setGiftIIN('');
+      } else {
+        throw new Error(response.data.message || "Ошибка при покупке подарочной подписки");
       }
-    });
+    } catch (err) {
+      console.error('Error purchasing gift subscription:', err);
+      
+      // Get a better error message
+      let errorMessage = tLang.giftPurchaseError || "Произошла ошибка при покупке подарочной подписки. Пожалуйста, попробуйте снова позже.";
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.data?.detail?.message) {
+        errorMessage = err.response.data.detail.message;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
+    } finally {
+      setPurchaseLoading(false);
+    }
   };
   
   // Get subscription color based on type
@@ -607,7 +789,7 @@ const SubscriptionPage = () => {
     const daysLeft = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
     
     // Calculate percentage of time left
-    const totalDaysInSubscription = 30; // Assuming monthly subscription as base
+    const totalDaysInSubscription = subscription.duration_days || 30;
     const percentLeft = Math.min(100, Math.max(0, (daysLeft / totalDaysInSubscription) * 100));
     
     // Get subscription color styling
@@ -772,14 +954,6 @@ const SubscriptionPage = () => {
               {tLang.fromBalance || "С баланса аккаунта"}
             </span>
           </div>
-          <div className="flex justify-between items-center mt-2">
-            <span className="text-gray-700 dark:text-gray-300">
-              {tLang.yourBalance || "Ваш баланс"}:
-            </span>
-            <span className="font-medium text-gray-900 dark:text-white">
-              {formatMoney(balance || 0)}
-            </span>
-          </div>
         </div>
       </div>
     );
@@ -811,7 +985,7 @@ const SubscriptionPage = () => {
               <div>
                 <span className="block text-gray-900 dark:text-white font-medium">{tLang.month1 || "1 month"}</span>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {tLang.standardPrice || "Standard price"}
+                  {tLang.standardPriceLabel || "Standard price"}
                 </span>
               </div>
               <div className="flex items-center">
@@ -959,6 +1133,14 @@ const SubscriptionPage = () => {
         {/* Duration Selection */}
         {renderDurationSelection()}
         
+        {/* User Balance */}
+        <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/10 rounded-lg">
+          <div className="flex justify-between items-center">
+            <span className="text-lg font-medium text-gray-900 dark:text-white">{tLang.yourBalance || "Ваш баланс"}:</span>
+            <span className="text-lg font-bold text-gray-900 dark:text-white">{formatMoney(balance)}</span>
+          </div>
+        </div>
+        
         {/* Total Price */}
         <div className="mb-8 p-6 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
           <div className="flex justify-between items-center">
@@ -1007,22 +1189,13 @@ const SubscriptionPage = () => {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         {/* Balance Top-Up Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden border border-gray-200 dark:border-gray-700">
-          <div className="p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden border border-gray-200 dark:border-gray-700 h-full">
+          <div className="p-6 flex flex-col h-full">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
               {tLang.topUpBalance || "Пополнить баланс"}
             </h3>
             
-            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/10 rounded-lg flex justify-between items-center">
-              <span className="text-gray-700 dark:text-gray-300">
-                {tLang.currentBalance || "Текущий баланс"}:
-              </span>
-              <span className="text-lg font-bold text-gray-900 dark:text-white">
-                {formatMoney(balance || 0)}
-              </span>
-            </div>
-            
-            <form onSubmit={handleTopUp} className="space-y-4">
+            <form onSubmit={handleTopUp} className="flex flex-col h-full justify-between space-y-4">
               <div>
                 <label htmlFor="topUpAmount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {tLang.amount || "Сумма"}
@@ -1049,24 +1222,7 @@ const SubscriptionPage = () => {
                   {tLang.minAmount || "Минимальная сумма"}: 500 ₸
                 </p>
               </div>
-              
-              {/* Quick Amount Selection */}
-              <div className="grid grid-cols-3 gap-2 my-3">
-                {[500, 1000, 5000].map(amount => (
-                  <button
-                    key={amount}
-                    type="button"
-                    onClick={() => setTopUpAmount(amount.toString())}
-                    className={`py-2 px-4 rounded-md text-center transition ${
-                      topUpAmount === amount.toString() 
-                        ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 border border-primary-300 dark:border-primary-700' 
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
-                  >
-                    {formatMoney(amount)}
-                  </button>
-                ))}
-              </div>
+            
               
               <button
                 type="submit"
@@ -1090,8 +1246,8 @@ const SubscriptionPage = () => {
         </div>
         
         {/* Activate Promo Code Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden border border-gray-200 dark:border-gray-700">
-          <div className="p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden border border-gray-200 dark:border-gray-700 h-full">
+          <div className="p-6 flex flex-col h-full">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
               {tLang.activatePromoCode || "Активировать промокод"}
             </h3>

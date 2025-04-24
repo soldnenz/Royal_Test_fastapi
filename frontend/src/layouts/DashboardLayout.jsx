@@ -39,7 +39,7 @@ const DashboardLayout = () => {
         const response = await fetch('/api/users/me', {
           credentials: 'include'
         });
-
+        
         if (!response.ok) {
           if (response.status === 401) {
             // Redirect to login if not authenticated
@@ -49,14 +49,22 @@ const DashboardLayout = () => {
           throw new Error('Failed to fetch profile data');
         }
 
-        const data = await response.json();
+        let data;
+        try {
+          data = await response.json();
+        } catch (parseError) {
+          // If the response is not JSON (e.g. HTML), assume unauthorized and redirect
+          navigate('/login');
+          return;
+        }
         if (data.status === "ok") {
           setProfileData(data.data);
         } else {
-          throw new Error(data.message || 'Unknown error');
+          throw new Error('Неизвестная ошибка при получении профиля');
         }
       } catch (err) {
-        setError(err.message);
+        // Show a friendly Russian error message
+        setError('Ошибка при загрузке данных профиля.');
         console.error('Error fetching profile:', err);
       } finally {
         setIsLoading(false);
@@ -93,13 +101,12 @@ const DashboardLayout = () => {
           <svg className="w-12 h-12 mx-auto text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
-          <p className="mt-4 text-lg font-medium text-red-600 dark:text-red-400">{t.error}</p>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">{error}</p>
+          <p className="mt-4 text-lg font-medium text-red-600 dark:text-red-400">Произошла ошибка при загрузке данных профиля. Пожалуйста, войдите.</p>
           <button 
             onClick={() => navigate('/login')}
             className="mt-4 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
           >
-            {t.backToLogin}
+            {t.login}
           </button>
         </div>
       </div>
@@ -122,7 +129,7 @@ const DashboardLayout = () => {
       
       {/* Main content */}
       <div className="flex flex-col flex-1 overflow-hidden">
-        <DashboardHeader profileData={profileData} toggleSidebar={toggleSidebar} />
+        <DashboardHeader profileData={profileData} toggleSidebar={toggleSidebar} isSidebarOpen={isSidebarOpen} />
         
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <Outlet context={{ profileData }} />

@@ -1,31 +1,30 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, constr
 from typing import Optional, Literal
 from datetime import datetime
 
 class PaymentInfo(BaseModel):
-    payment_id: Optional[str]
-    price: Optional[int]
-    payment_method: Optional[Literal["cash", "card", "online", "promo"]] = None
+    payment_id: str
+    price: float
+    payment_method: str
 
 class IssuedBy(BaseModel):
-    admin_iin: str
+    admin_iin: Optional[str] = None
     full_name: str
 
 # 👉 Используется при создании подписки (POST /subscriptions)
 class SubscriptionCreate(BaseModel):
     user_id: str
     iin: str
-    subscription_type: Literal["Demo", "economy", "Vip", "Royal", "School"]
+    subscription_type: Literal["economy", "vip", "royal"]
     expires_at: datetime
     activation_method: Literal["manual", "payment", "promocode", "gift"]  # Добавлен "gift"
     note: Optional[str]
-    duration_days: int
+    duration_days: int = Field(..., gt=0, le=365)
     payment: Optional[PaymentInfo] = None  # issued_by исключён — вставляется на бэке
     promo_code: Optional[str] = None  # Новый параметр для промокода
     referred_by: Optional[str] = None  # Новый параметр для реферала
     gift: Optional[bool] = False  # Новый параметр для подарочных подписок
-    amount: int
-    use_referral: bool  # Добавь это поле
+    use_balance: bool = True
 
 # 👉 Используется для вывода подписки
 class SubscriptionOut(BaseModel):
@@ -53,3 +52,9 @@ class SubscriptionOut(BaseModel):
 class SubscriptionCancel(BaseModel):
     subscription_id: str
     cancel_reason: str  # cancelled_by больше не нужен — вставляется на бэке
+
+class GiftSubscriptionCreate(BaseModel):
+    gift_iin: constr(strip_whitespace=True, min_length=12, max_length=12, pattern=r'^\d{12}$')
+    subscription_type: Literal["economy", "vip", "royal"]
+    duration_days: int = Field(..., gt=0, le=365)
+    use_balance: bool = True

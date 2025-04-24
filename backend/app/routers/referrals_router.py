@@ -145,6 +145,88 @@ async def get_my_referral(request: Request, current_user = Depends(get_current_a
     }
     return success(data=response_data)
 
+@router.get("/transactions", summary="Получить данные по реферальным транзакциям")
+async def get_referral_transactions(request: Request, current_user = Depends(get_current_actor)):
+    """
+    Получение информации о пользователях, зарегистрировавшихся по реферальному коду текущего пользователя,
+    включая статистику по заработку и платежам.
+    """
+    if current_user.get("role") != "user":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail={"message": "Доступно только для пользователей"}
+        )
+    
+    user_id_str = str(current_user["id"])
+    
+    # Проверяем наличие реферального кода у пользователя
+    referral = await db.referrals.find_one({"owner_user_id": user_id_str, "active": True})
+    if not referral:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail={"message": "У вас нет активного реферального кода"}
+        )
+    
+    referral_code = referral["code"]
+    
+    # Находим пользователей, зарегистрировавшихся по этому коду
+    referred_users = await db.users.find({"referred_by": referral_code}).to_list(length=1000)
+    
+    # Находим все транзакции типа "referral" для этого пользователя
+    transactions = await db.transactions.find({
+        "type": "referral",
+        "referred_by": referral_code
+    }).sort("created_at", -1).to_list(length=1000)
+    
+    # Подсчитываем статистику
+    total_earned = sum(tx.get("amount", 0) for tx in transactions)
+    total_registered = len(referred_users)
+    total_purchased = len([user for user in referred_users if user.get("referred_use", False)])
+    
+    # Формируем список пользователей с информацией о транзакциях
+    result_transactions = []
+    for user in referred_users:
+        user_id = str(user["_id"])
+        user_transactions = [tx for tx in transactions if tx.get("user_id") == user_id]
+        
+        # Находим транзакцию с максимальной суммой для данного пользователя (если есть)
+        amount = None
+        transaction_date = None
+        if user_transactions:
+            # Берем транзакцию с максимальной суммой
+            max_tx = max(user_transactions, key=lambda tx: tx.get("amount", 0))
+            amount = max_tx.get("amount")
+            transaction_date = max_tx.get("created_at")
+        
+        result_transactions.append({
+            "id": user_id,
+            "user_iin": user.get("iin", ""),
+            "user_name": user.get("full_name", ""),
+            "registration_date": user.get("created_at"),
+            "has_purchased": user.get("referred_use", False),
+            "amount": amount,
+            "transaction_date": transaction_date
+        })
+    
+    # Сортируем по дате транзакции (если есть), потом по дате регистрации
+    result_transactions.sort(
+        key=lambda x: (
+            x.get("transaction_date") is not None,
+            x.get("transaction_date", x.get("registration_date"))
+        ),
+        reverse=True
+    )
+    
+    return success(
+        data={
+            "transactions": result_transactions,
+            "totalEarned": total_earned,
+            "totalRegistered": total_registered,
+            "totalPurchased": total_purchased
+        },
+        message="Данные по реферальным транзакциям получены"
+    )
+
 @router.get("/", summary="Получить список реферальных кодов (админ/модератор)")
 async def list_referrals(
     code: Optional[str] = None,

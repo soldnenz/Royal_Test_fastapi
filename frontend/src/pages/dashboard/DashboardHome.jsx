@@ -4,31 +4,70 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { translations } from '../../translations/translations';
 import './styles.css'; // Make sure to create this file if it doesn't exist
 
+// Helper to pluralize 'day' labels per language
+const getDaysLabel = (days, t, language) => {
+  if (language === 'ru') {
+    const rem100 = days % 100;
+    const rem10 = days % 10;
+    if (rem100 >= 11 && rem100 <= 14) return 'дней';
+    if (rem10 === 1) return 'день';
+    if (rem10 >= 2 && rem10 <= 4) return 'дня';
+    return 'дней';
+  }
+  if (language === 'en') {
+    return days === 1 ? 'day' : 'days';
+  }
+  // For Kazakh and others, fallback to t.days
+  return t.days;
+};
+
 const DashboardHome = () => {
+  const daysLabel = (num) => getDaysLabel(num, t, language);
   const { profileData } = useOutletContext();
   const { language } = useLanguage();
   const navigate = useNavigate();
   const t = translations[language];
   const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   
   // Fetch subscription info
   useEffect(() => {
     const fetchSubscription = async () => {
       try {
         setLoading(true);
+        setError(null);
         const response = await fetch('/api/users/my/subscription', {
           credentials: 'include'
         });
         
-        if (response.ok) {
-          const data = await response.json();
-          if (data.status === 'ok') {
-            setSubscription(data.data);
-          }
+        if (response.status === 401) {
+          // Redirect to login if not authenticated
+          navigate('/login');
+          return;
         }
-      } catch (error) {
-        console.error('Error fetching subscription:', error);
+        
+        if (!response.ok) {
+          throw new Error();
+        }
+        
+        let data;
+        try {
+          data = await response.json();
+        } catch (parseError) {
+          // If the response is not JSON, assume unauthorized
+          navigate('/login');
+          return;
+        }
+        
+        if (data.status === 'ok') {
+          setSubscription(data.data);
+        } else {
+          throw new Error();
+        }
+      } catch (err) {
+        console.error('Error fetching subscription:', err);
+        setError('Не удалось загрузить информацию о подписке');
       } finally {
         setLoading(false);
       }
@@ -178,21 +217,23 @@ const DashboardHome = () => {
                 <p className="text-sm text-gray-500 dark:text-gray-400">{t.subscriptionStatus}</p>
                 {loading ? (
                   <div className="h-6 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mt-1"></div>
+                ) : error ? (
+                  <p className="text-red-500 mt-1">{error}</p>
                 ) : (
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                    {subscription?.has_subscription ? (
-                      <span className="flex items-center">
-                        <span className="capitalize">{subscription.subscription_type}</span>
-                        {subscription.days_left > 0 && (
-                          <span className="ml-2 text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 py-0.5 px-2 rounded-full">
-                            {subscription.days_left} {t.days}
-                          </span>
-                        )}
-                      </span>
-                    ) : (
-                      <span className="text-gray-700 dark:text-gray-300">{t.noSubscription}</span>
+                  <div className="mt-2">
+                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white capitalize">
+                      {subscription?.has_subscription ? (
+                        subscription.subscription_type
+                      ) : (
+                        t.noSubscription
+                      )}
+                    </h3>
+                    {subscription?.has_subscription && (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        {`До окончания: ${subscription.days_left} ${daysLabel(subscription.days_left)}`}
+                      </p>
                     )}
-                  </h3>
+                  </div>
                 )}
               </div>
               <div>

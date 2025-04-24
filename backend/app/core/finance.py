@@ -56,6 +56,13 @@ def process_referral(user_id, amount, description):
                     "description": description,
                     "created_at": datetime.utcnow()
                 })
+                
+                # Mark the referral as used so it's only paid once
+                db.users.update_one(
+                    {"_id": ObjectId(user_id)},
+                    {"$set": {"referred_use": True}}
+                )
+                logger.info(f"Реферальный бонус в размере {referral_amount} начислен за пользователя {user_id}")
             else:
                 logger.error(f"Реферальный код {user['referred_by']} не найден.")
     except Exception as e:

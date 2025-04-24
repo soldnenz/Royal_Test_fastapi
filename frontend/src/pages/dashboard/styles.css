@@ -69,3 +69,120 @@
     touch-action: manipulation;
   }
 } 
+
+/* Referral System Page Styles */
+.referral-card {
+  margin-bottom: 24px;
+  transition: all 0.3s;
+}
+
+.referral-code-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #d9d9d9;
+  border-radius: 6px;
+  padding: 16px;
+  background-color: #fafafa;
+  transition: all 0.3s;
+}
+
+.dark .referral-code-box {
+  border-color: #424242;
+  background-color: #1f1f1f;
+}
+
+.referral-code-box .code {
+  font-size: 24px;
+  font-weight: bold;
+  color: #1890ff;
+  margin-bottom: 8px;
+  letter-spacing: 2px;
+  transition: color 0.3s;
+}
+
+.dark .referral-code-box .code {
+  color: #4096ff;
+}
+
+.stats-row {
+  margin-bottom: 24px;
+}
+
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 300px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .stats-row .ant-col {
+    margin-bottom: 16px;
+  }
+} 
+
+/* Neon gradient border wrapper */
+.neon-border {
+  background: linear-gradient(90deg, #9d4edd, #f15bb5, #00bbf9);
+}
+
+/* Ensure inner container keeps its own rounded corners */
+.neon-border > div {
+  border-radius: 0.5rem;
+}
+
+/* Neon glow effect for referral code span */
+.neon-glow {
+  box-shadow: 0 0 8px rgba(157,78,237,0.8),
+              0 0 16px rgba(241,91,181,0.6),
+              0 0 24px rgba(0,187,249,0.4);
+} 
+
+/* Gold gradient border wrapper */
+.gold-border {
+  /* Rounded gradient border as background wrapper */
+  background: linear-gradient(90deg, #FFD700, #FFC107, #FFEB3B);
+  padding: 4px;
+  border-radius: 1rem;
+}
+
+/* Ensure inner container keeps its own rounded corners for .gold-border */
+.gold-border > div {
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+/* Gold glow effect for referral code span */
+.gold-glow {
+  box-shadow: 0 0 8px rgba(255,215,0,0.8),
+              0 0 16px rgba(255,193,7,0.6),
+              0 0 24px rgba(255,235,59,0.4);
+}
+
+/* Gradient purple border wrapper with gold-violet animated gradient */
+.promo-code-gradient-border {
+  background: linear-gradient(270deg, #FFD700, #8e44ad, #FFD700);
+  background-size: 600% 600%;
+  animation: gradientAnimation 8s ease infinite;
+  padding: 3px;
+  border-radius: 1.5rem;
+  /* Soft glow around border */
+  box-shadow: 0 0 8px rgba(255,215,0,0.8),
+              0 0 16px rgba(142,68,173,0.6);
+}
+
+/* Inner content rounding and overflow */
+.promo-code-gradient-border > div {
+  border-radius: calc(1.5rem - 3px);
+  overflow: hidden;
+}
+
+/* Gradient animation keyframes */
+@keyframes gradientAnimation {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+} 
