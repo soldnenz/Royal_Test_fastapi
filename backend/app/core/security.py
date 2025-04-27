@@ -185,7 +185,7 @@ async def get_current_actor(request: Request) -> dict:
         }
 
     # ─────────────────────── ADMIN / MODER ──────────────────────────────────
-    elif role in ("admin", "moderator"):
+    elif role in ("admin", "moderator", "tests_creator"):
         admin = await db.admins.find_one({"_id": ObjectId(user_id)})
         if not admin:
             raise HTTPException(

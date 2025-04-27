@@ -391,7 +391,7 @@ async def validate_admin(admin = Depends(get_current_admin_user)):
     204 → JWT валиден и роль = admin|moderator.
     Используется Nginx‑ом в auth_request.
     """
-    if admin["role"] not in ["admin", "moderator", "super_admin"]:
+    if admin["role"] not in ["admin", "moderator", "super_admin", "tests_creator"]:
         logger.warning(f"[VALIDATE-ADMIN] Недостаточно прав: user_id={admin['_id']}, role={admin['role']}")
         return Response(status_code=404)
     
