@@ -42,33 +42,6 @@
             --sidebar-width: 260px;
             --header-height: 60px;
         }
-        
-        /* Добавляем стили для data-theme */
-        html[data-theme="light"] {
-            --bg: var(--light-bg);
-            --sidebar-bg: var(--light-sidebar-bg);
-            --card-bg: var(--light-card-bg);
-            --border: var(--light-border);
-            --text: var(--light-text);
-            --text-secondary: var(--light-text-secondary);
-            --accent: var(--light-accent);
-            --accent-text: var(--light-accent-text);
-            --hover-bg: var(--light-hover-bg);
-            --main-bg: var(--light-main-bg);
-        }
-
-        html[data-theme="dark"] {
-            --bg: var(--dark-bg);
-            --sidebar-bg: var(--dark-sidebar-bg);
-            --card-bg: var(--dark-card-bg);
-            --border: var(--dark-border);
-            --text: var(--dark-text);
-            --text-secondary: var(--dark-text-secondary);
-            --accent: var(--dark-accent);
-            --accent-text: var(--dark-accent-text);
-            --hover-bg: var(--dark-hover-bg);
-            --main-bg: var(--dark-main-bg);
-        }
 
         * {
             margin: 0;
@@ -78,10 +51,9 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
+            background-color: var(--light-bg);
+            color: var(--light-text);
             line-height: 1.5;
-            transition: background-color 0.3s, color 0.3s;
         }
 
         .dark-theme {
@@ -96,8 +68,8 @@
             top: 0;
             height: 100%;
             width: var(--sidebar-width);
-            background: var(--sidebar-bg);
-            border-right: 1px solid var(--border);
+            background: var(--light-sidebar-bg);
+            border-right: 1px solid var(--light-border);
             padding: 1rem;
             transition: all 0.3s ease;
             z-index: 100;
@@ -112,7 +84,7 @@
             padding: 1rem;
             text-align: center;
             margin-bottom: 1rem;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid var(--light-border);
         }
 
         .dark-theme .sidebar-logo {
@@ -132,7 +104,7 @@
             display: flex;
             align-items: center;
             padding: 0.8rem 1rem;
-            color: var(--text);
+            color: var(--light-text);
             text-decoration: none;
             border-radius: 6px;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -183,14 +155,13 @@
             left: var(--sidebar-width);
             right: 0;
             height: var(--header-height);
-            background: var(--bg);
-            border-bottom: 1px solid var(--border);
+            background: var(--light-bg);
+            border-bottom: 1px solid var(--light-border);
             padding: 0 2rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
             z-index: 99;
-            transition: background-color 0.3s, border-color 0.3s;
         }
 
         .dark-theme .header {
@@ -207,11 +178,10 @@
         }
 
         .stat-card {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
+            background: var(--light-card-bg);
+            border: 1px solid var(--light-border);
             border-radius: 8px;
             padding: 1.5rem;
-            transition: background-color 0.3s, border-color 0.3s;
         }
 
         .dark-theme .stat-card {
@@ -221,7 +191,7 @@
 
         .stat-title {
             font-size: 0.9rem;
-            color: var(--text-secondary);
+            color: var(--light-text-secondary);
             margin-bottom: 0.5rem;
         }
 
@@ -1367,13 +1337,11 @@
             flex-direction: column;
             padding: 1.2rem;
             border-radius: 8px;
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            margin-bottom: 1.5rem;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-            transition: transform 0.2s, box-shadow 0.2s;
-            will-change: transform, box-shadow;
-            contain: content;
+            background: var(--light-card-bg);
+            border: 1px solid var(--light-border);
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+            transition: all 0.2s ease;
         }
         
         .question-card:hover {
@@ -1871,121 +1839,6 @@
             background: #e6c200;
             box-shadow: 0 6px 12px rgba(255, 215, 0, 0.25);
         }
-
-        /* Улучшенная пагинация */
-        .pagination {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 2rem 0;
-            gap: 0.5rem;
-        }
-        
-        .pagination-item {
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 8px;
-            background: var(--light-card-bg);
-            border: 1px solid var(--light-border);
-            color: var(--light-text);
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .pagination-item:hover {
-            background: var(--light-hover-bg);
-            transform: translateY(-2px);
-        }
-        
-        .pagination-item.active {
-            background: var(--primary-color);
-            color: var(--primary-text);
-            border-color: var(--primary-color);
-        }
-        
-        .dark-theme .pagination-item {
-            background: var(--dark-card-bg);
-            border-color: var(--dark-border);
-            color: var(--dark-text);
-        }
-        
-        .dark-theme .pagination-item:hover {
-            background: var(--dark-hover-bg);
-        }
-        
-        .dark-theme .pagination-item.active {
-            background: var(--dark-primary-color);
-            color: var(--dark-primary-text);
-            border-color: var(--dark-primary-color);
-        }
-        
-        .pagination-text {
-            margin: 0 1rem;
-            font-size: 0.9rem;
-            color: var(--light-text-secondary);
-        }
-        
-        .dark-theme .pagination-text {
-            color: var(--dark-text-secondary);
-        }
-
-        /* Обновляем стили для работы с data-theme */
-        html[data-theme="light"] body {
-            background-color: var(--light-bg);
-            color: var(--light-text);
-        }
-        
-        html[data-theme="light"] .sidebar { 
-            background-color: var(--light-sidebar-bg); 
-            border-right: 1px solid var(--light-border); 
-        }
-        
-        html[data-theme="light"] .header { 
-            background-color: var(--light-bg); 
-            border-bottom: 1px solid var(--light-border); 
-        }
-        
-        html[data-theme="light"] .card { 
-            background-color: var(--light-card-bg); 
-            border: 1px solid var(--light-border); 
-        }
-        
-        html[data-theme="dark"] body {
-            background-color: var(--dark-bg);
-            color: var(--dark-text);
-        }
-        
-        html[data-theme="dark"] .sidebar { 
-            background-color: var(--dark-sidebar-bg); 
-            border-right: 1px solid var(--dark-border); 
-        }
-        
-        html[data-theme="dark"] .header { 
-            background-color: var(--dark-bg); 
-            border-bottom: 1px solid var(--dark-border); 
-        }
-        
-        html[data-theme="dark"] .card { 
-            background-color: var(--dark-card-bg); 
-            border: 1px solid var(--dark-border); 
-        }
-        
-        html[data-theme="dark"] .stat-title {
-            color: var(--dark-text-secondary);
-        }
-        
-        /* Оптимизация загрузки и переключения темы */
-        body {
-            transition: background-color 0.3s ease, color 0.3s ease;
-        }
-        
-        .header, .sidebar, .card {
-            transition: background-color 0.3s ease, border-color 0.3s ease;
-        }
     </style>
 </head>
 <body>
@@ -2054,33 +1907,27 @@
     <div class="main-content">
         <header class="header">
             <div class="header-left">
-                <!-- Мобильный переключатель меню -->
-                <button class="menu-toggle">
+                <button class="mobile-toggle">
                     <i class='bx bx-menu'></i>
                 </button>
-                
-                <h3 class="header-title">Вопросы</h3>
             </div>
-            
             <div class="header-right">
-                <!-- Переключатель темы -->
-                <button class="header-icon" onclick="toggleTheme()" title="Сменить тему">
-                    <i id="theme-icon" class='bx bx-moon'></i>
+                <button class="btn btn-icon">
+                    <i class='bx bx-bell'></i>
                 </button>
-                
-                <!-- Профиль -->
+                <button id="theme-toggle" class="btn btn-icon">
+                    <i class='bx bx-moon'></i>
+                </button>
                 <div class="profile-dropdown">
                     <button class="profile-btn">
-                        <div class="profile-avatar">
-                            <i class='bx bx-user'></i>
-                        </div>
-                        <span class="profile-name">Пользователь</span>
+                        <i class='bx bx-user profile-icon-mobile'></i>
+                        <span class="profile-name">Иванов Иван Иванович</span>
                         <i class='bx bx-chevron-down'></i>
                     </button>
-                    
                     <div class="dropdown-menu">
+                        <div class="profile-info">Иванов Иван Иванович</div>
                         <a href="#" class="dropdown-item">
-                            <i class='bx bx-user-circle'></i>
+                            <i class='bx bx-user'></i>
                             <span>Профиль</span>
                         </a>
                         <a href="#" class="dropdown-item">
@@ -2088,9 +1935,9 @@
                             <span>Настройки</span>
                         </a>
                         <div class="dropdown-divider"></div>
-                        <a href="#" class="dropdown-item" onclick="logoutUser()">
+                        <a href="#" class="dropdown-item text-danger">
                             <i class='bx bx-log-out'></i>
-                            <span>Выйти</span>
+                            <span>Выход</span>
                         </a>
                     </div>
                 </div>
@@ -2165,65 +2012,55 @@
                     </div>
                 </div>
                 
-                <!-- Поиск -->
+                <!-- Основные фильтры -->
                 <div class="filter-row">
-                    <div class="search-box" style="width: 100%;">
+                    <div class="search-box">
                         <i class='bx bx-search'></i>
                         <input type="text" id="searchInput" placeholder="Поиск по тексту вопроса...">
+                    </div>
+                    
+                    <div class="filter-group">
+                        <div class="filter-label">Медиа</div>
+                        <div class="media-toggle">
+                            <button class="media-option active" data-value="">
+                                <i class='bx bx-list-ul'></i> Все
+                            </button>
+                            <button class="media-option" data-value="true">
+                                <i class='bx bx-image'></i> С медиа
+                            </button>
+                            <button class="media-option" data-value="false">
+                                <i class='bx bx-image-alt'></i> Без медиа
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <button class="btn-filter btn-reset" id="resetFilters">
+                        <i class='bx bx-reset'></i> Сбросить
+                    </button>
+                </div>
+                
+                <!-- Фильтр по категориям водительских прав -->
+                <div class="filter-row">
+                    <div class="filter-group" style="flex: 2;">
+                        <div class="filter-label">Категории</div>
+                        <div class="category-tags-container" id="categoryTags">
+                            <!-- Категории будут добавлены через JavaScript -->
+                        </div>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <div class="filter-label">Раздел ПДД</div>
+                        <div class="select-wrapper">
+                            <select id="sectionFilter">
+                                <option value="">Все разделы</option>
+                            </select>
+                            <i class='bx bx-chevron-down'></i>
+                        </div>
                     </div>
                     
                     <button class="btn-filter btn-apply" id="applyFilters">
                         <i class='bx bx-check'></i> Применить
                     </button>
-                    
-                    <button class="btn-filter" id="showFiltersBtn">
-                        <i class='bx bx-filter'></i> Фильтры
-                    </button>
-                </div>
-                
-                <!-- Расширенные фильтры (скрыты по умолчанию) -->
-                <div id="extendedFilters" style="display: none; margin-top: 1rem;">
-                    <!-- Фильтр по категориям -->
-                    <div class="filter-row">
-                        <div class="filter-group" style="flex: 2;">
-                            <div class="filter-label">Категории</div>
-                            <div class="category-tags-container" id="categoryTags">
-                                <!-- Категории будут добавлены через JavaScript -->
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Фильтр по медиа -->
-                    <div class="filter-row">
-                        <div class="filter-group">
-                            <div class="filter-label">Медиа</div>
-                            <div class="media-toggle">
-                                <button class="media-option active" data-value="">
-                                    <i class='bx bx-list-ul'></i> Все
-                                </button>
-                                <button class="media-option" data-value="true">
-                                    <i class='bx bx-image'></i> С медиа
-                                </button>
-                                <button class="media-option" data-value="false">
-                                    <i class='bx bx-image-alt'></i> Без медиа
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <div class="filter-label">Раздел ПДД</div>
-                            <div class="select-wrapper">
-                                <select id="sectionFilter">
-                                    <option value="">Все разделы</option>
-                                </select>
-                                <i class='bx bx-chevron-down'></i>
-                            </div>
-                        </div>
-                        
-                        <button class="btn-filter btn-reset" id="resetFilters">
-                            <i class='bx bx-reset'></i> Сбросить
-                        </button>
-                    </div>
                 </div>
             </div>
 
@@ -2356,133 +2193,68 @@
                 }
             });
         });
+    </script>
 
-        // Функция для получения токена доступа из куки
-        function getAccessToken() {
-            const cookies = document.cookie.split(';');
-            for (let cookie of cookies) {
-                const [name, value] = cookie.trim().split('=');
-                if (name === 'access_token' || name === 'token') {
-                    return value;
-                }
-            }
-            return null;
-        }
+    <!-- Добавляем скрипт для работы с вопросами -->
+    <script>
+        // Глобальные переменные для работы с данными и фильтрами
+        let allQuestions = [];
+        let filteredQuestions = [];
+        let categories = new Set();
+        let pddSections = [];
+        let categoryStats = {};
+        let sectionStats = {};
+        let currentPage = 1;
+        const itemsPerPage = 10;
+        let isLoading = false;
+        let selectedCategoryTag = '';
 
-        // Функция для выхода из системы
-        async function logout() {
-            try {
-                const token = getAccessToken(); // Получаем токен из куков
-                const response = await fetch('/api/auth/logout', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': token, // Передаем токен в заголовке
-                        'Content-Type': 'application/json'
-                    }
-                });
+        // Данные о разделах ПДД из .env
+        const PDD_SECTIONS = [
+            {"uid":"polozheniya","title":"Общие положения","order":10},
+            {"uid":"voditeli","title":"Общие обязанности водителей","order":20},
+            {"uid":"peshehody","title":"Обязанности пешеходов","order":30},
+            {"uid":"passazhiry","title":"Обязанности пассажиров","order":40},
+            {"uid":"svetofor","title":"Сигналы светофора и регулировщика","order":50},
+            {"uid":"specsignaly","title":"Применение специальных сигналов","order":60},
+            {"uid":"avarijka","title":"Применение аварийной сигнализации и знака аварийной остановки","order":70},
+            {"uid":"manevrirovanie","title":"Маневрирование","order":80},
+            {"uid":"raspolozhenie","title":"Расположение транспортных средств на проезжей части дороги","order":90},
+            {"uid":"speed","title":"Скорость движения","order":100},
+            {"uid":"obgon","title":"Обгон, встречный разъезд","order":110},
+            {"uid":"ostanovka","title":"Остановка и стоянка","order":120},
+            {"uid":"perekrestki","title":"Проезд перекрёстков","order":130},
+            {"uid":"perehody","title":"Пешеходные переходы и остановки маршрутных транспортных средств","order":140},
+            {"uid":"zhd","title":"Движение через железнодорожные пути","order":150},
+            {"uid":"magistral","title":"Движение по автомагистралям","order":160},
+            {"uid":"zhilaya-zona","title":"Движение в жилых зонах","order":170},
+            {"uid":"prioritet","title":"Приоритет маршрутных транспортных средств","order":180},
+            {"uid":"svetovye-pribory","title":"Пользование внешними световыми приборами и звуковыми сигналами","order":190},
+            {"uid":"buksirovka","title":"Буксировка механических транспортных средств","order":200},
+            {"uid":"uchebnaya-ezda","title":"Учебная езда","order":210},
+            {"uid":"perevozka-passazhirov","title":"Перевозка пассажиров","order":220},
+            {"uid":"perevozka-gruzov","title":"Перевозка грузов","order":230},
+            {"uid":"velosipedy-i-zhivotnye","title":"Дополнительные требования к движению велосипедов, мопедов, гужевых повозок, а так же животных","order":240},
+            {"uid":"invalidy","title":"Обеспечение движения людей с нарушениями опорно-двигательного аппарата","order":250},
+            {"uid":"znaki","title":"Дорожные знаки","order":260},
+            {"uid":"razmetka","title":"Дорожная разметка и её характеристики","order":270},
+            {"uid":"dopusk","title":"Основные положения по допуску транспортных средств к эксплуатации","order":280},
+            {"uid":"obdzh","title":"ОБДЖ (Обеспечение безопасности дорожного движения)","order":290},
+            {"uid":"administrativka","title":"Административка","order":300},
+            {"uid":"medicina","title":"Медицина","order":310},
+            {"uid":"dtp","title":"ДТП","order":320}
+        ];
 
-                // Проверяем, успешен ли запрос
-                if (response.ok) {
-                    window.location.href = '/'; // Перенаправляем на главную страницу после логаута
-                } else {
-                    const result = await response.json();
-                    showError(result.message || 'Ошибка при выходе');
-                }
-            } catch (err) {
-                showError('Ошибка при выходе');
-            }
-        }
-
-        // Функция для отображения ошибки
-        function showError(message) {
-            Notification.error("Ошибка", message);
-        }
-
-        // Функция для загрузки профиля пользователя
-        async function loadUserProfile() {
-            try {
-                const token = getAccessToken();
-                const response = await fetch('/api/users/me', {
-                    headers: {
-                        'Authorization': token,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (response.ok) {
-                    const result = await response.json();
-                    if (result.status === "ok" && result.data) {
-                        const profile = result.data;
-                        // Обновляем имя пользователя на странице
-                        const profileNameElements = document.querySelectorAll('.profile-name');
-                        const profileInfo = document.querySelector('.profile-info');
-                        
-                        profileNameElements.forEach(element => {
-                            element.textContent = profile.full_name;
-                        });
-                        
-                        if (profileInfo) {
-                            profileInfo.textContent = profile.full_name;
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error("Ошибка при загрузке профиля:", error);
-            }
-        }
+        // Категории водительских прав
+        const PDD_CATEGORIES = ["A1","A","B1","B","BE","C","C1","BC1","D1","D","Tb","CE", "DE"];
 
         // Инициализация при загрузке страницы
         document.addEventListener('DOMContentLoaded', async () => {
-            // Инициализируем тему
-            initializeTheme();
-            
-            // Инициализируем UI и загружаем данные
             initializeUI();
             initCategoryTags();
-            await fetchAllQuestions(); // Это загрузит все вопросы и отрендерит их
+            await fetchAllQuestions();
             setupEventListeners();
-            
-            // Загружаем профиль пользователя
-            await loadUserProfile();
         });
-
-        // Инициализация темы
-        function initializeTheme() {
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            document.documentElement.dataset.theme = savedTheme;
-            
-            // Обновляем иконку переключателя темы
-            const themeIcon = document.getElementById('theme-icon');
-            if (themeIcon) {
-                if (savedTheme === 'dark') {
-                    themeIcon.classList.remove('bx-sun');
-                    themeIcon.classList.add('bx-moon');
-                } else {
-                    themeIcon.classList.remove('bx-moon');
-                    themeIcon.classList.add('bx-sun');
-                }
-            }
-        }
-
-        // Функция переключения темы
-        function toggleTheme() {
-            const html = document.documentElement;
-            const newTheme = html.dataset.theme === 'dark' ? 'light' : 'dark';
-            html.dataset.theme = newTheme;
-            localStorage.setItem('theme', newTheme);
-            
-            // Обновляем иконку
-            const themeIcon = document.getElementById('theme-icon');
-            if (themeIcon) {
-                if (newTheme === 'dark') {
-                    themeIcon.classList.remove('bx-sun');
-                    themeIcon.classList.add('bx-moon');
-                } else {
-                    themeIcon.classList.remove('bx-moon');
-                    themeIcon.classList.add('bx-sun');
-                }
-            }
-        }
 
         // Инициализация UI элементов
         function initializeUI() {
@@ -2541,18 +2313,6 @@
                 applyFilters();
             });
             
-            // Обработчик для кнопки фильтров - отменяем открытие фильтров при нажатии
-            document.getElementById('showFiltersBtn').addEventListener('click', (e) => {
-                e.preventDefault(); // Предотвращаем действие по умолчанию
-                // Отменяем открытие фильтров по запросу пользователя
-                // const filtersBlock = document.getElementById('extendedFilters');
-                // if (filtersBlock.style.display === 'none') {
-                //     filtersBlock.style.display = 'block';
-                // } else {
-                //     filtersBlock.style.display = 'none';
-                // }
-            });
-            
             // Обработчики для переключателей медиа
             document.querySelectorAll('.media-option').forEach(btn => {
                 btn.addEventListener('click', () => {
@@ -2568,8 +2328,7 @@
             
             // Кнопки фильтров
             document.getElementById('resetFilters').addEventListener('click', resetFilters);
-            document.getElementById('applyFilters').addEventListener('click', (e) => {
-                e.preventDefault(); // Предотвращаем действие по умолчанию
+            document.getElementById('applyFilters').addEventListener('click', () => {
                 currentPage = 1;
                 applyFilters();
             });
@@ -2731,6 +2490,12 @@
                 if (modal && modalText) {
                     modalText.textContent = message;
                     modal.classList.add('active');
+                    
+                    // Подключаем обработчик отмены
+                    const cancelBtn = document.getElementById('modalCancel');
+                    if (cancelBtn) {
+                        cancelBtn.addEventListener('click', this.closeModal);
+                    }
                 }
             },
             
@@ -2830,12 +2595,10 @@
                 document.getElementById('questionsContainer').style.display = 'none';
                 isLoading = true;
                 
-                // Сбрасываем флаг отображения уведомления о загрузке
-                loadingNotificationShown = false;
-                
-                // Запускаем прогресс бар но НЕ показываем модальное окно при начальной загрузке
+                // Запускаем прогресс бар и показываем модальное окно
                 ProgressBar.init();
                 ProgressBar.start();
+                ProgressBar.showModalProgress('Загрузка вопросов...');
                 
                 const startTime = Date.now();
                 
@@ -2867,17 +2630,14 @@
                     // Обновляем статистику
                     updateStats();
                     
-                    // Отображаем вопросы сразу
+                    // Отображаем вопросы
                     renderQuestions();
                     
-                    // Показываем успешное сообщение только один раз
-                    if (!loadingNotificationShown) {
-                        Notification.success(
-                            "Загрузка завершена", 
-                            `Загружено ${allQuestions.length} вопросов`
-                        );
-                        loadingNotificationShown = true;
-                    }
+                    // Показываем успешное сообщение
+                    Notification.success(
+                        "Загрузка завершена", 
+                        `Загружено ${allQuestions.length} вопросов`
+                    );
                 } else {
                     console.error("Ошибка загрузки вопросов:", jsonResponse.message);
                     document.getElementById('questionsContainer').innerHTML = 
@@ -3117,9 +2877,6 @@
 
         // Применяем фильтры и поиск
         function applyFilters() {
-            // Если загрузка еще идет, не применяем фильтры
-            if (isLoading) return;
-            
             const searchText = document.getElementById('searchInput').value.toLowerCase();
             const selectedCategory = selectedCategoryTag;
             const selectedSection = document.getElementById('sectionFilter').value;
@@ -3194,8 +2951,8 @@
             // Показываем контейнер вопросов
             container.style.display = 'block';
             
-            const startIndex = (currentPage - 1) * QUESTIONS_PER_PAGE;
-            const endIndex = Math.min(startIndex + QUESTIONS_PER_PAGE, filteredQuestions.length);
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = Math.min(startIndex + itemsPerPage, filteredQuestions.length);
             const currentQuestions = filteredQuestions.slice(startIndex, endIndex);
             
             // Если нет результатов
@@ -3230,8 +2987,8 @@
                     <div class="question-header">
                         <h3>${questionText}</h3>
                         <div class="question-actions">
-                            <button class="action-btn toggle-btn" id="toggle-btn-${q.uid}" onclick="toggleDetails('${q.uid}')" title="Подробнее">
-                                <i class='bx bx-chevron-down'></i> Подробнее
+                            <button class="action-btn toggle-btn" onclick="toggleDetails('${q.uid}', this)" title="Подробнее">
+                                <i class='bx bx-chevron-down'></i>
                             </button>
                             <button class="action-btn edit-btn" onclick="redirectToEdit('${q.uid}')" title="Редактировать">
                                 <i class='bx bx-edit'></i>
@@ -3258,7 +3015,7 @@
                         ` : ''}
                         <div class="uid">UID: ${q.uid}</div>
                     </div>
-                    <div class="question-details" id="question-details-${q.uid}" style="display: none;"></div>
+                    <div class="details" id="details-${q.uid}"></div>
                 `;
                 container.appendChild(div);
             });
@@ -3300,7 +3057,7 @@
 
         // Отображаем пагинацию
         function renderPagination() {
-            const totalPages = Math.ceil(filteredQuestions.length / QUESTIONS_PER_PAGE);
+            const totalPages = Math.ceil(filteredQuestions.length / itemsPerPage);
             const paginationElement = document.getElementById('pagination');
             paginationElement.innerHTML = '';
             
@@ -3310,25 +3067,11 @@
                 return;
             }
             
-            // Кнопка "На первую страницу"
-            if (currentPage > 1) {
-                const firstButton = document.createElement('div');
-                firstButton.className = 'pagination-item';
-                firstButton.innerHTML = '<i class="bx bx-chevrons-left"></i>';
-                firstButton.title = "Первая страница";
-                firstButton.addEventListener('click', () => {
-                    currentPage = 1;
-                    renderQuestions();
-                });
-                paginationElement.appendChild(firstButton);
-            }
-            
             // Кнопка "Предыдущая"
             if (currentPage > 1) {
                 const prevButton = document.createElement('div');
                 prevButton.className = 'pagination-item';
                 prevButton.innerHTML = '<i class="bx bx-chevron-left"></i>';
-                prevButton.title = "Предыдущая страница";
                 prevButton.addEventListener('click', () => {
                     currentPage--;
                     renderQuestions();
@@ -3337,7 +3080,7 @@
             }
             
             // Номера страниц
-            const maxPages = 3; // Максимальное количество видимых номеров страниц
+            const maxPages = 5; // Максимальное количество видимых номеров страниц
             let startPage = Math.max(1, currentPage - Math.floor(maxPages / 2));
             let endPage = Math.min(totalPages, startPage + maxPages - 1);
             
@@ -3362,32 +3105,12 @@
                 const nextButton = document.createElement('div');
                 nextButton.className = 'pagination-item';
                 nextButton.innerHTML = '<i class="bx bx-chevron-right"></i>';
-                nextButton.title = "Следующая страница";
                 nextButton.addEventListener('click', () => {
                     currentPage++;
                     renderQuestions();
                 });
                 paginationElement.appendChild(nextButton);
             }
-            
-            // Кнопка "На последнюю страницу"
-            if (currentPage < totalPages) {
-                const lastButton = document.createElement('div');
-                lastButton.className = 'pagination-item';
-                lastButton.innerHTML = '<i class="bx bx-chevrons-right"></i>';
-                lastButton.title = "Последняя страница";
-                lastButton.addEventListener('click', () => {
-                    currentPage = totalPages;
-                    renderQuestions();
-                });
-                paginationElement.appendChild(lastButton);
-            }
-            
-            // Информация о текущей странице и общем количестве
-            const paginationInfo = document.createElement('div');
-            paginationInfo.className = 'pagination-text';
-            paginationInfo.textContent = `Страница ${currentPage} из ${totalPages} (${filteredQuestions.length} вопросов)`;
-            paginationElement.appendChild(paginationInfo);
         }
 
         // Функция переключения подробной информации с отображением прогресс-бара
@@ -3407,35 +3130,14 @@
             detailsDiv.style.display = "block";
             btn.classList.add('active');
             
-            // Используем AbortController для возможности отмены запроса
-            const controller = new AbortController();
-            const signal = controller.signal;
-            
-            // Показываем модальное окно с прогрессом
-            ProgressBar.showModalProgress('Загрузка данных вопроса...');
-            
-            // Подключаем обработчик отмены
-            const cancelBtn = document.getElementById('modalCancel');
-            if (cancelBtn) {
-                cancelBtn.onclick = () => {
-                    controller.abort();
-                    ProgressBar.closeModal();
-                    detailsDiv.innerHTML = '';
-                    detailsDiv.style.display = "none";
-                    btn.innerHTML = '<i class="bx bx-chevron-down"></i>';
-                    btn.classList.remove('active');
-                };
-            }
-            
             try {
+                // Показываем модальное окно с прогрессом
+                ProgressBar.showModalProgress('Загрузка данных вопроса...');
+                
                 // Запускаем реальный прогресс-бар
                 ProgressBar.start();
                 
-                const res = await fetch(`/api/tests/by_uid/${uid}`, { 
-                    credentials: "include",
-                    signal: signal
-                });
-                
+                const res = await fetch(`/api/tests/by_uid/${uid}`, { credentials: "include" });
                 if (!res.ok) throw new Error("Ошибка запроса деталей");
                 
                 // Используем функцию с имитацией прогрессивной загрузки
@@ -3446,23 +3148,12 @@
                 displayQuestionDetails(data, detailsDiv);
                 btn.innerHTML = '<i class="bx bx-chevron-up"></i>';
             } catch (error) {
-                // Проверяем, была ли отмена запроса
-                if (error.name === 'AbortError') {
-                    console.log('Запрос был отменен пользователем');
-                    return;
-                }
-                
                 console.error("Ошибка при загрузке деталей:", error);
                 detailsDiv.innerHTML = `<p>Ошибка загрузки деталей.</p>`;
                 
                 // Показываем уведомление об ошибке
                 Notification.error("Ошибка", "Не удалось загрузить детали вопроса");
             } finally {
-                // Очищаем обработчик отмены
-                if (cancelBtn) {
-                    cancelBtn.onclick = null;
-                }
-                
                 // Завершаем прогресс-бар
                 ProgressBar.complete();
             }
@@ -3623,30 +3314,14 @@
                 return;
             }
             
-            // Используем AbortController для возможности отмены запроса
-            const controller = new AbortController();
-            const signal = controller.signal;
-            
-            // Подключаем обработчик отмены
-            const cancelBtn = document.getElementById('modalCancel');
-            
             try {
                 // Показываем модальное окно с прогрессом
                 ProgressBar.showModalProgress('Удаление вопроса...');
                 ProgressBar.start();
                 
-                // Назначаем обработчик отмены
-                if (cancelBtn) {
-                    cancelBtn.onclick = () => {
-                        controller.abort();
-                        ProgressBar.closeModal();
-                    };
-                }
-                
                 const res = await fetch(`/api/tests/delete/${uid}`, { 
                     method: 'DELETE',
-                    credentials: "include",
-                    signal: signal
+                    credentials: "include"
                 });
                 
                 const data = await res.json();
@@ -3669,146 +3344,12 @@
                     Notification.error("Ошибка", data.message || "Ошибка при удалении вопроса");
                 }
             } catch (error) {
-                // Проверяем, была ли отмена запроса
-                if (error.name === 'AbortError') {
-                    console.log('Запрос на удаление был отменен пользователем');
-                    return;
-                }
-                
                 console.error("Ошибка при удалении:", error);
                 Notification.error("Ошибка", "Ошибка при удалении вопроса");
             } finally {
-                // Очищаем обработчик отмены
-                if (cancelBtn) {
-                    cancelBtn.onclick = null;
-                }
-                
-                // Завершаем прогресс бар
                 ProgressBar.complete();
             }
         }
-
-        // Отображаем детальную информацию о вопросе
-        function toggleDetails(questionId) {
-            const detailsDiv = document.getElementById(`question-details-${questionId}`);
-            const toggleBtn = document.getElementById(`toggle-btn-${questionId}`);
-            
-            if (detailsDiv.style.display === 'none' || !detailsDiv.style.display) {
-                // Оптимизация: загружаем детали только при первом открытии
-                if (!detailsDiv.dataset.loaded) {
-                    // Отображаем индикатор загрузки в деталях
-                    detailsDiv.innerHTML = '<div class="details-loading"><div class="spinner-small"></div> Загрузка деталей...</div>';
-                    detailsDiv.style.display = 'block';
-                    
-                    // Асинхронно загружаем детали
-                    setTimeout(() => {
-                        const question = allQuestions.find(q => q.id === questionId);
-                        if (question) {
-                            detailsDiv.innerHTML = generateDetailsHTML(question);
-                            
-                            // Оптимизация загрузки изображений
-                            const images = detailsDiv.querySelectorAll('img');
-                            images.forEach(img => {
-                                if (!img.complete) {
-                                    img.loading = 'lazy';
-                                    img.decoding = 'async';
-                                    img.addEventListener('load', () => {
-                                        img.classList.add('loaded');
-                                    });
-                                }
-                            });
-                            
-                            detailsDiv.dataset.loaded = 'true';
-                        }
-                    }, 10); // Минимальная задержка для отображения UI
-                } else {
-                    detailsDiv.style.display = 'block';
-                }
-                
-                toggleBtn.innerHTML = '<i class="bx bx-chevron-up"></i> Скрыть детали';
-            } else {
-                detailsDiv.style.display = 'none';
-                toggleBtn.innerHTML = '<i class="bx bx-chevron-down"></i> Подробнее';
-            }
-        }
-    </script>
-
-    <!-- Добавляем скрипт для работы с вопросами -->
-    <script>
-        // Глобальные переменные для работы с данными и фильтрами
-        let allQuestions = [];
-        let filteredQuestions = [];
-        let categories = new Set();
-        let pddSections = [];
-        let categoryStats = {};
-        let sectionStats = {};
-        let currentPage = 1;
-        const itemsPerPage = 10;
-        let isLoading = false;
-        let selectedCategoryTag = '';
-        let loadingNotificationShown = false;
-        
-        // Сохранение и применение темы при загрузке страницы
-        const savedTheme = localStorage.getItem("theme") || "light";
-        document.documentElement.dataset.theme = savedTheme;
-
-        // Функция переключения темы
-        function toggleTheme() {
-            const html = document.documentElement;
-            const newTheme = html.dataset.theme === 'dark' ? 'light' : 'dark';
-            html.dataset.theme = newTheme;
-            localStorage.setItem('theme', newTheme);
-        }
-        
-        // Данные о разделах ПДД из .env
-        const PDD_SECTIONS = [
-            {"uid":"polozheniya","title":"Общие положения","order":10},
-            {"uid":"voditeli","title":"Общие обязанности водителей","order":20},
-            {"uid":"peshehody","title":"Обязанности пешеходов","order":30},
-            {"uid":"passazhiry","title":"Обязанности пассажиров","order":40},
-            {"uid":"svetofor","title":"Сигналы светофора и регулировщика","order":50},
-            {"uid":"specsignaly","title":"Применение специальных сигналов","order":60},
-            {"uid":"avarijka","title":"Применение аварийной сигнализации и знака аварийной остановки","order":70},
-            {"uid":"manevrirovanie","title":"Маневрирование","order":80},
-            {"uid":"raspolozhenie","title":"Расположение транспортных средств на проезжей части дороги","order":90},
-            {"uid":"speed","title":"Скорость движения","order":100},
-            {"uid":"obgon","title":"Обгон, встречный разъезд","order":110},
-            {"uid":"ostanovka","title":"Остановка и стоянка","order":120},
-            {"uid":"perekrestki","title":"Проезд перекрёстков","order":130},
-            {"uid":"perehody","title":"Пешеходные переходы и остановки маршрутных транспортных средств","order":140},
-            {"uid":"zhd","title":"Движение через железнодорожные пути","order":150},
-            {"uid":"magistral","title":"Движение по автомагистралям","order":160},
-            {"uid":"zhilaya-zona","title":"Движение в жилых зонах","order":170},
-            {"uid":"prioritet","title":"Приоритет маршрутных транспортных средств","order":180},
-            {"uid":"svetovye-pribory","title":"Пользование внешними световыми приборами и звуковыми сигналами","order":190},
-            {"uid":"buksirovka","title":"Буксировка механических транспортных средств","order":200},
-            {"uid":"uchebnaya-ezda","title":"Учебная езда","order":210},
-            {"uid":"perevozka-passazhirov","title":"Перевозка пассажиров","order":220},
-            {"uid":"perevozka-gruzov","title":"Перевозка грузов","order":230},
-            {"uid":"velosipedy-i-zhivotnye","title":"Дополнительные требования к движению велосипедов, мопедов, гужевых повозок, а так же животных","order":240},
-            {"uid":"invalidy","title":"Обеспечение движения людей с нарушениями опорно-двигательного аппарата","order":250},
-            {"uid":"znaki","title":"Дорожные знаки","order":260},
-            {"uid":"razmetka","title":"Дорожная разметка и её характеристики","order":270},
-            {"uid":"dopusk","title":"Основные положения по допуску транспортных средств к эксплуатации","order":280},
-            {"uid":"obdzh","title":"ОБДЖ (Обеспечение безопасности дорожного движения)","order":290},
-            {"uid":"administrativka","title":"Административка","order":300},
-            {"uid":"medicina","title":"Медицина","order":310},
-            {"uid":"dtp","title":"ДТП","order":320}
-        ];
-
-        // Категории водительских прав
-        const PDD_CATEGORIES = ["A1","A","B1","B","BE","C","C1","BC1","D1","D","Tb","CE", "DE"];
-        
-        // Инициализация при загрузке страницы
-        document.addEventListener('DOMContentLoaded', async () => {
-            initializeUI();
-            initCategoryTags();
-            await fetchAllQuestions(); // Это загрузит все вопросы и отрендерит их
-            setupEventListeners();
-            
-            // Загружаем профиль пользователя
-            await loadUserProfile();
-        });
     </script>
 </body>
 </html> 

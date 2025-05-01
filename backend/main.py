@@ -22,8 +22,8 @@ import json
 
 from app.core.logging_config import setup_logging
 from app.core.response import error
-from app.routers import auth, user, reset_password, admin_router, test_router, subscription_router, referrals_router, transaction_router
-from app.admin.telegram_2fa import bot, router as telegram_router
+from app.routers import auth, user, reset_password, admin_router, test_router, subscription_router, referrals_router, transaction_router, admin_router
+from app.admin.telegram_2fa import bot, router as telegram_routers
 from app.routers import lobby_router
 from app.routers import files_router
 from app.routers import websocket_router
@@ -68,7 +68,7 @@ app.include_router(transaction_router.router, prefix="/transactions")
 app.include_router(lobby_router.router, prefix="/lobbies", tags=["lobbies"])
 app.include_router(files_router.router, prefix="/files", tags=["files"])
 app.include_router(websocket_router.router, prefix="/websocket_token", tags=["websocket"])
-
+app.include_router(admin_router.router, prefix="/admin_function", tags=["admin_function"])
 # WebSocket endpoint для лобби
 @app.websocket("/ws/lobby/{lobby_id}")
 async def websocket_endpoint(

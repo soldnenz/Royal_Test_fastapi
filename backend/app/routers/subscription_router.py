@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from bson import ObjectId
 from datetime import datetime
 from app.schemas.subscription_schemas import (
-    SubscriptionCreate, SubscriptionOut, SubscriptionCancel, IssuedBy
+    SubscriptionCreate, SubscriptionOut, SubscriptionCancel, IssuedBy,
+    SubscriptionUpdate
 )
 from app.db.database import get_database
 from app.admin.permissions import get_current_admin_user
@@ -83,7 +84,7 @@ async def create_subscription(
         # Если рефералка использована, обработать реферал
         if referral_used:
             await process_referral(
-                str(user_object_id),
+                ObjectId(payload.user_id),
                 amount,
                 description
             )
@@ -98,7 +99,7 @@ async def create_subscription(
 
         # Создание словаря с нужными полями
         subscription = {
-            "user_id": user_object_id,
+            "user_id": ObjectId(payload.user_id),
             "iin": payload.iin,
             "created_at": now,
             "updated_at": now,
@@ -242,4 +243,107 @@ async def get_subscription_by_user_id(
         raise HTTPException(
             status_code=400,
             detail={"message": "Ошибка при получении подписки", "hint": str(e)}
+        )
+
+
+@router.put("/update", response_model=dict)
+async def update_subscription(
+    data: SubscriptionUpdate,
+    db=Depends(get_database),
+    current_user=Depends(get_current_admin_user)
+):
+    if current_user["role"] != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail={"message": "Только администратор может редактировать подписки"}
+        )
+
+    try:
+        # Проверяем, что подписка существует
+        subscription = await db.subscriptions.find_one({"_id": ObjectId(data.subscription_id)})
+        if not subscription:
+            raise HTTPException(
+                status_code=404,
+                detail={"message": "Подписка не найдена"}
+            )
+
+        # Проверяем, что подписка активна
+        if subscription["is_active"] is False:
+            raise HTTPException(
+                status_code=409,
+                detail={"message": "Нельзя изменить неактивную подписку"}
+            )
+
+        # Формируем данные для обновления
+        update_data = {
+            "subscription_type": data.subscription_type.lower(),
+            "expires_at": data.expires_at,
+            "updated_at": datetime.utcnow(),
+            "update_log": {
+                "admin_iin": current_user["iin"],
+                "admin_name": current_user["full_name"],
+                "timestamp": datetime.utcnow(),
+                "note": data.note,
+                "previous_type": subscription["subscription_type"],
+                "previous_expires_at": subscription["expires_at"],
+                "previous_duration_days": subscription.get("duration_days")
+            }
+        }
+        
+        # Обновляем duration_days если он предоставлен
+        if data.duration_days is not None:
+            update_data["duration_days"] = data.duration_days
+        
+        # Записываем предыдущие значения в историю
+        history_entry = {
+            "admin_iin": current_user["iin"],
+            "admin_name": current_user["full_name"],
+            "timestamp": datetime.utcnow(),
+            "note": data.note,
+            "previous_type": subscription["subscription_type"],
+            "previous_expires_at": subscription["expires_at"],
+            "previous_duration_days": subscription.get("duration_days"),
+            "new_type": data.subscription_type.lower(),
+            "new_expires_at": data.expires_at,
+            "new_duration_days": data.duration_days
+        }
+        
+        # Проверяем, существует ли уже поле update_history
+        if "update_history" in subscription:
+            # Если поле существует, используем $push для добавления записи
+            result = await db.subscriptions.update_one(
+                {"_id": ObjectId(data.subscription_id)},
+                {
+                    "$set": update_data,
+                    "$push": {"update_history": history_entry}
+                }
+            )
+        else:
+            # Если поля еще нет, создаем его с первой записью
+            update_data["update_history"] = [history_entry]
+            result = await db.subscriptions.update_one(
+                {"_id": ObjectId(data.subscription_id)},
+                {"$set": update_data}
+            )
+        
+        if result.modified_count == 0:
+            raise HTTPException(
+                status_code=400,
+                detail={"message": "Не удалось обновить подписку"}
+            )
+            
+        logger.info(f"[UPDATE] Подписка обновлена: {data.subscription_id} админом {current_user['iin']} - Тип: {subscription['subscription_type']} -> {data.subscription_type}, Срок: {subscription['expires_at']} -> {data.expires_at}")
+        
+        # Получаем обновленную запись
+        updated_subscription = await db.subscriptions.find_one({"_id": ObjectId(data.subscription_id)})
+        updated_subscription["_id"] = str(updated_subscription["_id"])
+        updated_subscription["user_id"] = str(updated_subscription["user_id"])
+        
+        return success(data=jsonable_encoder(updated_subscription))
+
+    except Exception as e:
+        logger.error(f"[UPDATE ERROR] Ошибка при обновлении подписки: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "Ошибка при обновлении подписки", "hint": str(e)}
         )

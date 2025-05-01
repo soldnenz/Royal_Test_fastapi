@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>📦 Выдача подписки</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --primary-color: #FFD700;
+      --primary-hover: #e6c200;
+      --bg: #f7f8fa;
+      --text: #222;
+      --border: #ccc;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: var(--bg);
+      margin: 0;
+      padding: 1.5rem;
+      color: var(--text);
+    }
+
+    .container {
+      max-width: 700px;
+      margin: auto;
+      background: #fff;
+      padding: 2rem;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+    }
+
+    h1, h2 {
+      color: var(--primary-color);
+      margin-bottom: 1.2rem;
+    }
+
+    input, select, textarea, button {
+      width: 100%;
+      padding: 0.75rem;
+      margin-top: 0.4rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 1rem;
+      box-sizing: border-box;
+    }
+
+    label {
+      margin-top: 1rem;
+      display: block;
+      font-weight: 600;
+    }
+
+    button {
+      background: var(--primary-color);
+      border: none;
+      font-weight: bold;
+      margin-top: 1.5rem;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: var(--primary-hover);
+    }
+
+    .info {
+      background: #fffbea;
+      padding: 1rem;
+      border-left: 5px solid var(--primary-color);
+      margin-top: 1rem;
+      border-radius: 6px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .error {
+      color: red;
+      font-weight: bold;
+      margin-top: 1rem;
+    }
+
+    .user-card {
+      background: #f3f6fb;
+      border-left: 5px solid #aaa;
+      padding: 1rem;
+      margin-top: 1rem;
+      border-radius: 6px;
+      font-size: 0.95rem;
+    }
+
+    .user-card b {
+      color: #333;
+    }
+
+    @media (max-width: 600px) {
+      .container {
+        padding: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Поиск пользователя</h1>
+    <input type="text" id="search" placeholder="Введите ИИН, email, телефон или ID">
+    <button onclick="searchUser()">Найти</button>
+    <div id="error" class="error"></div>
+
+    <div id="userInfo" class="user-card hidden"></div>
+
+    <div id="formSection" class="hidden">
+      <h2>📦 Выдача подписки</h2>
+      <form id="subscriptionForm" onsubmit="submitSubscription(event)">
+        <input type="hidden" id="user_id">
+        <input type="hidden" id="iin">
+
+        <label>Тип подписки</label>
+        <select id="subscription_type" required>
+          <option value="Demo">Demo</option>
+          <option value="economy">economy</option>
+          <option value="Vip">Vip</option>
+          <option value="Royal">Royal</option>
+          <option value="School">School</option>
+        </select>
+
+        <label>Продолжительность (в днях)</label>
+        <input type="number" id="duration_days" required>
+
+        <label>Дата окончания</label>
+        <input type="date" id="expires_at" required>
+
+        <label>Метод активации</label>
+        <select id="activation_method" required>
+          <option value="manual" selected>Manual</option>
+        </select>
+
+        <label>Сумма, внесённая пользователем (тенге)</label>
+        <input type="number" id="amount" required>
+
+        <label>Использовать реферальную ссылку</label>
+        <input type="checkbox" id="use_referral">
+
+        <label>Заметка</label>
+        <textarea id="note" placeholder="Введите заметку (необязательно)"></textarea>
+
+        <button type="submit">✅ Выдать подписку</button>
+      </form>
+    </div>
+
+    <div id="referralSection" class="hidden"></div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem("access_token");
+
+    const headers = {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json"
+    };
+
+
+    async function searchUser() {
+      const query = document.getElementById("search").value.trim();
+      const error = document.getElementById("error");
+      const userInfo = document.getElementById("userInfo");
+      const formSection = document.getElementById("formSection");
+
+      error.innerText = "";
+      userInfo.classList.add("hidden");
+      formSection.classList.add("hidden");
+
+      if (!query) {
+        error.innerText = "Введите значение для поиска";
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/users/admin/search_users?query=${encodeURIComponent(query)}`, {
+          headers
+        });
+
+        if (!res.ok) throw new Error(await res.text());
+
+        const data = await res.json();
+        const users = data.data;
+        if (!users.length) {
+          error.innerText = "❌ Пользователь не найден";
+          return;
+        }
+
+        const user = users[0];
+        document.getElementById("user_id").value = user.id;
+        document.getElementById("iin").value = user.iin || "";
+
+        userInfo.innerHTML = `
+          👤 <b>${user.full_name || "Без имени"}</b><br>
+          <b>ID:</b> ${user.id}<br>
+          <b>Email:</b> ${user.email || "—"}<br>
+          <b>Телефон:</b> ${user.phone || "—"}<br>
+          <b>ИИН:</b> ${user.iin || "—"}
+        `;
+
+        userInfo.classList.remove("hidden");
+        formSection.classList.remove("hidden");
+
+      } catch (e) {
+        console.error(e);
+        error.innerText = "Ошибка: " + e.message;
+      }
+    }
+
+    async function submitSubscription(e) {
+      e.preventDefault();
+
+      const payload = {
+        user_id: document.getElementById("user_id").value,
+        iin: document.getElementById("iin").value,
+        subscription_type: document.getElementById("subscription_type").value,
+        expires_at: new Date(document.getElementById("expires_at").value).toISOString(),
+        activation_method: document.getElementById("activation_method").value,
+        note: document.getElementById("note").value || "",
+        payment: undefined,
+        duration_days: parseInt(document.getElementById("duration_days").value),
+        amount: parseInt(document.getElementById("amount").value),
+        use_referral: document.getElementById("use_referral").checked
+      };
+
+      try {
+        const res = await fetch(`/api/subscriptions/`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          alert("❌ Ошибка:\n" + text);
+          return;
+        }
+
+        const data = await res.json();
+        alert("✅ Подписка успешно выдана!\nID: " + data._id);
+
+      } catch (e) {
+        console.error(e);
+        alert("Ошибка отправки: " + e.message);
+      }
+    }
+
+    // 🧠 Автосвязь даты и дней
+    const durationInput = document.getElementById("duration_days");
+    const expiresInput = document.getElementById("expires_at");
+
+    durationInput.addEventListener("input", () => {
+      const days = parseInt(durationInput.value);
+      if (!isNaN(days)) {
+        const now = new Date();
+        now.setDate(now.getDate() + days);
+        expiresInput.value = now.toISOString().split("T")[0];
+      }
+    });
+
+    expiresInput.addEventListener("change", () => {
+      const selectedDate = new Date(expiresInput.value);
+      const now = new Date();
+      const diffTime = selectedDate - now;
+      const days = Math.round(diffTime / (1000 * 60 * 60 * 24));
+      durationInput.value = days > 0 ? days : 0;
+    });
+
+    // 🕓 Автоматическая инициализация
+    document.addEventListener("DOMContentLoaded", () => {
+      const defaultDays = 30;
+      const now = new Date();
+      now.setDate(now.getDate() + defaultDays);
+      expiresInput.value = now.toISOString().split("T")[0];
+      durationInput.value = defaultDays;
+    });
+  </script>
+</body>
+</html>

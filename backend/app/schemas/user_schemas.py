@@ -1,6 +1,6 @@
 # ✅ validators + модели (доработанный полный код для Pydantic v2)
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from pydantic import BaseModel, Field, field_validator, EmailStr, validator, constr
+from typing import Optional, List, Union, Dict, Any
 from datetime import datetime
 import re
 
@@ -195,5 +195,54 @@ class UserUpdate(BaseModel):
                 "referred_by": "XYZ123",
                 "referred_use": True,
                 "money": 500.75
+            }
+        }
+
+# User Ban System Schemas
+class UserBanCreate(BaseModel):
+    user_id: str
+    ban_type: str  # "temporary" or "permanent"
+    ban_days: Optional[int] = None
+    reason: str
+    
+    @validator('ban_days')
+    def validate_ban_days(cls, v, values):
+        if values.get('ban_type') == 'temporary' and (v is None or v <= 0):
+            raise ValueError('Для временной блокировки укажите положительное количество дней')
+        return v
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "user_id": "60d21b4667d0d31a9fe3c123",
+                "ban_type": "temporary",
+                "ban_days": 7,
+                "reason": "Нарушение правил сервиса"
+            }
+        }
+
+class UserBanOut(BaseModel):
+    id: str = Field(..., alias="_id")
+    user_id: str
+    admin_id: str
+    admin_name: str
+    ban_type: str
+    ban_until: Optional[datetime] = None
+    reason: str
+    created_at: datetime
+    is_active: bool = True
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "_id": "60d21b4667d0d31a9fe3c123",
+                "user_id": "60d21b4667d0d31a9fe3c789",
+                "admin_id": "60d21b4667d0d31a9fe3c456",
+                "admin_name": "Admin User",
+                "ban_type": "temporary",
+                "ban_until": "2023-12-31T23:59:59.999Z",
+                "reason": "Нарушение правил сервиса",
+                "created_at": "2023-06-01T12:00:00.000Z",
+                "is_active": True
             }
         }

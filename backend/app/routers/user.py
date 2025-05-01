@@ -118,166 +118,245 @@ async def get_my_subscription_info(
 
 @router.get("/admin/search_users", response_model=list[UserOut])
 async def search_users_by_query(
-    query: str = Query(..., description="ID, ИИН, email, телефон или ФИО"),
+    query: str = Query(..., description="ID, ИИН, email, телефон, ФИО или код реферала"),
     current_user: dict = Depends(get_current_actor),
     db=Depends(get_database)
 ):
+    """
+    Поиск пользователей по различным параметрам с расширенной информацией
+    о подписках, реферальной системе и активности.
+    """
+    start_time = datetime.utcnow()
+    
     if current_user["role"] not in {"admin", "moderator"}:
+        logger.warning(f"Unauthorized access attempt to search_users by user {current_user['id']} with role {current_user['role']}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"message": "Доступ запрещён", "path": "/admin/search_users"}
         )
 
-    query = query.strip()
-    filters = []
-
-    # Поиск по ObjectId, если подходит
-    if ObjectId.is_valid(query):
-        filters.append({"_id": ObjectId(query)})
-
-    # Основные поля
-    filters.extend([
-        {"iin": query},
-        {"email": query},
-        {"phone": query},
-        {"full_name": {"$regex": re.escape(query), "$options": "i"}}
-    ])
-
-    cursor = db.users.find({"$or": filters}).limit(50)
-    results = []
-    async for user in cursor:
-        _id = user.pop("_id", None)
-        if _id is not None:
-            user["id"] = str(_id)
-        # Преобразуем все значения типа datetime, если есть
-        if "created_at" in user and isinstance(user["created_at"], datetime):
-            user["created_at"] = user["created_at"].isoformat()
-        results.append(user)
-
-    if not results:
+    # Санитизация запроса для предотвращения NoSQL-инъекций
+    sanitized_query = query.strip()
+    if not sanitized_query:
+        logger.warning(f"Empty query in search_users by user {current_user['id']}")
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"message": "Пользователь не найден", "query": query}
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": "Поисковый запрос не может быть пустым"}
+        )
+    
+    # Безопасно проверяем, является ли запрос ObjectId
+    is_valid_object_id = False
+    try:
+        if ObjectId.is_valid(sanitized_query):
+            is_valid_object_id = True
+    except Exception:
+        is_valid_object_id = False
+    
+    # Строим безопасный поисковый фильтр
+    filters = []
+    
+    # Добавляем безопасные поисковые условия
+    if is_valid_object_id:
+        filters.append({"_id": ObjectId(sanitized_query)})
+    
+    # Эскейпим регулярные выражения для предотвращения ReDoS атак
+    regex_pattern = re.escape(sanitized_query)
+    
+    # Безопасно добавляем остальные фильтры
+    filters.extend([
+        {"iin": sanitized_query},
+        {"email": sanitized_query},
+        {"phone": sanitized_query},
+        {"full_name": {"$regex": regex_pattern, "$options": "i"}},
+        {"referred_by": sanitized_query}
+    ])
+    
+    logger.info(f"User search initiated by {current_user['id']} with query: {sanitized_query}")
+    
+    try:
+        # Ограничиваем выборку и устанавливаем таймаут для защиты от DoS
+        cursor = db.users.find({"$or": filters}).limit(50).max_time_ms(5000)
+        results = []
+        
+        now = datetime.utcnow()
+        user_cache = {}
+        
+        # Оптимизированный сбор данных пользователей
+        async for user in cursor:
+            user_id = user.pop("_id", None)
+            user_id_str = str(user_id) if user_id else None
+            
+            # Базовая информация о пользователе
+            user_data = {
+                "id": user_id_str,
+                "iin": user.get("iin", None),
+                "full_name": user.get("full_name", None),
+                "email": user.get("email", None),
+                "phone": user.get("phone", None),
+                "money": user.get("money", 0),
+                "created_at": user.get("created_at").isoformat() if user.get("created_at") else None,
+                "referred_by": user.get("referred_by", None),
+                "referred_use": user.get("referred_use", False),
+                "subscription": None,
+                "subscription_history": [],
+                "referral_system": None,
+                "last_activity": None
+            }
+            
+            # Собираем ID пользователей для пакетных запросов
+            user_cache[user_id_str] = user_data
+            results.append(user_data)
+        
+        # Параллельное получение данных для всех пользователей для увеличения производительности
+        if results:
+            user_ids = [ObjectId(user["id"]) for user in results if user["id"]]
+            
+            # 1. Получаем все активные подписки этих пользователей пакетным запросом
+            active_subs_cursor = db.subscriptions.find({
+                "user_id": {"$in": user_ids},
+                "is_active": True
+            })
+            
+            active_subscriptions = {}
+            async for sub in active_subs_cursor:
+                user_id_str = str(sub["user_id"])
+                if user_id_str in user_cache:
+                    active_subscriptions[user_id_str] = {
+                        "subscription_type": sub.get("subscription_type", None),
+                        "is_active": sub.get("is_active", False),
+                        "expires_at": sub.get("expires_at").isoformat() if sub.get("expires_at") else None,
+                        "activation_method": sub.get("activation_method", None),
+                        "created_at": sub.get("created_at").isoformat() if sub.get("created_at") else None
+                    }
+            
+            # 2. Получаем историю подписок
+            sub_history_pipeline = [
+                {"$match": {"user_id": {"$in": user_ids}}},
+                {"$sort": {"created_at": -1}},
+                {"$group": {
+                    "_id": "$user_id",
+                    "subscriptions": {"$push": "$$ROOT"}
+                }}
+            ]
+            
+            subscription_history = {}
+            async for result in db.subscriptions.aggregate(sub_history_pipeline):
+                user_id_str = str(result["_id"])
+                subscription_history[user_id_str] = []
+                
+                for sub in result["subscriptions"]:
+                    sub_status = "Активна" if sub.get("is_active", False) else "Истекла"
+                    
+                    # Проверка на истекшую подписку
+                    if sub_status == "Активна" and sub.get("expires_at") and sub.get("expires_at") < now:
+                        sub_status = "Истекла"
+                    
+                    subscription_history[user_id_str].append({
+                        "date": sub.get("created_at").isoformat() if sub.get("created_at") else None,
+                        "type": sub.get("subscription_type", "Unknown"),
+                        "duration": f"{sub.get('duration_days', 0)} дней",
+                        "status": sub_status
+                    })
+            
+            # 3. Получаем последнюю активность пользователей из коллекции tokens
+            last_activity_pipeline = [
+                {"$match": {"user_id": {"$in": user_ids}}},
+                {"$sort": {"last_activity": -1}},
+                {"$group": {
+                    "_id": "$user_id",
+                    "last_activity": {"$first": "$last_activity"},
+                    "ip": {"$first": "$ip"},
+                    "user_agent": {"$first": "$user_agent"}
+                }}
+            ]
+            
+            user_activity = {}
+            async for activity in db.tokens.aggregate(last_activity_pipeline):
+                user_id_str = str(activity["_id"])
+                user_activity[user_id_str] = {
+                    "last_login": activity.get("last_activity").isoformat() if activity.get("last_activity") else None,
+                    "ip_address": activity.get("ip", None),
+                    "user_agent": activity.get("user_agent", None)
+                }
+            
+            # 4. Получаем информацию о реферальной системе
+            for user_data in results:
+                user_id_str = user_data["id"]
+                
+                # Добавляем активную подписку, если есть
+                if user_id_str in active_subscriptions:
+                    user_data["subscription"] = active_subscriptions[user_id_str]
+                
+                # Добавляем историю подписок
+                if user_id_str in subscription_history:
+                    user_data["subscription_history"] = subscription_history[user_id_str]
+                
+                # Добавляем информацию о последней активности
+                if user_id_str in user_activity:
+                    user_data["last_activity"] = user_activity[user_id_str]
+            
+            # Подсчет реферальной информации - делаем индивидуально, т.к. требует сложных вычислений
+            for user_data in results:
+                user_id_str = user_data["id"]
+                user_obj = user_cache.get(user_id_str, {})
+                
+                if "referral_code" in user_obj:
+                    try:
+                        # Счетчик приведенных пользователей с лимитом времени
+                        referred_count = await db.users.count_documents(
+                            {"referred_by": user_obj.get("referral_code")},
+                            max_time_ms=2000
+                        )
+                        
+                        # Подсчет бонусов с лимитом времени
+                        total_bonus = 0
+                        bonus_cursor = db.transactions.find(
+                            {"user_id": ObjectId(user_id_str), "type": "referral"}
+                        ).max_time_ms(2000)
+                        
+                        async for tx in bonus_cursor:
+                            total_bonus += tx.get("amount", 0)
+                        
+                        user_data["referral_system"] = {
+                            "code": user_obj.get("referral_code", None),
+                            "referred_users_count": referred_count,
+                            "earned_bonus": total_bonus
+                        }
+                    except Exception as e:
+                        logger.error(f"Error processing referral data for user {user_id_str}: {str(e)}")
+                        user_data["referral_system"] = {
+                            "code": user_obj.get("referral_code", None),
+                            "referred_users_count": 0,
+                            "earned_bonus": 0,
+                            "error": "Не удалось получить полные данные"
+                        }
+        
+        if not results:
+            logger.info(f"No users found for query: {sanitized_query}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"message": "Пользователь не найден", "query": sanitized_query}
+            )
+        
+
+        
+        return success(
+            data=results, 
+            message=f"Найдено пользователей: {len(results)}",
+        )
+        
+    except HTTPException:
+        # Пробрасываем HTTP-исключения без изменений
+        raise
+    except Exception as e:
+        # Обрабатываем неожиданные ошибки
+        logger.error(f"Error in search_users: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"message": "Произошла ошибка при поиске пользователей", "error": str(e)}
         )
 
-    return success(data=results, message=f"Найдено пользователей: {len(results)}")
 
-
-
-
-# @router.patch("/me", response_model=UserOut)
-# async def update_my_profile(
-#     update_data: UserUpdate,
-#     current_user: dict = Depends(get_current_user)
-# ):
-#     """
-#     Обновить профиль текущего пользователя (частично).
-#     Можно поменять phone, email и т.д. (зависит от схемы UserUpdate).
-#     """
-#     update_fields = {}
-#     if update_data.phone is not None:
-#         update_fields["phone"] = update_data.phone
-#     if update_data.email is not None:
-#         update_fields["email"] = update_data.email
-#
-#     if not update_fields:
-#         # Не было передано никаких полей для обновления
-#         raise HTTPException(
-#             status_code=status.HTTP_400_BAD_REQUEST,
-#             detail="No fields to update"
-#         )
-#
-#     # Обновляем в БД
-#     result = await db.users.update_one(
-#         {"_id": current_user["_id"]},
-#         {"$set": update_fields}
-#     )
-#     if result.modified_count != 1:
-#         logger.warning(f"User update failed or no changes: {current_user['_id']}")
-#         raise HTTPException(
-#             status_code=status.HTTP_400_BAD_REQUEST,
-#             detail="Update failed or no changes made"
-#         )
-#
-#     # Получим обновлённый документ
-#     updated_user = await db.users.find_one({"_id": current_user["_id"]})
-#     return UserOut(
-#         id=str(updated_user["_id"]),
-#         iin=updated_user["iin"],
-#         phone=updated_user["phone"],
-#         email=updated_user["email"],
-#         role=updated_user.get("role", "user"),
-#         created_at=updated_user["created_at"]
-#     )
-#
-#
-# @router.get("/{user_id}", response_model=UserOut)
-# async def get_user_by_id(
-#     user_id: str,
-#     current_user: dict = Depends(get_current_user)
-# ):
-#     """
-#     Пример эндпоинта получения пользователя по ID.
-#     Может быть ограничен только для admin.
-#     """
-#     # Допустим, проверим, что роль текущего юзера = admin
-#     if current_user.get("role") != "admin":
-#         raise HTTPException(
-#             status_code=status.HTTP_403_FORBIDDEN,
-#             detail="Only admin can get other user profiles"
-#         )
-#
-#     # Проверяем корректность user_id (Mongo ObjectId)
-#     if not ObjectId.is_valid(user_id):
-#         raise HTTPException(
-#             status_code=status.HTTP_400_BAD_REQUEST,
-#             detail="Invalid user_id"
-#         )
-#
-#     user_doc = await db.users.find_one({"_id": ObjectId(user_id)})
-#     if not user_doc:
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-#
-#     return UserOut(
-#         id=str(user_doc["_id"]),
-#         iin=user_doc["iin"],
-#         phone=user_doc["phone"],
-#         email=user_doc["email"],
-#         role=user_doc.get("role", "user"),
-#         created_at=user_doc["created_at"]
-#     )
-#
-#
-# @router.delete("/{user_id}")
-# async def delete_user_by_id(
-#     user_id: str,
-#     current_user: dict = Depends(get_current_user)
-# ):
-#     """
-#     Удалить пользователя по ID (например, только admin).
-#     """
-#     # Проверяем роль
-#     if current_user.get("role") != "admin":
-#         raise HTTPException(
-#             status_code=status.HTTP_403_FORBIDDEN,
-#             detail="Only admin can delete users"
-#         )
-#
-#     if not ObjectId.is_valid(user_id):
-#         raise HTTPException(
-#             status_code=status.HTTP_400_BAD_REQUEST,
-#             detail="Invalid user_id"
-#         )
-#
-#     result = await db.users.delete_one({"_id": ObjectId(user_id)})
-#     if result.deleted_count != 1:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail="User not found or already deleted"
-#         )
-#
-#     logger.info(f"User deleted by admin. user_id={user_id}")
-#     return {"message": f"User {user_id} deleted successfully"}
 
 @router.get("/users/history", summary="История тестов пользователя")
 async def get_user_history(

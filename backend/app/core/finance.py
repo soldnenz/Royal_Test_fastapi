@@ -91,7 +91,7 @@ async def update_user_balance(user_id, amount, description):
                 
                 if result.modified_count > 0:
                     await log_transaction({
-                        "user_id": user_id,
+                        "user_id": ObjectId(user_id),
                         "amount": amount,
                         "type": "balance_update",
                         "description": description,
@@ -126,12 +126,13 @@ async def get_user_balance(user_id):
         return None
 
 
-async def credit_user_balance(user_id, amount, description):
+async def credit_user_balance(user_id, amount, description, admin_id=None):
     """
     Начисляет средства на баланс пользователя и сохраняет описание транзакции.
     :param user_id: ID пользователя
     :param amount: Сумма для начисления
     :param description: Описание транзакции
+    :param admin_id: ID администратора, выполняющего транзакцию
     :return: Статус транзакции
     """
     try:
@@ -147,13 +148,16 @@ async def credit_user_balance(user_id, amount, description):
                 )
                 
                 if result.modified_count > 0:
-                    await log_transaction({
-                        "user_id": user_id,
+                    txn = {
+                        "user_id": ObjectId(user_id),
                         "amount": amount,
                         "type": "credit",
                         "description": description,
                         "created_at": datetime.utcnow()
-                    }, session=session)
+                    }
+                    if admin_id:
+                        txn["admin_id"] = admin_id
+                    await log_transaction(txn, session=session)
                     
                     logger.info(f"Баланс пользователя {user_id} увеличен на {amount}.")
                     return {"status": "ok", "details": "Транзакция успешна"}
@@ -166,12 +170,13 @@ async def credit_user_balance(user_id, amount, description):
         return {"status": "error", "details": f"Ошибка сервера: {str(e)}"}
 
 
-async def debit_user_balance(user_id, amount, description):
+async def debit_user_balance(user_id, amount, description, admin_id=None):
     """
     Списывает средства с баланса пользователя и сохраняет описание транзакции.
     :param user_id: ID пользователя
     :param amount: Сумма для списания
     :param description: Описание транзакции
+    :param admin_id: ID администратора, выполняющего транзакцию
     :return: Статус транзакции
     """
     try:
@@ -196,13 +201,16 @@ async def debit_user_balance(user_id, amount, description):
                 )
                 
                 if result.modified_count > 0:
-                    await log_transaction({
-                        "user_id": user_id,
+                    txn = {
+                        "user_id": ObjectId(user_id),
                         "amount": -amount,
                         "type": "debit",
                         "description": description,
                         "created_at": datetime.utcnow()
-                    }, session=session)
+                    }
+                    if admin_id:
+                        txn["admin_id"] = admin_id
+                    await log_transaction(txn, session=session)
                     
                     logger.info(f"Баланс пользователя {user_id} уменьшен на {amount}.")
                     return {"status": "ok", "details": "Транзакция успешна"}

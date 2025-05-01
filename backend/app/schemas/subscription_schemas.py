@@ -15,7 +15,7 @@ class IssuedBy(BaseModel):
 class SubscriptionCreate(BaseModel):
     user_id: str
     iin: str
-    subscription_type: Literal["economy", "vip", "royal"]
+    subscription_type: Literal["demo", "economy", "vip", "royal", "school"]
     expires_at: datetime
     activation_method: Literal["manual", "payment", "promocode", "gift"]  # Добавлен "gift"
     note: Optional[str]
@@ -25,6 +25,8 @@ class SubscriptionCreate(BaseModel):
     referred_by: Optional[str] = None  # Новый параметр для реферала
     gift: Optional[bool] = False  # Новый параметр для подарочных подписок
     use_balance: bool = True
+    amount: Optional[float] = None  # Добавленное поле для суммы
+    use_referral: bool = False  # Добавленное поле для использования реферала
 
 # 👉 Используется для вывода подписки
 class SubscriptionOut(BaseModel):
@@ -58,3 +60,21 @@ class GiftSubscriptionCreate(BaseModel):
     subscription_type: Literal["economy", "vip", "royal"]
     duration_days: int = Field(..., gt=0, le=365)
     use_balance: bool = True
+
+class SubscriptionUpdate(BaseModel):
+    subscription_id: str
+    subscription_type: str
+    expires_at: datetime
+    duration_days: Optional[int] = None
+    note: Optional[str] = None
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "subscription_id": "60d21b4667d0d31a9fe3c123",
+                "subscription_type": "economy",
+                "expires_at": "2023-12-31T23:59:59.999Z",
+                "duration_days": 30,
+                "note": "Продление подписки администратором"
+            }
+        }
