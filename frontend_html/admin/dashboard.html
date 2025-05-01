@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <style>
+        :root {
+            /* Theme Colors */
+            --light-bg: #FFFFFF;
+            --light-sidebar-bg: #F8F9FA;
+            --light-card-bg: #FFFFFF;
+            --light-border: #E9ECEF;
+            --light-text: #212529;
+            --light-text-secondary: #6C757D;
+            --light-accent: #bcc3c99d;
+            --light-accent-text: #333;
+            --light-hover-bg: #F0F2F5;
+            --light-main-bg: #F8F9FA;
+            --hub-orange: #FF9000;
+            --hub-text: #FFFFFF;
+
+            --dark-bg: #16191C;
+            --dark-sidebar-bg: #1F2326;
+            --dark-card-bg: #1F2326;
+            --dark-border: #32383E;
+            --dark-text: #E1E3E5;
+            --dark-text-secondary: #ADB5BD;
+            --dark-accent: #FFD700;
+            --dark-accent-text: #1C1C1C;
+            --dark-hover-bg: #2A2E33;
+            --dark-main-bg: #16191C;
+
+            /* Custom Colors */
+            --primary-color: var(--hub-orange);
+            --primary-text: var(--hub-text);
+            --dark-primary-color: var(--dark-accent);
+            --dark-primary-text: var(--dark-accent-text);
+
+            /* Layout */
+            --sidebar-width: 260px;
+            --header-height: 60px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--light-bg);
+            color: var(--light-text);
+            line-height: 1.5;
+        }
+
+        .dark-theme {
+            background-color: var(--dark-bg);
+            color: var(--dark-text);
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: var(--sidebar-width);
+            background: var(--light-sidebar-bg);
+            border-right: 1px solid var(--light-border);
+            padding: 1rem;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        .dark-theme .sidebar {
+            background: var(--dark-sidebar-bg);
+            border-color: var(--dark-border);
+        }
+
+        .sidebar-logo {
+            padding: 1rem;
+            text-align: center;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--light-border);
+        }
+
+        .dark-theme .sidebar-logo {
+            border-color: var(--dark-border);
+        }
+
+        .sidebar-nav {
+            list-style: none;
+            padding: 0;
+        }
+
+        .nav-item {
+            margin-bottom: 0.5rem;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            padding: 0.8rem 1rem;
+            color: var(--light-text);
+            text-decoration: none;
+            border-radius: 6px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .dark-theme .nav-link {
+            color: var(--dark-text);
+        }
+
+        .nav-link:after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--primary-color);
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .dark-theme .nav-link:after {
+            background: var(--dark-primary-color);
+        }
+
+        .nav-link:hover:after {
+            width: 100%;
+        }
+
+        .nav-link i {
+            margin-right: 0.8rem;
+            font-size: 1.2rem;
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            padding: 2rem;
+            min-height: 100vh;
+            margin-top: var(--header-height);
+        }
+
+        /* Header */
+        .header {
+            position: fixed;
+            top: 0;
+            left: var(--sidebar-width);
+            right: 0;
+            height: var(--header-height);
+            background: var(--light-bg);
+            border-bottom: 1px solid var(--light-border);
+            padding: 0 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 99;
+        }
+
+        .dark-theme .header {
+            background: var(--dark-bg);
+            border-color: var(--dark-border);
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+            margin-top: calc(var(--header-height) + 2rem);
+        }
+
+        .stat-card {
+            background: var(--light-card-bg);
+            border: 1px solid var(--light-border);
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+
+        .dark-theme .stat-card {
+            background: var(--dark-card-bg);
+            border-color: var(--dark-border);
+        }
+
+        .stat-title {
+            font-size: 0.9rem;
+            color: var(--light-text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .dark-theme .stat-title {
+            color: var(--dark-text-secondary);
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+
+        /* Card Styles */
+        .card {
+            background: var(--light-card-bg);
+            border: 1px solid var(--light-border);
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+        }
+
+        .dark-theme .card {
+            background: var(--dark-card-bg);
+            border-color: var(--dark-border);
+        }
+
+        .card-header {
+            background: transparent;
+            border-bottom: 1px solid var(--light-border);
+            padding: 1rem 1.25rem;
+        }
+
+        .dark-theme .card-header {
+            border-color: var(--dark-border);
+        }
+
+        .card-body {
+            padding: 1.25rem;
+        }
+
+        /* Text Styles */
+        .text-muted {
+            color: var(--light-text-secondary) !important;
+        }
+
+        .dark-theme .text-muted {
+            color: var(--dark-text-secondary) !important;
+        }
+
+        .text-success {
+            color: var(--success-color) !important;
+        }
+
+        .fs-7 {
+            font-size: 0.875rem;
+        }
+
+        .fs-4 {
+            font-size: 1.5rem;
+        }
+
+        .fw-bold {
+            font-weight: 600;
+        }
+
+        .small {
+            font-size: 0.875rem;
+        }
+
+        /* Button Styles */
+        .btn-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-outline-secondary {
+            border: 1px solid var(--light-border);
+            color: var(--light-text-secondary);
+            background: transparent;
+            padding: 0.375rem 0.75rem;
+            font-size: 0.875rem;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .dark-theme .btn-outline-secondary {
+            border-color: var(--dark-border);
+            color: var(--dark-text-secondary);
+        }
+
+        .btn-outline-secondary:hover,
+        .btn-outline-secondary.active {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+            color: var(--primary-text);
+        }
+
+        .dark-theme .btn-outline-secondary:hover,
+        .dark-theme .btn-outline-secondary.active {
+            background: var(--dark-primary-color);
+            border-color: var(--dark-primary-color);
+            color: var(--dark-primary-text);
+        }
+
+        /* Icon Styles */
+        .display-6 {
+            font-size: 2.5rem;
+        }
+
+        .me-3 {
+            margin-right: 1rem;
+        }
+
+        .accent {
+            color: var(--primary-color);
+        }
+
+        .dark-theme .accent {
+            color: var(--dark-primary-color);
+        }
+
+        /* Responsive Styles */
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 576px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Header buttons */
+        .btn-icon {
+            width: 48px;
+            height: 48px;
+            font-size: 1.5rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            border: none;
+            background: transparent;
+            color: var(--light-text);
+            cursor: pointer;
+            margin-left: 0.5rem;
+        }
+
+        .dark-theme .btn-icon {
+            color: var(--dark-text);
+        }
+
+        .btn-icon:after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 100%;
+            height: 100%;
+            background: var(--primary-color);
+            opacity: 0;
+            border-radius: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
+        }
+
+        .btn-icon:hover:after {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 0.1;
+        }
+
+        /* Profile dropdown */
+        .header-right {
+            display: flex;
+            align-items: center;
+        }
+
+        .profile-dropdown {
+            position: relative;
+            margin-left: 1rem;
+        }
+
+        .profile-btn {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            color: var(--light-text);
+        }
+
+        .dark-theme .profile-btn {
+            color: var(--dark-text);
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+
+        .profile-name {
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .dropdown-menu {
+            transform: translateY(10px);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: block;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: var(--light-card-bg);
+            border: 1px solid var(--light-border);
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            min-width: 200px;
+        }
+
+        .dark-theme .dropdown-menu {
+            background: var(--dark-card-bg);
+            border-color: var(--dark-border);
+        }
+
+        .profile-dropdown:hover .dropdown-menu {
+            transform: translateY(0);
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            color: var(--light-text);
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+
+        .dark-theme .dropdown-item {
+            color: var(--dark-text);
+        }
+
+        .dropdown-item:hover {
+            background: var(--light-hover-bg);
+        }
+
+        .dark-theme .dropdown-item:hover {
+            background: var(--dark-hover-bg);
+        }
+
+        .dropdown-item i {
+            margin-right: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .dropdown-divider {
+            height: 1px;
+            background: var(--light-border);
+            margin: 0.5rem 0;
+        }
+
+        .dark-theme .dropdown-divider {
+            background: var(--dark-border);
+        }
+
+        .text-danger {
+            color: var(--danger-color) !important;
+        }
+
+        /* Active nav link */
+        .nav-link.active {
+            background: var(--primary-color);
+            color: var(--primary-text);
+        }
+
+        .dark-theme .nav-link.active {
+            background: var(--dark-primary-color);
+            color: var(--dark-primary-text);
+        }
+
+        /* Logo switching */
+        .dark-theme .logo-light {
+            display: none;
+        }
+        .dark-theme .logo-dark {
+            display: block;
+        }
+
+        /* Логотип */
+        .logo-link {
+            text-decoration: none;
+            font-size: 1.5rem;
+            font-weight: 800;
+            display: inline-block;
+        }
+        
+        .logo-text-royal {
+            color: #000000;
+        }
+        
+        .dark-theme .logo-text-royal {
+            color: #FFFFFF;
+        }
+        
+        .logo-text-hub {
+            background: #FF9000;
+            color: #000000;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        /* Подменю */
+        .submenu {
+            list-style: none;
+            padding-left: 3rem;
+            height: 0;
+            overflow: hidden;
+            transition: height 0.3s ease-in-out;
+            opacity: 0;
+        }
+
+        .has-submenu.active .submenu {
+            height: auto;
+            opacity: 1;
+        }
+
+        .submenu a {
+            display: block;
+            padding: 0.7rem 0;
+            color: var(--light-text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.3s ease;
+            opacity: 0.8;
+        }
+
+        .dark-theme .submenu a {
+            color: var(--dark-text-secondary);
+        }
+
+        .submenu a:hover {
+            color: var(--primary-color);
+            opacity: 1;
+        }
+
+        .dark-theme .submenu a:hover {
+            color: var(--dark-primary-color);
+        }
+
+        .has-submenu .submenu-arrow {
+            margin-left: auto;
+            transition: transform 0.3s ease;
+            opacity: 0.7;
+        }
+
+        .has-submenu.active .submenu-arrow {
+            transform: rotate(-180deg);
+            opacity: 1;
+        }
+
+        /* Профиль без аватарки */
+        .profile-icon {
+            font-size: 2rem;
+        }
+
+        /* Увеличиваем иконки в шапке */
+        .header .btn-icon {
+            width: 48px;
+            height: 48px;
+            font-size: 1.5rem;
+        }
+
+        /* Мобильная поддержка */
+        .mobile-toggle {
+            display: none;
+            font-size: 1.8rem;
+            background: none;
+            border: none;
+            color: var(--light-text);
+            cursor: pointer;
+            padding: 0.5rem;
+        }
+
+        .dark-theme .mobile-toggle {
+            color: var(--dark-text);
+        }
+
+        @media (max-width: 992px) {
+            .profile-name {
+                max-width: 120px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .profile-name {
+                max-width: 0;
+                display: none;
+            }
+            
+            .profile-icon-mobile {
+                display: inline-block;
+                font-size: 1.5rem;
+                margin-right: 0.5rem;
+            }
+            
+            /* Показываем имя в выпадающем меню на мобильных */
+            .dropdown-menu .profile-info {
+                display: block;
+                padding: 0.75rem 1rem;
+                border-bottom: 1px solid var(--light-border);
+                font-weight: 500;
+            }
+
+            .dark-theme .dropdown-menu .profile-info {
+                border-color: var(--dark-border);
+            }
+
+            .sidebar {
+                width: 100%;
+                max-width: 280px;
+                left: -100%;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+
+            .sidebar.active {
+                transform: translateX(0);
+                left: 0;
+            }
+
+            .main-content {
+                margin-left: 0;
+                padding: 1rem;
+            }
+
+            .header {
+                left: 0;
+                padding: 0 1rem;
+            }
+
+            .header-right {
+                gap: 0.5rem;
+            }
+
+            .btn-icon {
+                width: 40px;
+                height: 40px;
+            }
+            
+            .mobile-toggle {
+                display: block;
+            }
+            
+            .overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 99;
+                display: none;
+            }
+            
+            .overlay.active {
+                display: block;
+            }
+        }
+
+        @media (max-height: 600px) {
+            .sidebar-nav {
+                max-height: calc(100vh - 120px);
+                overflow-y: auto;
+            }
+
+            .nav-link {
+                padding: 0.6rem 1rem;
+            }
+
+            .submenu a {
+                padding: 0.5rem 0;
+            }
+
+            .sidebar-logo {
+                padding: 0.5rem;
+                margin-bottom: 0.5rem;
+            }
+        }
+
+        /* Улучшаем скроллбар для сайдбара */
+        .sidebar-nav::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .sidebar-nav::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .sidebar-nav::-webkit-scrollbar-thumb {
+            background: var(--light-border);
+            border-radius: 2px;
+        }
+
+        .dark-theme .sidebar-nav::-webkit-scrollbar-thumb {
+            background: var(--dark-border);
+        }
+
+        /* Orientation-specific styles */
+        @media screen and (orientation: landscape) {
+            .main-content {
+                padding: 1rem;
+            }
+
+            .row {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 1rem;
+            }
+
+            .col-xl-3, .col-xl-4, .col-xl-6, .col-xl-8 {
+                width: 100%;
+                margin-bottom: 1rem;
+            }
+
+            .card {
+                height: 100%;
+            }
+
+            .card-body {
+                padding: 1rem;
+            }
+
+            canvas {
+                max-height: 200px;
+            }
+        }
+
+        @media screen and (orientation: portrait) {
+            .main-content {
+                padding: 1rem;
+            }
+
+            .row {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .col-xl-3, .col-xl-4, .col-xl-6, .col-xl-8 {
+                width: 100%;
+                margin-bottom: 1rem;
+            }
+
+            .card {
+                margin-bottom: 1rem;
+            }
+
+            canvas {
+                max-height: 300px;
+            }
+        }
+
+        /* Additional Statistics Styles */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-item {
+            background: var(--light-card-bg);
+            border: 1px solid var(--light-border);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .dark-theme .stat-item {
+            background: var(--dark-card-bg);
+            border-color: var(--dark-border);
+        }
+
+        .stat-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            color: var(--primary-color);
+        }
+
+        .dark-theme .stat-icon {
+            color: var(--dark-primary-color);
+        }
+
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--light-text-secondary);
+        }
+
+        .dark-theme .stat-label {
+            color: var(--dark-text-secondary);
+        }
+
+        .trend-indicator {
+            display: inline-flex;
+            align-items: center;
+            font-size: 0.875rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            margin-top: 0.5rem;
+        }
+
+        .trend-up {
+            background: rgba(25, 135, 84, 0.1);
+            color: var(--success-color);
+        }
+
+        .trend-down {
+            background: rgba(220, 53, 69, 0.1);
+            color: var(--danger-color);
+        }
+
+        .trend-neutral {
+            background: rgba(108, 117, 125, 0.1);
+            color: var(--light-text-secondary);
+        }
+
+        .dark-theme .trend-neutral {
+            color: var(--dark-text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-logo">
+            <a href="#" class="logo-link">
+                <span class="logo-text-royal">Royal</span>
+                <span class="logo-text-hub">Hub</span>
+            </a>
+        </div>
+        <ul class="sidebar-nav">
+            <li class="nav-item">
+                <a href="#" class="nav-link active">
+                    <i class='bx bxs-dashboard'></i>
+                    <span>Дашборд</span>
+                </a>
+            </li>
+            <li class="nav-item has-submenu">
+                <a href="#" class="nav-link">
+                    <i class='bx bx-user'></i>
+                    <span>Пользователи</span>
+                    <i class='bx bx-chevron-down submenu-arrow'></i>
+                </a>
+                <ul class="submenu">
+                    <li><a href="#">Список пользователей</a></li>
+                </ul>
+            </li>
+            <li class="nav-item has-submenu">
+                <a href="#" class="nav-link">
+                    <i class='bx bx-test-tube'></i>
+                    <span>Тесты</span>
+                    <i class='bx bx-chevron-down submenu-arrow'></i>
+                </a>
+                <ul class="submenu">
+                    <li><a href="#">Список вопросов</a></li>
+                    <li><a href="#">Лобби</a></li>
+                </ul>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link">
+                    <i class='bx bx-money'></i>
+                    <span>Подписки</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link">
+                    <i class='bx bx-link'></i>
+                    <span>Рефералы</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link">
+                    <i class='bx bx-wallet'></i>
+                    <span>Транзакции</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link">
+                    <i class='bx bx-cog'></i>
+                    <span>Администрирование</span>
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="mobile-toggle">
+                    <i class='bx bx-menu'></i>
+                </button>
+            </div>
+            <div class="header-right">
+                <button class="btn btn-icon">
+                    <i class='bx bx-bell'></i>
+                </button>
+                <button id="theme-toggle" class="btn btn-icon">
+                    <i class='bx bx-moon'></i>
+                </button>
+                <div class="profile-dropdown">
+                    <button class="profile-btn">
+                        <i class='bx bx-user profile-icon-mobile'></i>
+                        <span class="profile-name">Иванов Иван Иванович</span>
+                        <i class='bx bx-chevron-down'></i>
+                    </button>
+                    <div class="dropdown-menu">
+                        <div class="profile-info">Иванов Иван Иванович</div>
+                        <a href="#" class="dropdown-item">
+                            <i class='bx bx-user'></i>
+                            <span>Профиль</span>
+                        </a>
+                        <a href="#" class="dropdown-item">
+                            <i class='bx bx-cog'></i>
+                            <span>Настройки</span>
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a href="#" class="dropdown-item text-danger">
+                            <i class='bx bx-log-out'></i>
+                            <span>Выход</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Statistics Section -->
+        <div class="stat-grid">
+            <div class="stat-item">
+                <i class='bx bxs-user stat-icon'></i>
+                <div class="stat-number" id="totalUsers">1,234</div>
+                <div class="stat-label">Всего пользователей</div>
+                <div class="trend-indicator trend-up">
+                    <i class='bx bx-up-arrow-alt'></i>
+                    <span>12%</span>
+                </div>
+            </div>
+            <div class="stat-item">
+                <i class='bx bxs-gift stat-icon'></i>
+                <div class="stat-number" id="totalReferrals">456</div>
+                <div class="stat-label">Активные рефералы</div>
+                <div class="trend-indicator trend-up">
+                    <i class='bx bx-up-arrow-alt'></i>
+                    <span>8%</span>
+                </div>
+            </div>
+            <div class="stat-item">
+                <i class='bx bxs-book-content stat-icon'></i>
+                <div class="stat-number" id="totalTests">789</div>
+                <div class="stat-label">Всего тестов</div>
+                <div class="trend-indicator trend-up">
+                    <i class='bx bx-up-arrow-alt'></i>
+                    <span>15%</span>
+                </div>
+            </div>
+            <div class="stat-item">
+                <i class='bx bxs-crown stat-icon'></i>
+                <div class="stat-number" id="activeSubscriptions">567</div>
+                <div class="stat-label">Активные подписки</div>
+                <div class="trend-indicator trend-up">
+                    <i class='bx bx-up-arrow-alt'></i>
+                    <span>5%</span>
+                </div>
+            </div>
+            <div class="stat-item">
+                <i class='bx bxs-wallet stat-icon'></i>
+                <div class="stat-number" id="totalRevenue">₸45,678</div>
+                <div class="stat-label">Общий доход</div>
+                <div class="trend-indicator trend-up">
+                    <i class='bx bx-up-arrow-alt'></i>
+                    <span>18%</span>
+                </div>
+            </div>
+            <div class="stat-item">
+                <i class='bx bxs-time stat-icon'></i>
+                <div class="stat-number" id="avgTestTime">12:45</div>
+                <div class="stat-label">Среднее время теста</div>
+                <div class="trend-indicator trend-down">
+                    <i class='bx bx-down-arrow-alt'></i>
+                    <span>3%</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-xl-8 mb-4">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Рост пользователей</h5>
+                        <div class="btn-group">
+                            <button class="btn btn-outline-secondary btn-sm active">Неделя</button>
+                            <button class="btn btn-outline-secondary btn-sm">Месяц</button>
+                            <button class="btn btn-outline-secondary btn-sm">Год</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="userGrowthChart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">Распределение подписок</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="subscriptionChart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-xl-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">Результаты тестов</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="testPerformanceChart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">Обзор доходов</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="revenueChart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-xl-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">Популярные тесты</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="popularTestsChart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">Активность пользователей</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="userActivityChart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="overlay"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Обновленная обработка подменю
+        document.querySelectorAll('.has-submenu').forEach(item => {
+            const submenu = item.querySelector('.submenu');
+            const link = item.querySelector('.nav-link');
+            
+            // Устанавливаем начальную высоту
+            if (item.classList.contains('active')) {
+                submenu.style.height = submenu.scrollHeight + 'px';
+            }
+
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const isActive = item.classList.contains('active');
+                
+                // Закрываем все другие подменю
+                document.querySelectorAll('.has-submenu.active').forEach(activeItem => {
+                    if (activeItem !== item) {
+                        activeItem.classList.remove('active');
+                        activeItem.querySelector('.submenu').style.height = '0';
+                    }
+                });
+
+                // Переключаем текущее подменю
+                if (isActive) {
+                    submenu.style.height = '0';
+                    item.classList.remove('active');
+                } else {
+                    submenu.style.height = submenu.scrollHeight + 'px';
+                    item.classList.add('active');
+                }
+            });
+        });
+
+        // Обработка изменения размера окна
+        window.addEventListener('resize', () => {
+            document.querySelectorAll('.has-submenu.active .submenu').forEach(submenu => {
+                submenu.style.height = submenu.scrollHeight + 'px';
+            });
+        });
+
+        // Существующий код для переключения темы
+        const themeToggle = document.getElementById('theme-toggle');
+        const body = document.body;
+
+        themeToggle.addEventListener('click', () => {
+            body.classList.toggle('dark-theme');
+            const icon = themeToggle.querySelector('i');
+            if (body.classList.contains('dark-theme')) {
+                icon.classList.replace('bx-moon', 'bx-sun');
+            } else {
+                icon.classList.replace('bx-sun', 'bx-moon');
+            }
+        });
+
+        // Добавляем к существующему JavaScript
+        const mobileToggle = document.querySelector('.mobile-toggle');
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.querySelector('.overlay');
+
+        mobileToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+        });
+
+        overlay.addEventListener('click', () => {
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+        });
+
+        // Закрывать меню при клике на пункт меню на мобильных устройствах
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth <= 768) {
+                    // Не закрываем сайдбар при клике на пункты с подменю
+                    if (!link.closest('.has-submenu')) {
+                        sidebar.classList.remove('active');
+                        overlay.classList.remove('active');
+                    }
+                }
+            });
+        });
+
+        // Initialize Charts
+        document.addEventListener('DOMContentLoaded', function() {
+            // User Growth Chart
+            const userGrowthCtx = document.getElementById('userGrowthChart').getContext('2d');
+            new Chart(userGrowthCtx, {
+                type: 'line',
+                data: {
+                    labels: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
+                    datasets: [{
+                        label: 'Новые пользователи',
+                        data: [65, 59, 80, 81, 56, 55, 40],
+                        fill: false,
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    }
+                }
+            });
+
+            // Subscription Distribution Chart
+            const subscriptionCtx = document.getElementById('subscriptionChart').getContext('2d');
+            new Chart(subscriptionCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Базовый', 'Стандарт', 'Премиум'],
+                    datasets: [{
+                        data: [300, 150, 100],
+                        backgroundColor: [
+                            'rgb(255, 99, 132)',
+                            'rgb(54, 162, 235)',
+                            'rgb(255, 205, 86)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+
+            // Test Performance Chart
+            const testPerformanceCtx = document.getElementById('testPerformanceChart').getContext('2d');
+            new Chart(testPerformanceCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн'],
+                    datasets: [{
+                        label: 'Средний балл',
+                        data: [65, 59, 80, 81, 56, 55],
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgb(75, 192, 192)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    }
+                }
+            });
+
+            // Revenue Chart
+            const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+            new Chart(revenueCtx, {
+                type: 'line',
+                data: {
+                    labels: ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн'],
+                    datasets: [{
+                        label: 'Доход',
+                        data: [12000, 19000, 15000, 25000, 22000, 30000],
+                        fill: true,
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    }
+                }
+            });
+
+            // Popular Tests Chart
+            const popularTestsCtx = document.getElementById('popularTestsChart').getContext('2d');
+            new Chart(popularTestsCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Тест 1', 'Тест 2', 'Тест 3', 'Тест 4', 'Тест 5'],
+                    datasets: [{
+                        label: 'Количество прохождений',
+                        data: [10, 20, 15, 25, 30],
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgb(75, 192, 192)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    }
+                }
+            });
+
+            // User Activity Chart
+            const userActivityCtx = document.getElementById('userActivityChart').getContext('2d');
+            new Chart(userActivityCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'],
+                    datasets: [{
+                        label: 'Количество активных пользователей',
+                        data: [10, 15, 12, 18, 20, 15, 10],
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        borderColor: 'rgb(255, 99, 132)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    }
+                }
+            });
+        });
+
+        // Period selector buttons
+        document.querySelectorAll('.btn-group .btn').forEach(button => {
+            button.addEventListener('click', function() {
+                // Remove active class from all buttons
+                this.parentElement.querySelectorAll('.btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                // Add active class to clicked button
+                this.classList.add('active');
+                // Here you would typically update the chart data based on the selected period
+            });
+        });
+    </script>
+</body>
+</html> 

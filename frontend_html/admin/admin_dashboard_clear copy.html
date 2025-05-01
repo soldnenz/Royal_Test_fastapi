@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <style>
+        :root {
+            /* Theme Colors */
+            --light-bg: #FFFFFF;
+            --light-sidebar-bg: #F8F9FA;
+            --light-card-bg: #FFFFFF;
+            --light-border: #E9ECEF;
+            --light-text: #212529;
+            --light-text-secondary: #6C757D;
+            --light-accent: #bcc3c99d;
+            --light-accent-text: #333;
+            --light-hover-bg: #F0F2F5;
+            --light-main-bg: #F8F9FA;
+            --hub-orange: #FF9000;
+            --hub-text: #FFFFFF;
+
+            --dark-bg: #16191C;
+            --dark-sidebar-bg: #1F2326;
+            --dark-card-bg: #1F2326;
+            --dark-border: #32383E;
+            --dark-text: #E1E3E5;
+            --dark-text-secondary: #ADB5BD;
+            --dark-accent: #FFD700;
+            --dark-accent-text: #1C1C1C;
+            --dark-hover-bg: #2A2E33;
+            --dark-main-bg: #16191C;
+
+            /* Custom Colors */
+            --primary-color: var(--hub-orange);
+            --primary-text: var(--hub-text);
+            --dark-primary-color: var(--dark-accent);
+            --dark-primary-text: var(--dark-accent-text);
+
+            /* Layout */
+            --sidebar-width: 260px;
+            --header-height: 60px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--light-bg);
+            color: var(--light-text);
+            line-height: 1.5;
+        }
+
+        .dark-theme {
+            background-color: var(--dark-bg);
+            color: var(--dark-text);
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: var(--sidebar-width);
+            background: var(--light-sidebar-bg);
+            border-right: 1px solid var(--light-border);
+            padding: 1rem;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        .dark-theme .sidebar {
+            background: var(--dark-sidebar-bg);
+            border-color: var(--dark-border);
+        }
+
+        .sidebar-logo {
+            padding: 1rem;
+            text-align: center;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--light-border);
+        }
+
+        .dark-theme .sidebar-logo {
+            border-color: var(--dark-border);
+        }
+
+        .sidebar-nav {
+            list-style: none;
+            padding: 0;
+        }
+
+        .nav-item {
+            margin-bottom: 0.5rem;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            padding: 0.8rem 1rem;
+            color: var(--light-text);
+            text-decoration: none;
+            border-radius: 6px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .dark-theme .nav-link {
+            color: var(--dark-text);
+        }
+
+        .nav-link:after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--primary-color);
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .dark-theme .nav-link:after {
+            background: var(--dark-primary-color);
+        }
+
+        .nav-link:hover:after {
+            width: 100%;
+        }
+
+        .nav-link i {
+            margin-right: 0.8rem;
+            font-size: 1.2rem;
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            padding: 2rem;
+            min-height: 100vh;
+            margin-top: var(--header-height);
+        }
+
+        /* Header */
+        .header {
+            position: fixed;
+            top: 0;
+            left: var(--sidebar-width);
+            right: 0;
+            height: var(--header-height);
+            background: var(--light-bg);
+            border-bottom: 1px solid var(--light-border);
+            padding: 0 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 99;
+        }
+
+        .dark-theme .header {
+            background: var(--dark-bg);
+            border-color: var(--dark-border);
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+            margin-top: calc(var(--header-height) + 2rem);
+        }
+
+        .stat-card {
+            background: var(--light-card-bg);
+            border: 1px solid var(--light-border);
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+
+        .dark-theme .stat-card {
+            background: var(--dark-card-bg);
+            border-color: var(--dark-border);
+        }
+
+        .stat-title {
+            font-size: 0.9rem;
+            color: var(--light-text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .dark-theme .stat-title {
+            color: var(--dark-text-secondary);
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+
+        /* Header buttons */
+        .btn-icon {
+            width: 48px;
+            height: 48px;
+            font-size: 1.5rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            border: none;
+            background: transparent;
+            color: var(--light-text);
+            cursor: pointer;
+            margin-left: 0.5rem;
+        }
+
+        .dark-theme .btn-icon {
+            color: var(--dark-text);
+        }
+
+        .btn-icon:after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 100%;
+            height: 100%;
+            background: var(--primary-color);
+            opacity: 0;
+            border-radius: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
+        }
+
+        .btn-icon:hover:after {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 0.1;
+        }
+
+        /* Profile dropdown */
+        .header-right {
+            display: flex;
+            align-items: center;
+        }
+
+        .profile-dropdown {
+            position: relative;
+            margin-left: 1rem;
+        }
+
+        .profile-btn {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            color: var(--light-text);
+        }
+
+        .dark-theme .profile-btn {
+            color: var(--dark-text);
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+
+        .profile-name {
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .dropdown-menu {
+            transform: translateY(10px);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: block;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: var(--light-card-bg);
+            border: 1px solid var(--light-border);
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            min-width: 200px;
+        }
+
+        .dark-theme .dropdown-menu {
+            background: var(--dark-card-bg);
+            border-color: var(--dark-border);
+        }
+
+        .profile-dropdown:hover .dropdown-menu {
+            transform: translateY(0);
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            color: var(--light-text);
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+
+        .dark-theme .dropdown-item {
+            color: var(--dark-text);
+        }
+
+        .dropdown-item:hover {
+            background: var(--light-hover-bg);
+        }
+
+        .dark-theme .dropdown-item:hover {
+            background: var(--dark-hover-bg);
+        }
+
+        .dropdown-item i {
+            margin-right: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .dropdown-divider {
+            height: 1px;
+            background: var(--light-border);
+            margin: 0.5rem 0;
+        }
+
+        .dark-theme .dropdown-divider {
+            background: var(--dark-border);
+        }
+
+        .text-danger {
+            color: var(--danger-color) !important;
+        }
+
+        /* Active nav link */
+        .nav-link.active {
+            background: var(--primary-color);
+            color: var(--primary-text);
+        }
+
+        .dark-theme .nav-link.active {
+            background: var(--dark-primary-color);
+            color: var(--dark-primary-text);
+        }
+
+        /* Logo switching */
+        .dark-theme .logo-light {
+            display: none;
+        }
+        .dark-theme .logo-dark {
+            display: block;
+        }
+
+        /* Логотип */
+        .logo-link {
+            text-decoration: none;
+            font-size: 1.5rem;
+            font-weight: 800;
+            display: inline-block;
+        }
+        
+        .logo-text-royal {
+            color: #000000;
+        }
+        
+        .dark-theme .logo-text-royal {
+            color: #FFFFFF;
+        }
+        
+        .logo-text-hub {
+            background: #FF9000;
+            color: #000000;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        /* Подменю */
+        .submenu {
+            list-style: none;
+            padding-left: 3rem;
+            height: 0;
+            overflow: hidden;
+            transition: height 0.3s ease-in-out;
+            opacity: 0;
+        }
+
+        .has-submenu.active .submenu {
+            height: auto;
+            opacity: 1;
+        }
+
+        .submenu a {
+            display: block;
+            padding: 0.7rem 0;
+            color: var(--light-text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.3s ease;
+            opacity: 0.8;
+        }
+
+        .dark-theme .submenu a {
+            color: var(--dark-text-secondary);
+        }
+
+        .submenu a:hover {
+            color: var(--primary-color);
+            opacity: 1;
+        }
+
+        .dark-theme .submenu a:hover {
+            color: var(--dark-primary-color);
+        }
+
+        .has-submenu .submenu-arrow {
+            margin-left: auto;
+            transition: transform 0.3s ease;
+            opacity: 0.7;
+        }
+
+        .has-submenu.active .submenu-arrow {
+            transform: rotate(-180deg);
+            opacity: 1;
+        }
+
+        /* Профиль без аватарки */
+        .profile-icon {
+            font-size: 2rem;
+        }
+
+        /* Увеличиваем иконки в шапке */
+        .header .btn-icon {
+            width: 48px;
+            height: 48px;
+            font-size: 1.5rem;
+        }
+
+        /* Мобильная поддержка */
+        .mobile-toggle {
+            display: none;
+            font-size: 1.8rem;
+            background: none;
+            border: none;
+            color: var(--light-text);
+            cursor: pointer;
+            padding: 0.5rem;
+        }
+
+        .dark-theme .mobile-toggle {
+            color: var(--dark-text);
+        }
+
+        @media (max-width: 992px) {
+            .profile-name {
+                max-width: 120px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .profile-name {
+                max-width: 0;
+                display: none;
+            }
+            
+            .profile-icon-mobile {
+                display: inline-block;
+                font-size: 1.5rem;
+                margin-right: 0.5rem;
+            }
+            
+            /* Показываем имя в выпадающем меню на мобильных */
+            .dropdown-menu .profile-info {
+                display: block;
+                padding: 0.75rem 1rem;
+                border-bottom: 1px solid var(--light-border);
+                font-weight: 500;
+            }
+
+            .dark-theme .dropdown-menu .profile-info {
+                border-color: var(--dark-border);
+            }
+
+            .sidebar {
+                width: 100%;
+                max-width: 280px;
+                left: -100%;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+
+            .sidebar.active {
+                transform: translateX(0);
+                left: 0;
+            }
+
+            .main-content {
+                margin-left: 0;
+                padding: 1rem;
+            }
+
+            .header {
+                left: 0;
+                padding: 0 1rem;
+            }
+
+            .header-right {
+                gap: 0.5rem;
+            }
+
+            .btn-icon {
+                width: 40px;
+                height: 40px;
+            }
+            
+            .mobile-toggle {
+                display: block;
+            }
+            
+            .overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 99;
+                display: none;
+            }
+            
+            .overlay.active {
+                display: block;
+            }
+        }
+
+        @media (max-height: 600px) {
+            .sidebar-nav {
+                max-height: calc(100vh - 120px);
+                overflow-y: auto;
+            }
+
+            .nav-link {
+                padding: 0.6rem 1rem;
+            }
+
+            .submenu a {
+                padding: 0.5rem 0;
+            }
+
+            .sidebar-logo {
+                padding: 0.5rem;
+                margin-bottom: 0.5rem;
+            }
+        }
+
+        /* Улучшаем скроллбар для сайдбара */
+        .sidebar-nav::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .sidebar-nav::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .sidebar-nav::-webkit-scrollbar-thumb {
+            background: var(--light-border);
+            border-radius: 2px;
+        }
+
+        .dark-theme .sidebar-nav::-webkit-scrollbar-thumb {
+            background: var(--dark-border);
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-logo">
+            <a href="#" class="logo-link">
+                <span class="logo-text-royal">Royal</span>
+                <span class="logo-text-hub">Hub</span>
+            </a>
+        </div>
+        <ul class="sidebar-nav">
+            <li class="nav-item">
+                <a href="#" class="nav-link active">
+                    <i class='bx bxs-dashboard'></i>
+                    <span>Дашборд</span>
+                </a>
+            </li>
+            <li class="nav-item has-submenu">
+                <a href="#" class="nav-link">
+                    <i class='bx bx-user'></i>
+                    <span>Пользователи</span>
+                    <i class='bx bx-chevron-down submenu-arrow'></i>
+                </a>
+                <ul class="submenu">
+                    <li><a href="#">Список пользователей</a></li>
+                </ul>
+            </li>
+            <li class="nav-item has-submenu">
+                <a href="#" class="nav-link">
+                    <i class='bx bx-test-tube'></i>
+                    <span>Тесты</span>
+                    <i class='bx bx-chevron-down submenu-arrow'></i>
+                </a>
+                <ul class="submenu">
+                    <li><a href="#">Список вопросов</a></li>
+                    <li><a href="#">Лобби</a></li>
+                </ul>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link">
+                    <i class='bx bx-money'></i>
+                    <span>Подписки</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link">
+                    <i class='bx bx-link'></i>
+                    <span>Рефералы</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link">
+                    <i class='bx bx-wallet'></i>
+                    <span>Транзакции</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link">
+                    <i class='bx bx-cog'></i>
+                    <span>Администрирование</span>
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="mobile-toggle">
+                    <i class='bx bx-menu'></i>
+                </button>
+            </div>
+            <div class="header-right">
+                <button class="btn btn-icon">
+                    <i class='bx bx-bell'></i>
+                </button>
+                <button id="theme-toggle" class="btn btn-icon">
+                    <i class='bx bx-moon'></i>
+                </button>
+                <div class="profile-dropdown">
+                    <button class="profile-btn">
+                        <i class='bx bx-user profile-icon-mobile'></i>
+                        <span class="profile-name">Иванов Иван Иванович</span>
+                        <i class='bx bx-chevron-down'></i>
+                    </button>
+                    <div class="dropdown-menu">
+                        <div class="profile-info">Иванов Иван Иванович</div>
+                        <a href="#" class="dropdown-item">
+                            <i class='bx bx-user'></i>
+                            <span>Профиль</span>
+                        </a>
+                        <a href="#" class="dropdown-item">
+                            <i class='bx bx-cog'></i>
+                            <span>Настройки</span>
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a href="#" class="dropdown-item text-danger">
+                            <i class='bx bx-log-out'></i>
+                            <span>Выход</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </header>
+    </div>
+
+    <div class="overlay"></div>
+
+    <script>
+        // Обновленная обработка подменю
+        document.querySelectorAll('.has-submenu').forEach(item => {
+            const submenu = item.querySelector('.submenu');
+            const link = item.querySelector('.nav-link');
+            
+            // Устанавливаем начальную высоту
+            if (item.classList.contains('active')) {
+                submenu.style.height = submenu.scrollHeight + 'px';
+            }
+
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const isActive = item.classList.contains('active');
+                
+                // Закрываем все другие подменю
+                document.querySelectorAll('.has-submenu.active').forEach(activeItem => {
+                    if (activeItem !== item) {
+                        activeItem.classList.remove('active');
+                        activeItem.querySelector('.submenu').style.height = '0';
+                    }
+                });
+
+                // Переключаем текущее подменю
+                if (isActive) {
+                    submenu.style.height = '0';
+                    item.classList.remove('active');
+                } else {
+                    submenu.style.height = submenu.scrollHeight + 'px';
+                    item.classList.add('active');
+                }
+            });
+        });
+
+        // Обработка изменения размера окна
+        window.addEventListener('resize', () => {
+            document.querySelectorAll('.has-submenu.active .submenu').forEach(submenu => {
+                submenu.style.height = submenu.scrollHeight + 'px';
+            });
+        });
+
+        // Существующий код для переключения темы
+        const themeToggle = document.getElementById('theme-toggle');
+        const body = document.body;
+
+        themeToggle.addEventListener('click', () => {
+            body.classList.toggle('dark-theme');
+            const icon = themeToggle.querySelector('i');
+            if (body.classList.contains('dark-theme')) {
+                icon.classList.replace('bx-moon', 'bx-sun');
+            } else {
+                icon.classList.replace('bx-sun', 'bx-moon');
+            }
+        });
+
+        // Добавляем к существующему JavaScript
+        const mobileToggle = document.querySelector('.mobile-toggle');
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.querySelector('.overlay');
+
+        mobileToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+        });
+
+        overlay.addEventListener('click', () => {
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+        });
+
+        // Закрывать меню при клике на пункт меню на мобильных устройствах
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth <= 768) {
+                    // Не закрываем сайдбар при клике на пункты с подменю
+                    if (!link.closest('.has-submenu')) {
+                        sidebar.classList.remove('active');
+                        overlay.classList.remove('active');
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html> 
