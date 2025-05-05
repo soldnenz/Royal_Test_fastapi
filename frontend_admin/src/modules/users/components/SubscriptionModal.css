@@ -1,0 +1,52 @@
+/* SubscriptionModal.css */
+/* Custom style for selects */
+select.form-control {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 1rem;
+  padding-right: 2.5rem;
+}
+
+.dark-theme select.form-control {
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+}
+
+/* Form specific styles */
+.form-control:disabled {
+  background-color: var(--light-hover-bg);
+  opacity: 0.7;
+}
+
+.dark-theme .form-control:disabled {
+  background-color: var(--dark-hover-bg);
+}
+
+/* Subscription type preview */
+.subscription-preview {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 6px;
+  background-color: var(--light-hover-bg);
+  border: 1px solid var(--light-border);
+}
+
+.dark-theme .subscription-preview {
+  background-color: var(--dark-hover-bg);
+  border-color: var(--dark-border);
+}
+
+.subscription-preview-title {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.subscription-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+} 

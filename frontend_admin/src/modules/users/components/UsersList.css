@@ -1,0 +1,196 @@
+/* Table Styles */
+.table {
+  width: 100%;
+  margin-bottom: 1rem;
+  color: var(--light-text);
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--table-border);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.dark-theme .table {
+  color: var(--dark-text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.table th,
+.table td {
+  padding: 1rem;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--table-border);
+}
+
+.table th {
+  font-weight: 600;
+  color: var(--table-header-text);
+}
+
+.dark-theme .table th,
+.dark-theme .table td {
+  border-color: var(--dark-border);
+}
+
+.table thead th {
+  vertical-align: bottom;
+  background-color: var(--table-header-bg);
+  font-weight: 600;
+  padding: 1.25rem 1rem;
+  position: relative;
+}
+
+.table thead th:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 25%;
+  height: 50%;
+  width: 1px;
+  background-color: var(--light-border);
+}
+
+.dark-theme .table thead th:not(:last-child)::after {
+  background-color: var(--dark-border);
+}
+
+.dark-theme .table thead th {
+  border-color: var(--dark-border);
+  background-color: var(--dark-hover-bg);
+}
+
+.table tbody tr {
+  transition: background-color 0.2s ease;
+}
+
+.table tbody tr:not(:last-child) {
+  border-bottom: 1px solid var(--table-border);
+}
+
+.table tbody tr:nth-child(even) {
+  background-color: var(--table-striped-bg);
+}
+
+.table tbody tr:hover {
+  background-color: var(--table-row-hover);
+}
+
+.dark-theme .table tbody tr:hover {
+  background-color: var(--dark-hover-bg);
+}
+
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 1.5rem;
+  border-radius: 8px;
+}
+
+/* Status Badges in Table */
+.badge {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+  min-width: 120px;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+}
+
+.dark-theme .badge {
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.badge i {
+  font-size: 1rem;
+}
+
+.badge-success {
+  background-color: #FFD700;
+  color: #000;
+}
+
+.badge-warning {
+  background-color: #ffc107;
+  color: black;
+}
+
+.badge-danger {
+  background-color: #dc3545;
+  color: white;
+}
+
+.badge-info {
+  background-color: #17a2b8;
+  color: black;
+}
+
+.badge-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.ban-badge {
+  background-color: #dc3545;
+  color: white;
+  margin-left: 5px;
+  font-weight: bold;
+  padding: 5px 10px;
+  min-width: auto;
+  flex-direction: row;
+}
+
+.sub-info {
+  display: block;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+  opacity: 0.9;
+}
+
+.subscription-type {
+  font-weight: 600;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Banned user styling */
+.banned-user {
+  background-color: rgba(220, 53, 69, 0.1) !important;
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* Action Buttons */
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+@media (max-width: 768px) {
+  .badge {
+    min-width: auto;
+    width: 100%;
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .action-buttons .btn-action {
+    width: 100%;
+    margin: 0.25rem 0;
+    justify-content: center;
+  }
+} 

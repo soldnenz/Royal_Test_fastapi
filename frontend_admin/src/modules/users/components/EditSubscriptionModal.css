@@ -1,0 +1,35 @@
+/* EditSubscriptionModal.css */
+.cancel-subscription-card {
+  border: 1px solid #dc3545;
+  position: relative;
+}
+
+.danger-title {
+  color: #dc3545 !important;
+}
+
+.danger-title i {
+  color: #dc3545 !important;
+}
+
+.btn-danger {
+  background-color: #dc3545;
+  border-color: #dc3545;
+  color: white;
+}
+
+.dark-theme .btn-danger {
+  background-color: #dc3545;
+  border-color: #dc3545;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: #c82333;
+  border-color: #bd2130;
+}
+
+.loading-container {
+  text-align: center;
+  padding: 2rem;
+  color: var(--light-text-secondary);
+} 

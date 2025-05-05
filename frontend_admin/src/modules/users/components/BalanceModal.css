@@ -1,0 +1,62 @@
+/* BalanceModal.css */
+.balance-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.balance-action-btn {
+  flex: 1;
+  padding: 1rem;
+  border-radius: 8px;
+  border: none;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 1.1rem;
+  color: white;
+}
+
+.balance-action-btn i {
+  font-size: 1.4rem;
+}
+
+.balance-action-btn.add {
+  background: #FFD700;
+  color: #000;
+}
+
+.balance-action-btn.remove {
+  background: #dc3545;
+  color: white;
+}
+
+.dark-theme .balance-action-btn.add {
+  background: #FFD700;
+  color: #000;
+}
+
+.dark-theme .balance-action-btn.remove {
+  background: #dc3545;
+  color: white;
+}
+
+.balance-action-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.balance-action-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+@media (max-width: 576px) {
+  .balance-actions {
+    flex-direction: column;
+  }
+} 

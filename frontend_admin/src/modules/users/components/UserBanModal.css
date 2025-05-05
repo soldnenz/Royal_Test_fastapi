@@ -1,0 +1,182 @@
+/* UserBanModal.css */
+.loading-container {
+  text-align: center;
+  padding: 2rem;
+  color: var(--light-text-secondary);
+}
+
+.dark-theme .loading-container {
+  color: var(--dark-text-secondary);
+}
+
+/* Ban status styles */
+.active-status {
+  background-color: rgba(40, 167, 69, 0.1);
+  padding: 10px;
+  border-radius: 6px;
+  margin-top: 0;
+}
+
+.active-status .info-label {
+  color: #28a745;
+  font-weight: 500;
+}
+
+.active-status .info-value {
+  color: #28a745;
+  font-weight: 500;
+  font-size: 1.1rem;
+}
+
+.banned-status {
+  background-color: rgba(220, 53, 69, 0.1);
+  padding: 10px;
+  border-radius: 6px;
+  border: 2px solid #dc3545;
+  margin-top: 0;
+  margin-bottom: 15px;
+}
+
+.banned-status .info-label {
+  color: #dc3545;
+  font-weight: bold;
+}
+
+.banned-status .info-value {
+  color: #dc3545;
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.active-ban-card {
+  border: 1px solid #dc3545;
+  position: relative;
+}
+
+.ban-title {
+  color: #dc3545 !important;
+}
+
+.ban-title i {
+  color: #dc3545 !important;
+}
+
+.ban-type {
+  background-color: rgba(220, 53, 69, 0.05);
+  padding: 10px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.ban-detail {
+  border-left: 3px solid #dc3545;
+  padding-left: 10px;
+}
+
+/* Ban history styles */
+.ban-duration {
+  font-size: 0.8rem;
+  margin-top: 5px;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+.history-table th,
+.history-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--light-border);
+}
+
+.dark-theme .history-table th,
+.dark-theme .history-table td {
+  border-color: var(--dark-border);
+}
+
+.history-table th {
+  font-weight: 600;
+  background-color: var(--light-hover-bg);
+}
+
+.dark-theme .history-table th {
+  background-color: var(--dark-hover-bg);
+}
+
+.active-ban {
+  background-color: rgba(220, 53, 69, 0.05);
+}
+
+.unban-info {
+  font-size: 0.8rem;
+  margin-top: 5px;
+}
+
+.unban-reason {
+  font-style: italic;
+}
+
+/* Form elements */
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: var(--light-text-secondary);
+  font-size: 0.9rem;
+}
+
+.dark-theme .form-label {
+  color: var(--dark-text-secondary);
+}
+
+.form-text {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.text-muted {
+  color: var(--light-text-secondary);
+}
+
+.dark-theme .text-muted {
+  color: var(--dark-text-secondary);
+}
+
+.mt-3 {
+  margin-top: 1rem;
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* Button styles */
+.btn-success {
+  background-color: #28a745;
+  border-color: #28a745;
+  color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+  background-color: #218838;
+  border-color: #1e7e34;
+}
+
+.btn-danger {
+  background-color: #dc3545;
+  border-color: #dc3545;
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: #c82333;
+  border-color: #bd2130;
+} 
