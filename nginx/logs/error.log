@@ -1353,3 +1353,8 @@
 2025/04/22 13:04:43 [error] 15808#16928: *70 connect() failed (10061: No connection could be made because the target machine actively refused it) while connecting to upstream, client: 85.117.111.190, server: localhost, request: "GET /src/index.css?t=1745309081020 HTTP/1.1", upstream: "http://127.0.0.1:5173/src/index.css?t=1745309081020", host: "royal-test.duckdns.org", referrer: "https://royal-test.duckdns.org/"
 2025/04/22 13:04:43 [warn] 15808#16928: *70 upstream server temporarily disabled while connecting to upstream, client: 85.117.111.190, server: localhost, request: "GET /src/index.css?t=1745309081020 HTTP/1.1", upstream: "http://127.0.0.1:5173/src/index.css?t=1745309081020", host: "royal-test.duckdns.org", referrer: "https://royal-test.duckdns.org/"
 2025/04/22 13:04:45 [info] 15808#16928: *70 client 85.117.111.190 closed keepalive connection
+2025/05/05 22:54:40 [emerg] 11780#16428: the "alias" directive cannot be used inside the named location in C:\Users\PolnoKrasoti\PycharmProjects\Royal_Test\nginx/conf/nginx.conf:122
+2025/05/05 22:54:48 [emerg] 11140#14324: the "alias" directive cannot be used inside the named location in C:\Users\PolnoKrasoti\PycharmProjects\Royal_Test\nginx/conf/nginx.conf:122
+2025/05/05 22:54:53 [emerg] 10428#17124: the "alias" directive cannot be used inside the named location in C:\Users\PolnoKrasoti\PycharmProjects\Royal_Test\nginx/conf/nginx.conf:122
+2025/05/05 23:03:15 [emerg] 11052#16488: the "alias" directive cannot be used inside the named location in C:\Users\PolnoKrasoti\PycharmProjects\Royal_Test\nginx/conf/nginx.conf:122
+2025/05/05 23:03:27 [emerg] 12688#6608: the "alias" directive cannot be used inside the named location in C:\Users\PolnoKrasoti\PycharmProjects\Royal_Test\nginx/conf/nginx.conf:122
