@@ -21,7 +21,8 @@ class QuestionCreate(BaseModel):
     correct_index: int  # Индекс правильного варианта в списке options
     categories: List[str]  # Массив категорий
     pdd_section_uids: List[str]
-    media_filename: Optional[str] = None  # Если с фронта передается имя медиафайла
+    media_filename: Optional[str] = None  # Имя основного медиафайла
+    after_answer_media_filename: Optional[str] = None  # Имя медиафайла, доступного после ответа
     explanation: Optional[MultilingualText] = None
 
     @validator('options')
@@ -62,8 +63,10 @@ class QuestionOut(BaseModel):
     deleted: bool = False
     deleted_by: Optional[str] = None  # Кто удалил вопрос
     deleted_at: Optional[datetime] = None
-    media_file_id: Optional[str] = None  # Идентификатор медиафайла (в виде строки)
-    media_filename: Optional[str] = None
+    media_file_id: Optional[str] = None  # Идентификатор основного медиафайла
+    media_filename: Optional[str] = None  # Имя основного медиафайла
+    after_answer_media_file_id: Optional[str] = None  # Идентификатор медиафайла для показа после ответа
+    after_answer_media_filename: Optional[str] = None  # Имя медиафайла для показа после ответа
     explanation: MultilingualText  # Мультиязычное объяснение
     modified_by: Optional[str] = None  # Кто изменил вопрос
 
@@ -74,9 +77,11 @@ class QuestionEdit(BaseModel):
     new_correct_index: Optional[int] = None
     new_categories: Optional[List[str]] = None
     replace_media: Optional[bool] = False
+    replace_after_answer_media: Optional[bool] = False
     new_pdd_section_uids: Optional[List[str]] = None
     new_explanation: Optional[MultilingualText] = None
     remove_media: Optional[bool] = False
+    remove_after_answer_media: Optional[bool] = False
 
     @validator('new_options')
     def validate_new_options(cls, value):

@@ -11,7 +11,8 @@ def setup_logging():
     """
     Расширенная настройка логирования:
     - Уровень логов из переменных окружения (LOG_LEVEL)
-    - JSON-формат логов в консоль (для удобной передачи в централизованную систему)
+    - Стандартный формат для консоли (для удобного чтения)
+    - JSON формат для файлового лога (для централизованных систем)
     - Ротация логов в файле (по размеру) - опционально
     """
     # Прочитаем уровень логирования из env или возьмём INFO по умолчанию
@@ -26,19 +27,19 @@ def setup_logging():
         root_logger.removeHandler(root_logger.handlers[0])
 
     # ------------------------------
-    # 1) Консольный хендлер (JSON)
+    # 1) Консольный хендлер (Human-readable)
     # ------------------------------
     console_handler = logging.StreamHandler()
-    # Настраиваем JSON-форматер
-    console_formatter = jsonlogger.JsonFormatter(
-        fmt="%(asctime)%(levelname)%(name)%(message)",
-        datefmt="%Y-%m-%d %H:%M:%S"
+    # Настраиваем стандартный форматер для лучшей читаемости в консоли
+    console_formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
     )
     console_handler.setFormatter(console_formatter)
     root_logger.addHandler(console_handler)
 
     # ---------------------------------------------------
-    # 2) Опционально: ротация логов в файле
+    # 2) Опционально: ротация логов в файле (JSON формат)
     #    Если переменная окружения LOG_FILE задана – пишем в файл
     #    с ротацией по размеру
     # ---------------------------------------------------
@@ -54,7 +55,7 @@ def setup_logging():
             backupCount=backup_count,
             encoding="utf-8"
         )
-        # Можно тоже сделать JSON-формат или классический
+        # Для файла оставляем JSON-формат
         file_formatter = jsonlogger.JsonFormatter(
             fmt="%(asctime)%(levelname)%(name)%(message)",
             datefmt="%Y-%m-%d %H:%M:%S"
@@ -75,5 +76,5 @@ def setup_logging():
     # gunicorn_logger.setLevel(log_level)
 
     # Тестовое сообщение, чтобы проверить инициализацию (можно убрать)
-    root_logger.info("Logging has been set up. Level=%s, JSON console=%s, Log file='%s'",
-                     log_level, True, log_file or "disabled")
+    root_logger.info("Logging has been set up. Level=%s, Console format=standard, Log file='%s'",
+                     log_level, log_file or "disabled")

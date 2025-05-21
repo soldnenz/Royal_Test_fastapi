@@ -68,6 +68,13 @@ function App() {
         toggleSidebar={toggleSidebar} 
         className={sidebarClass}
       />
+      {/* Mobile sidebar overlay */}
+      {isMobile && sidebarOpen && (
+        <div 
+          className="mobile-sidebar-overlay active" 
+          onClick={toggleSidebar}
+        />
+      )}
       <div className={contentClass}>
         <DashboardHeader 
           userName="Admin" 
@@ -81,6 +88,7 @@ function App() {
             <Route path="/dashboard" element={<DashboardPage noLayout={true} />} />
             <Route path="/users" element={<UsersPage />} />
             <Route path="/tests" element={<TestsPage />} />
+            <Route path="/tests/edit/:uid" element={<TestsPage />} />
             <Route path="/settings" element={<div className="content-section active">Настройки системы</div>} />
           </Routes>
         </main>

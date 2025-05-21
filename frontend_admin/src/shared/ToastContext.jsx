@@ -24,6 +24,15 @@ export const ToastProvider = ({ children }) => {
   const showToast = useCallback((message, type = TOAST_TYPES.INFO, duration = 5000) => {
     const id = generateId();
     
+    // Check for duplicate toasts - don't add if the same message/type already exists
+    const isDuplicate = toasts.some(toast => 
+      toast.message === message && toast.type === type
+    );
+    
+    if (isDuplicate) {
+      return;
+    }
+    
     // Add the new toast to the list
     setToasts(prevToasts => [...prevToasts, { id, message, type }]);
     
@@ -35,7 +44,7 @@ export const ToastProvider = ({ children }) => {
     }
     
     return id;
-  }, []);
+  }, [toasts]);
 
   // Dismiss a specific toast
   const dismissToast = useCallback((id) => {
@@ -47,13 +56,29 @@ export const ToastProvider = ({ children }) => {
     if (toasts.length === 0) return null;
     
     return (
-      <div className="toast-container">
-        {toasts.map(toast => (
-          <div key={toast.id} className={`toast toast-${toast.type}`}>
-            <span className="toast-message">{toast.message}</span>
-            <button className="toast-close" onClick={() => dismissToast(toast.id)}>×</button>
-          </div>
-        ))}
+      <div className="toast-container" style={{ pointerEvents: 'none' }}>
+        {toasts.map(toast => {
+          // Set icon based on toast type
+          let icon = 'bx-info-circle';
+          if (toast.type === TOAST_TYPES.SUCCESS) icon = 'bx-check-circle';
+          if (toast.type === TOAST_TYPES.ERROR) icon = 'bx-x-circle';
+          if (toast.type === TOAST_TYPES.WARNING) icon = 'bx-error';
+          
+          return (
+            <div key={toast.id} className={`toast ${toast.type}`} style={{ pointerEvents: 'auto' }}>
+              <div className="toast-icon">
+                <i className={`bx ${icon}`}></i>
+              </div>
+              <div className="toast-content">
+                <span className="toast-message">{toast.message}</span>
+              </div>
+              <button className="toast-close" onClick={() => dismissToast(toast.id)}>×</button>
+              <div className="toast-progress">
+                <div className="toast-progress-inner"></div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   };

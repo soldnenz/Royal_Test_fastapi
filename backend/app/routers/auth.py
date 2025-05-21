@@ -153,6 +153,63 @@ async def unified_login(data: AuthRequest, request: Request):
             detail={"message": "Неправильный IIN, Email или пароль"}
         )
 
+    # Проверяем, заблокирован ли пользователь
+    if user.get("is_banned", False):
+        ban_info = user.get("ban_info", {})
+        
+        # Формируем сообщение о блокировке
+        if ban_info.get("ban_type") == "permanent":
+            error_message = "Ваш аккаунт заблокирован навсегда. Причина: " + ban_info.get("reason", "Нарушение правил")
+            logger.info(f"[LOGIN][{ip}] Попытка входа заблокированного пользователя: {user['email'] or user['iin']} (permanent)")
+            raise HTTPException(status_code=403, detail={"message": error_message, "ban_type": "permanent"})
+        else:
+            ban_until = ban_info.get("ban_until")
+            if ban_until:
+                now = datetime.utcnow()
+                if ban_until > now:
+                    # Вычисляем оставшееся время
+                    time_left = ban_until - now
+                    days = time_left.days
+                    hours, remainder = divmod(time_left.seconds, 3600)
+                    minutes, _ = divmod(remainder, 60)
+                    
+                    time_str = ""
+                    if days > 0:
+                        time_str += f"{days} дн. "
+                    if hours > 0:
+                        time_str += f"{hours} ч. "
+                    if minutes > 0:
+                        time_str += f"{minutes} мин."
+                    
+                    error_message = f"Ваш аккаунт временно заблокирован. Осталось: {time_str}. Причина: {ban_info.get('reason', 'Нарушение правил')}"
+                    logger.info(f"[LOGIN][{ip}] Попытка входа заблокированного пользователя: {user['email'] or user['iin']} (temporary, {time_str})")
+                    raise HTTPException(
+                        status_code=403, 
+                        detail={"message": error_message, "ban_type": "temporary", "time_left": time_str}
+                    )
+                else:
+                    # Срок бана истек, разблокируем пользователя
+                    await db.users.update_one(
+                        {"_id": user["_id"]},
+                        {
+                            "$set": {"is_banned": False},
+                            "$unset": {"ban_info": ""}
+                        }
+                    )
+                    
+                    # Деактивируем запись о блокировке в коллекции user_bans
+                    if "ban_id" in ban_info:
+                        await db.user_bans.update_one(
+                            {"_id": ObjectId(ban_info["ban_id"]), "is_active": True},
+                            {
+                                "$set": {
+                                    "is_active": False,
+                                    "auto_unbanned_at": now
+                                }
+                            }
+                        )
+                    logger.info(f"[LOGIN][{ip}] Автоматическая разблокировка: {user['email'] or user['iin']}")
+
     if not verify_password(data.password, user["hashed_password"]):
         logger.info(f"[LOGIN][{ip}] Неверный пароль: user={user['email'] or user['iin']}")
         register_attempt(ip)
@@ -276,7 +333,8 @@ async def register_user(user_data: UserCreate, request: Request):
         "created_at": datetime.utcnow(),
         "referred_by": referred_by,
         "money": user_data.money,  # добавлено поле money (включая значение по умолчанию 0.0)
-        "referred_use": user_data.referred_use  # добавлено поле referred_use
+        "referred_use": user_data.referred_use,  # добавлено поле referred_use
+        "is_banned": False  # инициализация статуса бана
     }
 
     result = await db.users.insert_one(new_user)

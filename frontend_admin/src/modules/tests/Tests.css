@@ -141,16 +141,60 @@
   color: var(--success-color);
 }
 
-/* Media preview */
+/* Media preview with light theme support */
 .media-preview {
-  margin-top: 1rem;
+  margin: 16px 0;
+  text-align: center;
+  background-color: transparent;
 }
 
-.media-preview img,
-.media-preview video {
+.media-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 200px;
+  margin: 0 auto;
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: transparent !important;
+}
+
+.media-container video,
+.media-container img {
   max-width: 100%;
-  border-radius: 8px;
   max-height: 300px;
+  object-fit: contain;
+}
+
+.media-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 10px;
+  gap: 10px;
+}
+
+.media-name {
+  font-size: 14px;
+  color: var(--text-color-secondary);
+}
+
+.media-size {
+  font-size: 12px;
+  color: var(--text-color-lighter);
+}
+
+/* Make sure media controls are visible in dark mode */
+body.dark-theme video::-webkit-media-controls,
+.dark-theme-support video::-webkit-media-controls {
+  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+}
+
+body.dark-theme video::-webkit-media-controls-panel,
+.dark-theme-support video::-webkit-media-controls-panel {
+  background-color: rgba(0, 0, 0, 0.7);
 }
 
 /* Progress bar */
@@ -172,7 +216,7 @@
 
 /* Forms (Creator & Editor) */
 .form-section {
-  background: var(--card-bg);
+  background: var(--card-bg, var(--light-bg-card));
   border-radius: 12px;
   padding: 1.5rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
@@ -181,12 +225,14 @@
 
 .form-row {
   margin-bottom: 1.5rem;
+  background-color: transparent;
 }
 
 .form-label {
   display: block;
   font-weight: 600;
   margin-bottom: 0.5rem;
+  color: var(--text-color, var(--light-text-primary));
 }
 
 .form-input,
@@ -195,9 +241,9 @@
   width: 100%;
   padding: 0.75rem;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
-  background: var(--input-bg);
-  color: var(--text-color);
+  border: 1px solid var(--border-color, var(--light-border-color));
+  background: var(--input-bg, var(--light-input-bg));
+  color: var(--text-color, var(--light-text-primary));
   font-size: 1rem;
 }
 
@@ -211,6 +257,7 @@
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 0.5rem;
+  background-color: transparent;
 }
 
 .checkbox-item {
@@ -218,15 +265,16 @@
   align-items: center;
   padding: 8px 12px;
   border-radius: 8px;
-  background: var(--input-bg);
+  background: var(--input-bg, var(--light-input-bg));
   cursor: pointer;
   user-select: none;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-color, var(--light-border-color));
   transition: background 0.2s, color 0.2s;
+  color: var(--text-color, var(--light-text-primary));
 }
 
 .checkbox-item:hover {
-  background: var(--hover-color);
+  background: var(--hover-color, var(--light-hover-color));
 }
 
 .checkbox-item input[type="checkbox"] {
@@ -292,14 +340,15 @@
   padding: 2rem;
   border: 2px dashed var(--primary-color);
   border-radius: 12px;
-  background: var(--bg-secondary);
+  background: var(--bg-secondary, var(--light-bg-secondary));
   cursor: pointer;
   text-align: center;
   transition: background 0.2s;
+  color: var(--text-color, var(--light-text-primary));
 }
 
 .file-input-container:hover {
-  background: var(--hover-color);
+  background: var(--hover-color, var(--light-hover-color));
 }
 
 .file-input {
@@ -357,30 +406,2129 @@
 .language-selector {
   display: flex;
   gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 1rem;
 }
 
 .language-btn {
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--border-color);
-  background-color: var(--card-bg);
-  color: var(--main-text);
-  border-radius: var(--btn-radius);
+  padding: 8px 15px;
+  background-color: var(--bg-secondary, var(--light-bg-secondary));
+  border: 1px solid var(--border-color, var(--light-border-color));
+  border-radius: 8px;
   cursor: pointer;
+  font-weight: 500;
   transition: all 0.2s;
+  color: var(--text-color, var(--light-text-primary));
 }
 
 .language-btn.active {
-  background-color: var(--accent);
+  background-color: var(--primary-color);
   color: white;
-  border-color: var(--accent);
+  border-color: var(--primary-color);
 }
 
 .language-btn:hover:not(.active) {
-  background-color: var(--border-color);
+  background-color: var(--hover-color, var(--light-hover-color));
 }
 
 .required-star {
   color: var(--danger);
   margin-left: 0.25rem;
-} 
+}
+
+.tests-list-container {
+    padding: 24px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.tests-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.tests-filters {
+    display: flex;
+    gap: 16px;
+}
+
+.pdd-section-tag {
+    background: #e6f7ff;
+    border: 1px solid #91d5ff;
+    color: #1890ff;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    margin: 2px;
+}
+
+.test-editor-container {
+    padding: 24px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.editor-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.form-section {
+    margin-bottom: 24px;
+}
+
+.option-item {
+    margin-bottom: 16px;
+    padding: 16px;
+    border: 1px solid #f0f0f0;
+    border-radius: 4px;
+    background: #fafafa;
+}
+
+.media-preview {
+    margin: 16px 0;
+    text-align: center;
+}
+
+.media-preview img,
+.media-preview video {
+    max-width: 100%;
+    max-height: 400px;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Ant Design overrides */
+.ant-form-item-label > label {
+    font-weight: 500;
+}
+
+.ant-card-head {
+    background: #fafafa;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.ant-card-head-title {
+    font-weight: 500;
+}
+
+.ant-upload-list-picture-card .ant-upload-list-item {
+    padding: 8px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+}
+
+.ant-upload.ant-upload-select-picture-card {
+    width: 128px;
+    height: 128px;
+    margin-right: 8px;
+    margin-bottom: 8px;
+    text-align: center;
+    vertical-align: top;
+    background-color: #fafafa;
+    border: 1px dashed #d9d9d9;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: border-color 0.3s;
+}
+
+.ant-upload.ant-upload-select-picture-card:hover {
+    border-color: #1890ff;
+}
+
+/* Progress bar animations */
+.ant-progress-bg {
+    transition: all 0.3s cubic-bezier(0.08, 0.82, 0.17, 1);
+}
+
+/* Table styles */
+.ant-table-thead > tr > th {
+    background: #fafafa;
+    font-weight: 500;
+}
+
+.ant-table-tbody > tr:hover > td {
+    background: #e6f7ff;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .tests-header {
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .tests-filters {
+        width: 100%;
+        flex-direction: column;
+    }
+
+    .option-item {
+        padding: 8px;
+    }
+
+    .media-preview img,
+    .media-preview video {
+        max-height: 300px;
+    }
+}
+
+:root {
+  --primary-color: #ff7f2a;
+  --accent: #ffb347;
+  --bg-secondary: #f5f5f5;
+  --card-bg: #fff;
+  --text-color: #222;
+  --text-color-secondary: #666;
+  --text-color-lighter: #aaa;
+  --border-color: #e0e0e0;
+  --success-color: #52c41a;
+  --danger: #e53935;
+  --hover-color: #fff3e0;
+  --btn-radius: 6px;
+  --bg-primary: #333;
+  --text-primary: #fff;
+  --button-bg: #555;
+  --button-text: #fff;
+  --input-bg: #444;
+  --input-text: #ccc;
+  --light-bg-main: #f5f5f5;
+  --light-bg-secondary: #ffffff;
+  --light-bg-card: #ffffff;
+  --light-text-primary: #333333;
+  --light-text-secondary: #666666;
+  --light-border-color: #e8e8e8;
+  --light-input-bg: #ffffff;
+  --light-hover-color: #f0f0f0;
+}
+
+body.dark-theme-support,
+.dark-theme-support * {
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+body.dark-theme-support {
+  --primary-color: #ffb347;
+  --accent: #ff7f2a;
+  --bg-secondary: #23272f;
+  --card-bg: #181c23;
+  --text-color: #f5f5f5;
+  --text-color-secondary: #e0e0e0;
+  --text-color-lighter: #b0b0b0;
+  --border-color: #333a44;
+  --success-color: #52c41a;
+  --danger: #e53935;
+  --hover-color: #2a2320;
+}
+
+body.dark-theme-support {
+  background-color: var(--bg-secondary);
+  color: var(--text-color);
+}
+
+.tests-list-container,
+.test-editor-container {
+  background: var(--card-bg);
+  color: var(--text-color);
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 24px;
+}
+
+.ant-table,
+.ant-card,
+.ant-form,
+.ant-select-dropdown {
+  background: var(--card-bg);
+  color: var(--text-color);
+}
+
+.ant-table-thead > tr > th {
+  background: var(--bg-secondary);
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.ant-table-tbody > tr > td {
+  background: var(--card-bg);
+  color: var(--text-color);
+}
+
+.ant-select-selector {
+  background: var(--bg-secondary);
+  color: var(--text-color);
+  border-color: var(--border-color);
+}
+
+.ant-input,
+.ant-input-affix-wrapper {
+  background: var(--bg-secondary);
+  color: var(--text-color);
+  border-color: var(--border-color);
+}
+
+.ant-btn-primary {
+  background: var(--primary-color);
+  color: #fff;
+  border: none;
+}
+
+.ant-btn-primary:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.pdd-section-tag {
+  background: #ffe0b2;
+  border: 1px solid #ffb347;
+  color: #ff7f2a;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin: 2px;
+}
+
+body.dark-theme-support .pdd-section-tag {
+  background: #2a2320;
+  color: #ffb347;
+  border-color: #ff7f2a;
+}
+
+.category-tag {
+  background: #e0f7fa;
+  border: 1px solid #26c6da;
+  color: #00838f;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin: 2px;
+}
+
+body.dark-theme-support .category-tag {
+  background: #1a2327;
+  color: #4dd0e1;
+  border-color: #00838f;
+}
+
+.action-btn {
+  margin: 6px 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  font-size: 14px;
+  border-radius: 4px;
+}
+
+.action-btn.info {
+  background-color: #1890ff !important;
+  color: white !important;
+  border-color: #1890ff !important;
+}
+
+.action-btn.info:hover {
+  background-color: #096dd9 !important;
+  border-color: #096dd9 !important;
+}
+
+.action-btn.delete {
+  background-color: #ff4d4f !important;
+  color: white !important;
+  border-color: #ff4d4f !important;
+}
+
+.action-btn.delete:hover {
+  background-color: #cf1322 !important;
+  border-color: #cf1322 !important;
+}
+
+.action-btn.edit {
+  background-color: #52c41a !important;
+  color: white !important;
+  border-color: #52c41a !important;
+}
+
+.action-btn.edit:hover {
+  background-color: #389e0d !important;
+  border-color: #389e0d !important;
+}
+
+.ant-modal-content {
+  background: var(--card-bg);
+  color: var(--text-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ant-modal-title {
+  color: var(--primary-color);
+}
+
+.ant-modal-close-x {
+  color: var(--text-color);
+}
+
+/* Responsive improvements for filters and table */
+@media (max-width: 600px) {
+  .tests-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .tests-filters {
+    flex-direction: column !important;
+    width: 100%;
+    gap: 12px;
+  }
+  .tests-list-container {
+    padding: 8px;
+  }
+  .ant-table {
+    font-size: 13px;
+  }
+  .ant-table-thead > tr > th,
+  .ant-table-tbody > tr > td {
+    padding: 6px 4px;
+  }
+  .ant-btn {
+    font-size: 13px;
+    padding: 4px 8px;
+  }
+}
+
+/* Additional styles for the new structure */
+.tests-filters-container {
+  margin-bottom: 24px;
+}
+
+.tests-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.progress-thin {
+  margin-bottom: 12px;
+}
+
+.main-progress {
+  margin: 24px auto;
+  width: 80%;
+  max-width: 400px;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  text-align: center;
+}
+
+.loading-text {
+  margin-top: 16px;
+  color: var(--text-color-secondary);
+  font-size: 16px;
+}
+
+/* New card styles */
+.test-detail-content {
+  width: 100%;
+}
+
+.detail-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  height: 100%;
+}
+
+.detail-card .ant-card-head {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.detail-card .ant-card-head-title {
+  color: var(--text-color);
+  font-weight: 600;
+}
+
+.detail-text {
+  color: var(--text-color);
+  white-space: pre-line;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+/* Tags section */
+.tags-section {
+  margin-top: 12px;
+}
+
+.tag-group {
+  margin-bottom: 12px;
+}
+
+.tag-title {
+  font-weight: 500;
+  color: var(--text-color-secondary);
+  margin-bottom: 4px;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Media container */
+.media-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 200px;
+  margin: 0 auto;
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: transparent !important;
+}
+
+.detail-media {
+  max-width: 100%;
+  max-height: 300px;
+  object-fit: contain;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.media-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  height: 200px;
+  text-align: center;
+}
+
+.media-loading .ant-progress {
+  width: 90%;
+  max-width: 300px;
+  margin: 16px 0;
+}
+
+body.dark-theme .media-loading .ant-progress-inner {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.dark-theme .media-loading .ant-progress-bg {
+  background: linear-gradient(90deg, var(--primary-color) 0%, var(--primary-hover) 100%) !important;
+}
+
+body.dark-theme .media-loading .ant-progress-text {
+  color: var(--dark-text) !important;
+}
+
+/* Media placeholders when files can't be loaded */
+.media-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  padding: 20px;
+  text-align: center;
+  border-radius: 8px;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+body.dark-theme .media-placeholder {
+  background-color: rgba(255, 255, 255, 0.03);
+  color: var(--dark-text-secondary) !important;
+}
+
+.media-placeholder .anticon {
+  font-size: 36px;
+  margin-bottom: 12px;
+  color: var(--primary-color);
+}
+
+.media-placeholder div {
+  max-width: 100%;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+/* File info label */
+.file-info {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-color-secondary);
+}
+
+body.dark-theme .file-info {
+  color: var(--dark-text-secondary);
+}
+
+/* Options list */
+.options-list {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+.options-list li {
+  padding: 12px;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  position: relative;
+  display: flex;
+  align-items: center;
+  transition: background 0.2s;
+}
+
+.options-list li.correct-option {
+  background: rgba(82, 196, 26, 0.1);
+  border-left: 4px solid var(--success-color);
+}
+
+.option-label {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
+  text-align: center;
+  background: var(--accent);
+  color: white;
+  border-radius: 50%;
+  margin-right: 8px;
+  font-weight: bold;
+}
+
+.correct-option .option-label {
+  background: var(--success-color);
+}
+
+.correct-mark {
+  margin-left: 12px;
+  color: var(--success-color);
+  font-weight: 600;
+}
+
+/* Ant Design table styles */
+.ant-table-thead > tr > th {
+  background: var(--bg-secondary);
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.ant-table-tbody > tr > td {
+  background: var(--card-bg);
+  color: var(--text-color);
+}
+
+.ant-table-tbody > tr:hover > td {
+  background: var(--hover-color) !important;
+}
+
+.ant-input-search .ant-input-group-addon {
+  background: var(--primary-color);
+}
+
+.ant-input-search .ant-input-search-button {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.ant-input {
+  background: var(--bg-secondary);
+  color: var(--text-color);
+  border-color: var(--border-color);
+}
+
+.ant-select:not(.ant-select-customize-input) .ant-select-selector {
+  background: var(--bg-secondary);
+  color: var(--text-color);
+  border-color: var(--border-color);
+}
+
+.ant-select-dropdown {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+}
+
+.ant-select-item {
+  color: var(--text-color);
+}
+
+.ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  background: var(--hover-color);
+  color: var(--primary-color);
+}
+
+.ant-pagination-item-active {
+  border-color: var(--primary-color);
+}
+
+.ant-pagination-item-active a {
+  color: var(--primary-color);
+}
+
+.ant-progress-inner {
+  background-color: rgba(0, 0, 0, 0.06);
+}
+
+body.dark-theme-support .ant-progress-inner {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.ant-progress-bg {
+  background: var(--primary-color);
+  background: linear-gradient(90deg, var(--primary-color) 0%, var(--accent) 100%);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .tests-list-container,
+  .test-editor-container {
+    padding: 16px;
+  }
+  
+  .ant-modal {
+    width: 95% !important;
+    max-width: 500px;
+  }
+  
+  .detail-media {
+    max-height: 200px;
+  }
+  
+  .options-list li {
+    padding: 8px;
+  }
+}
+
+@media (max-width: 576px) {
+  .tests-filters {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .ant-select {
+    width: 100% !important;
+  }
+  
+  .ant-input-search {
+    width: 100% !important;
+  }
+  
+  .action-btn {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+  
+  .ant-modal {
+    max-width: 100%;
+    margin: 0;
+  }
+}
+
+/* Текст вопроса в таблице */
+.question-text-cell {
+  max-height: 120px;
+  overflow: hidden;
+  position: relative;
+  line-height: 1.5;
+  max-width: 400px;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+/* Вертикальные кнопки действий */
+.action-buttons-column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.action-buttons-column .action-btn {
+  margin: 0;
+  width: 100%;
+  text-align: center;
+}
+
+/* Dark theme support for tables */
+.ant-table.dark-theme-support,
+.dark-theme-support .ant-table,
+body.dark-theme .ant-table {
+  background-color: var(--bg-dark);
+  color: var(--text-light);
+}
+
+.ant-table.dark-theme-support th,
+.dark-theme-support .ant-table th,
+body.dark-theme .ant-table th {
+  background-color: var(--bg-dark-secondary) !important;
+  color: var(--text-light) !important;
+  border-color: var(--border-dark) !important;
+}
+
+.ant-table.dark-theme-support td,
+.dark-theme-support .ant-table td,
+body.dark-theme .ant-table td {
+  border-color: var(--border-dark) !important;
+  color: var(--text-light) !important;
+  background-color: var(--bg-dark) !important;
+}
+
+.ant-table.dark-theme-support .ant-table-row:hover td,
+.dark-theme-support .ant-table .ant-table-row:hover td,
+body.dark-theme .ant-table .ant-table-row:hover td {
+  background-color: var(--bg-dark-hover) !important;
+}
+
+/* Dark theme for cards */
+.ant-card.dark-theme-support,
+.dark-theme-support .ant-card,
+body.dark-theme .ant-card {
+  background-color: var(--bg-dark-secondary) !important;
+  border-color: var(--border-dark) !important;
+  color: var(--text-light) !important;
+}
+
+.ant-card.dark-theme-support .ant-card-head,
+.dark-theme-support .ant-card .ant-card-head,
+body.dark-theme .ant-card .ant-card-head {
+  background-color: var(--bg-dark-secondary) !important;
+  border-color: var(--border-dark) !important;
+  color: var(--text-light) !important;
+}
+
+.ant-card.dark-theme-support .ant-card-body,
+.dark-theme-support .ant-card .ant-card-body,
+body.dark-theme .ant-card .ant-card-body {
+  background-color: var(--bg-dark-secondary) !important;
+  color: var(--text-light) !important;
+}
+
+/* Ensure the question text cell doesn't truncate */
+.ant-table .question-text-cell {
+  white-space: normal;
+  word-wrap: break-word;
+}
+
+/* Добавляем стили для контейнера тегов в таблице */
+.table-tags-container {
+  max-height: 100px;
+  overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: 100%;
+}
+
+.pdd-section-tag {
+  max-width: 100%;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  display: inline-block;
+  margin: 2px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  height: auto;
+  line-height: 1.5;
+}
+
+/* Стили для блока информации в модальном окне */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.info-item {
+  padding: 8px;
+  border-radius: 4px;
+  background-color: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+}
+
+body.dark-theme .info-item {
+  background-color: var(--bg-dark-secondary);
+  border: 1px solid var(--border-dark);
+}
+
+.info-label {
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  margin-bottom: 4px;
+}
+
+body.dark-theme .info-label {
+  color: var(--text-color-lighter);
+}
+
+.info-value {
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+body.dark-theme .info-value {
+  color: var(--text-light);
+}
+
+/* Убираем ограничение высоты вопроса в таблице */
+.ant-table .question-text-cell {
+  white-space: normal;
+  word-wrap: break-word;
+  display: block;
+  line-height: 1.5;
+}
+
+/* Modal dark theme improvements */
+body.dark-theme .ant-modal-content,
+.ant-modal-content.dark-theme-support {
+  background-color: var(--bg-dark-secondary) !important;
+  color: var(--text-light) !important;
+}
+
+body.dark-theme .ant-modal-header,
+.ant-modal-header.dark-theme-support {
+  background-color: var(--bg-dark-secondary) !important;
+  border-color: var(--border-dark) !important;
+}
+
+body.dark-theme .ant-modal-title,
+.ant-modal-title.dark-theme-support {
+  color: var(--text-light) !important;
+}
+
+body.dark-theme .ant-modal-close,
+.ant-modal-close.dark-theme-support {
+  color: var(--text-light) !important;
+}
+
+/* Progress bar in dark mode */
+body.dark-theme .ant-progress-inner,
+.dark-theme-support .ant-progress-inner {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.dark-theme .ant-progress-text,
+.dark-theme-support .ant-progress-text {
+  color: var(--text-light) !important;
+}
+
+/* Improved media container */
+.media-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 200px;
+  margin: 0 auto;
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: transparent !important;
+}
+
+.detail-media {
+  max-width: 100%;
+  max-height: 300px;
+  object-fit: contain;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.media-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  height: 200px;
+  text-align: center;
+}
+
+/* Modal dark theme improvements */
+body.dark-theme .ant-modal-content,
+.ant-modal-content.dark-theme-support {
+  background-color: var(--bg-dark-secondary) !important;
+  color: var(--text-light) !important;
+}
+
+body.dark-theme .ant-modal-header,
+.ant-modal-header.dark-theme-support {
+  background-color: var(--bg-dark-secondary) !important;
+  border-color: var(--border-dark) !important;
+}
+
+body.dark-theme .ant-modal-title,
+.ant-modal-title.dark-theme-support {
+  color: var(--text-light) !important;
+}
+
+body.dark-theme .ant-modal-close,
+.ant-modal-close.dark-theme-support {
+  color: var(--text-light) !important;
+}
+
+/* Progress bar in dark mode */
+body.dark-theme .ant-progress-inner,
+.dark-theme-support .ant-progress-inner {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.dark-theme .ant-progress-text,
+.dark-theme-support .ant-progress-text {
+  color: var(--text-light) !important;
+}
+
+/* Make sure video shows properly in dark mode */
+video.detail-media {
+  background-color: transparent !important;
+  display: block !important;
+}
+
+/* Стили для улучшенной таблицы */
+.data-table {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.data-table .ant-table-thead > tr > th {
+  font-weight: 600;
+  padding: 12px 16px;
+  background-color: var(--bg-secondary);
+}
+
+.data-table .ant-table-tbody > tr > td {
+  padding: 12px 16px;
+  vertical-align: top;
+}
+
+/* Выделение строк с медиа контентом */
+.has-media-row {
+  background-color: rgba(24, 144, 255, 0.05);
+}
+
+body.dark-theme .has-media-row {
+  background-color: rgba(24, 144, 255, 0.1);
+}
+
+/* Теги в таблице */
+.media-tag {
+  font-weight: 600;
+  text-align: center;
+  display: inline-block;
+  min-width: 60px;
+}
+
+/* Контейнер тегов в таблице */
+.table-tags-container {
+  max-height: 100px;
+  overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* Стиль для ячейки с ID */
+.id-column {
+  font-family: monospace;
+  font-weight: 600;
+}
+
+/* Улучшенное отображение текста вопроса в таблице */
+.question-text-cell {
+  max-height: 120px;
+  overflow: hidden;
+  position: relative;
+  line-height: 1.5;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  cursor: pointer;
+}
+
+.question-text-cell:hover {
+  color: var(--primary-color);
+}
+
+/* Улучшенные кнопки действий */
+.action-buttons-column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.action-buttons-column .action-btn {
+  margin: 0;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+
+.action-btn.info {
+  background-color: var(--info-color);
+  border-color: var(--info-color);
+  color: white;
+}
+
+.action-btn.info:hover {
+  background-color: var(--info-color-hover);
+  border-color: var(--info-color-hover);
+}
+
+.action-btn.delete {
+  background-color: var(--danger-color);
+  border-color: var(--danger-color);
+  color: white;
+}
+
+.action-btn.delete:hover {
+  background-color: var(--danger-color-hover);
+  border-color: var(--danger-color-hover);
+}
+
+/* Стили для селектора языка */
+.language-selector-wrapper {
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+}
+
+.language-selector {
+  margin-bottom: 0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.language-selector .ant-radio-button-wrapper {
+  text-transform: uppercase;
+  font-weight: 600;
+  border-radius: 0;
+}
+
+.language-selector-container {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+body.dark-theme .language-selector .ant-radio-button-wrapper-checked,
+.dark-theme-support .language-selector .ant-radio-button-wrapper-checked {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+  color: white;
+}
+
+body.dark-theme .language-selector .ant-radio-button-wrapper,
+.dark-theme-support .language-selector .ant-radio-button-wrapper {
+  background-color: var(--dark-card-bg, #21252a);
+  border-color: var(--dark-border, #3a3f46);
+  color: var(--dark-text-secondary, #a0a0a0);
+  padding: 6px 16px;
+  height: auto;
+  transition: all 0.3s ease;
+}
+
+body.dark-theme .language-selector .ant-radio-button-wrapper-checked,
+.dark-theme-support .language-selector .ant-radio-button-wrapper-checked {
+  background-color: var(--primary-color, #FF9000);
+  border-color: var(--primary-color, #FF9000);
+  color: white;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(255, 144, 0, 0.5);
+}
+
+body.dark-theme .language-selector .ant-radio-button-wrapper:not(.ant-radio-button-wrapper-checked):hover,
+.dark-theme-support .language-selector .ant-radio-button-wrapper:not(.ant-radio-button-wrapper-checked):hover {
+  background-color: var(--dark-hover-bg, #32383e);
+  color: var(--primary-color, #FF9000);
+}
+
+/* Add dark theme styles to the Test.css file */
+
+/* Dark theme support */
+.dark-theme-support {
+  --bg-main: #121212;
+  --bg-secondary: #1f1f1f;
+  --bg-card: #2d2d2d;
+  --text-primary: #ffffff;
+  --text-secondary: #cccccc;
+  --border-color: #444444;
+  --accent: #4dabf7;
+  --danger: #e03131;
+  --success: #37b24d;
+  --card-bg: #2d2d2d;
+  --main-text: #ffffff;
+}
+
+.dark-theme-element {
+  background-color: var(--bg-card, #2d2d2d) !important;
+  color: var(--text-primary, #ffffff) !important;
+  border-color: var(--border-color, #444444) !important;
+}
+
+.dark-theme-support .form-row,
+.dark-theme-support .checkbox-list,
+.dark-theme-support .file-input-container,
+.dark-theme-support .media-preview,
+.dark-theme-support .test-creator,
+.dark-theme-support .test-editor-container {
+  background-color: var(--bg-card, #2d2d2d);
+  color: var(--text-primary, #ffffff);
+  border-color: var(--border-color, #444444);
+}
+
+.dark-theme-support .form-label,
+.dark-theme-support .checkbox-item,
+.dark-theme-support .file-label,
+.dark-theme-support span,
+.dark-theme-support input,
+.dark-theme-support textarea,
+.dark-theme-support select {
+  color: var(--text-primary, #ffffff);
+}
+
+.dark-theme-support .ant-card,
+.dark-theme-support .ant-card-head,
+.dark-theme-support .ant-card-body,
+.dark-theme-support .form-section {
+  background-color: var(--bg-card, #2d2d2d) !important;
+  color: var(--text-primary, #ffffff) !important;
+  border-color: var(--border-color, #444444) !important;
+}
+
+.dark-theme-support .ant-select-selector,
+.dark-theme-support .ant-select-selection-item,
+.dark-theme-support .ant-select-selection-search-input,
+.dark-theme-support .ant-input,
+.dark-theme-support .ant-input-affix-wrapper,
+.dark-theme-support .ant-checkbox-wrapper,
+.dark-theme-support .ant-radio-wrapper {
+  background-color: var(--bg-secondary, #1f1f1f) !important;
+  color: var(--text-primary, #ffffff) !important;
+  border-color: var(--border-color, #444444) !important;
+}
+
+.dark-theme-support .ant-select-dropdown {
+  background-color: var(--bg-card, #2d2d2d) !important;
+}
+
+.dark-theme-support .ant-select-item {
+  color: var(--text-primary, #ffffff) !important;
+}
+
+.dark-theme-support .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+  background-color: var(--bg-secondary, #1f1f1f) !important;
+}
+
+/* Make sure text in dark theme is light colored, but don't override buttons and specific elements */
+body.dark-theme .test-detail-content,
+body.dark-theme .detail-text,
+body.dark-theme .info-label,
+body.dark-theme .info-value,
+body.dark-theme .question-text-cell,
+body.dark-theme .tag-title,
+body.dark-theme .media-placeholder,
+body.dark-theme .options-list li,
+.dark-theme-support .test-detail-content,
+.dark-theme-support .detail-text,
+.dark-theme-support .info-label,
+.dark-theme-support .info-value,
+.dark-theme-support .question-text-cell,
+.dark-theme-support .tag-title,
+.dark-theme-support .media-placeholder,
+.dark-theme-support .options-list li {
+  color: #ffffff !important;
+}
+
+/* Add specific styling for video elements in media containers */
+.media-container video {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  background-color: #000 !important;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Action buttons in test list */
+.action-btn {
+  margin: 6px 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  font-size: 14px;
+  border-radius: 4px;
+}
+
+.action-btn.info {
+  background-color: #1890ff !important;
+  color: white !important;
+  border-color: #1890ff !important;
+}
+
+.action-btn.info:hover {
+  background-color: #096dd9 !important;
+  border-color: #096dd9 !important;
+}
+
+.action-btn.delete {
+  background-color: #ff4d4f !important;
+  color: white !important;
+  border-color: #ff4d4f !important;
+}
+
+.action-btn.delete:hover {
+  background-color: #cf1322 !important;
+  border-color: #cf1322 !important;
+}
+
+.action-btn.edit {
+  background-color: #52c41a !important;
+  color: white !important;
+  border-color: #52c41a !important;
+}
+
+.action-btn.edit:hover {
+  background-color: #389e0d !important;
+  border-color: #389e0d !important;
+}
+
+/* Make sure text in dark theme is light colored */
+body.dark-theme .test-detail-content, 
+body.dark-theme .detail-card .ant-card-head-title,
+body.dark-theme .detail-card .ant-card-body,
+body.dark-theme .detail-text,
+body.dark-theme .info-label,
+body.dark-theme .info-value,
+body.dark-theme .question-text-cell,
+body.dark-theme .tag-title,
+body.dark-theme .media-placeholder,
+body.dark-theme .options-list li,
+body.dark-theme .ant-modal-title,
+body.dark-theme .ant-modal-content {
+  color: #ffffff !important;
+}
+
+/* Make sure cards in dark theme have proper background */
+body.dark-theme .detail-card,
+body.dark-theme .ant-modal-content {
+  background-color: #2a2a2a !important;
+  border: 1px solid #333 !important;
+}
+
+/* Make sure modal in dark theme has proper styling */
+body.dark-theme .ant-modal-content {
+  background-color: #2a2a2a !important;
+  box-shadow: 0 3px 6px -4px rgba(0, 0, 0, 0.48), 0 6px 16px 0 rgba(0, 0, 0, 0.32), 0 9px 28px 8px rgba(0, 0, 0, 0.2);
+}
+
+body.dark-theme .ant-modal-header {
+  background-color: #2a2a2a !important;
+  border-color: var(--border-dark) !important;
+}
+
+/* Make sure all text is visible in dark theme */
+body.dark-theme .question-text-cell,
+body.dark-theme .detail-text,
+body.dark-theme .test-detail-content,
+body.dark-theme .test-detail-content p,
+body.dark-theme .explanation-content,
+body.dark-theme .info-value,
+.dark-theme-support .form-label,
+.dark-theme-element .form-label {
+  color: var(--text-light, #fff) !important;
+}
+
+/* Fix details section in dark theme */
+body.dark-theme .detail-card,
+body.dark-theme .detail-card .ant-card-head,
+body.dark-theme .test-detail-content {
+  background-color: var(--bg-dark, #1f1f1f) !important;
+  color: var(--text-light, #fff) !important;
+  border-color: var(--border-dark, #333) !important;
+}
+
+/* Ensure details tabs have good contrast */
+body.dark-theme .ant-tabs-tab,
+body.dark-theme .ant-tabs-tab-active {
+  color: var(--text-light, #fff) !important;
+}
+
+body.dark-theme .ant-tabs-tab-active {
+  font-weight: bold;
+}
+
+/* Fix options in dark theme */
+body.dark-theme .options-list li {
+  background-color: var(--bg-darker, #181818) !important;
+  color: var(--text-light, #fff) !important;
+  border-color: var(--border-dark, #333) !important;
+}
+
+body.dark-theme .options-list li.correct-option {
+  background-color: var(--success-dark, #0a3622) !important;
+}
+
+/* Additional dark theme fixes for test pages */
+body.dark-theme .tests-container,
+body.dark-theme .tests-list-container,
+body.dark-theme .media-container,
+body.dark-theme .question-card,
+body.dark-theme .test-editor-container {
+  background-color: var(--dark-card-bg, #21252a);
+  color: var(--dark-text, #e4e6eb);
+  border-color: var(--dark-border, #3a3f46);
+}
+
+body.dark-theme .ant-table {
+  background-color: var(--dark-card-bg, #21252a);
+  color: var(--dark-text, #e4e6eb);
+}
+
+body.dark-theme .ant-table .ant-table-thead > tr > th {
+  background-color: var(--dark-sidebar-bg, #272b30);
+  color: var(--dark-text, #e4e6eb);
+  border-color: var(--dark-border, #3a3f46);
+  font-weight: 500;
+}
+
+body.dark-theme .ant-table .ant-table-tbody > tr > td {
+  border-color: var(--dark-border, #3a3f46);
+  color: var(--dark-text-secondary, #a0a0a0);
+}
+
+body.dark-theme .ant-table .ant-table-tbody > tr:hover > td {
+  background-color: var(--dark-hover-bg, #32383e);
+}
+
+body.dark-theme .ant-pagination-item {
+  background-color: var(--dark-card-bg, #21252a);
+  border-color: var(--dark-border, #3a3f46);
+}
+
+body.dark-theme .ant-pagination-item a {
+  color: var(--dark-text, #e4e6eb);
+}
+
+body.dark-theme .ant-pagination-item-active {
+  background-color: var(--primary-color, #FF9000);
+  border-color: var(--primary-color, #FF9000);
+}
+
+body.dark-theme .ant-pagination-item-active a {
+  color: white;
+}
+
+body.dark-theme .ant-pagination-prev .ant-pagination-item-link,
+body.dark-theme .ant-pagination-next .ant-pagination-item-link {
+  background-color: var(--dark-card-bg, #21252a);
+  border-color: var(--dark-border, #3a3f46);
+  color: var(--dark-text, #e4e6eb);
+}
+
+body.dark-theme .ant-select-dropdown {
+  background-color: var(--dark-card-bg, #21252a);
+  border-color: var(--dark-border, #3a3f46);
+}
+
+body.dark-theme .ant-select-item {
+  color: var(--dark-text, #e4e6eb);
+}
+
+body.dark-theme .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+  background-color: var(--dark-hover-bg, #32383e);
+}
+
+body.dark-theme .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  background-color: var(--dark-hover-bg, #32383e);
+  color: var(--primary-color, #FF9000);
+}
+
+body.dark-theme .ant-select:not(.ant-select-customize-input) .ant-select-selector {
+  background-color: var(--dark-card-bg, #21252a);
+  border-color: var(--dark-border, #3a3f46);
+  color: var(--dark-text, #e4e6eb);
+}
+
+body.dark-theme .ant-input,
+body.dark-theme .ant-input-group-addon,
+body.dark-theme .ant-input-affix-wrapper {
+  background-color: var(--dark-card-bg, #21252a);
+  border-color: var(--dark-border, #3a3f46);
+  color: var(--dark-text, #e4e6eb);
+}
+
+body.dark-theme .ant-input::placeholder {
+  color: var(--dark-text-secondary, #a0a0a0);
+}
+
+body.dark-theme .ant-empty-description {
+  color: var(--dark-text-secondary, #a0a0a0);
+}
+
+/* Fix media display in dark theme */
+body.dark-theme .media-container {
+  background-color: rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Fix video playback controls in dark theme */
+body.dark-theme video::-webkit-media-controls-panel {
+  background-color: rgba(0, 0, 0, 0.7) !important;
+}
+
+/* Fix buttons in dark theme */
+body.dark-theme .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous) {
+  background-color: var(--dark-sidebar-bg, #272b30);
+  border-color: var(--dark-border, #3a3f46);
+  color: var(--dark-text, #e4e6eb);
+}
+
+body.dark-theme .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):hover {
+  background-color: var(--dark-hover-bg, #32383e);
+  border-color: var(--dark-border, #3a3f46);
+}
+
+/* Improve table column headers and content in dark theme */
+body.dark-theme .ant-table .ant-table-thead > tr > th {
+  background-color: var(--dark-sidebar-bg, #272b30);
+  color: var(--dark-text, #e4e6eb);
+  border-color: var(--dark-border, #3a3f46);
+  font-weight: 500;
+}
+
+body.dark-theme .ant-table .ant-table-tbody > tr > td {
+  border-color: var(--dark-border, #3a3f46);
+  color: var(--dark-text-secondary, #a0a0a0);
+}
+
+/* Make tags and badges more visible in dark theme */
+body.dark-theme .pdd-section-tag {
+  background-color: rgba(255, 144, 0, 0.15);
+  color: var(--primary-color, #FF9000);
+  border-color: var(--primary-color, #FF9000);
+}
+
+body.dark-theme .category-tag {
+  background-color: rgba(24, 144, 255, 0.15);
+  color: #1890ff;
+  border-color: #1890ff;
+}
+
+body.dark-theme .media-tag {
+  background-color: rgba(82, 196, 26, 0.15);
+  color: #52c41a;
+  border-color: #52c41a;
+}
+
+/* Improve language selector buttons */
+body.dark-theme .language-selector .ant-radio-button-wrapper,
+.dark-theme-support .language-selector .ant-radio-button-wrapper {
+  background-color: var(--dark-card-bg, #21252a);
+  border-color: var(--dark-border, #3a3f46);
+  color: var(--dark-text-secondary, #a0a0a0);
+  padding: 6px 16px;
+  height: auto;
+  transition: all 0.3s ease;
+}
+
+body.dark-theme .language-selector .ant-radio-button-wrapper-checked,
+.dark-theme-support .language-selector .ant-radio-button-wrapper-checked {
+  background-color: var(--primary-color, #FF9000);
+  border-color: var(--primary-color, #FF9000);
+  color: white;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(255, 144, 0, 0.5);
+}
+
+body.dark-theme .language-selector .ant-radio-button-wrapper:not(.ant-radio-button-wrapper-checked):hover,
+.dark-theme-support .language-selector .ant-radio-button-wrapper:not(.ant-radio-button-wrapper-checked):hover {
+  background-color: var(--dark-hover-bg, #32383e);
+  color: var(--primary-color, #FF9000);
+}
+
+/* Add styles for normal theme too */
+.language-selector .ant-radio-button-wrapper {
+  padding: 6px 16px;
+  height: auto;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.language-selector .ant-radio-button-wrapper-checked {
+  background-color: var(--primary-color, #FF9000);
+  border-color: var(--primary-color, #FF9000);
+  color: white;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(255, 144, 0, 0.3);
+}
+
+.language-selector .ant-radio-button-wrapper:not(.ant-radio-button-wrapper-checked):hover {
+  color: var(--primary-color, #FF9000);
+}
+
+/* Fix section tags overflow in table cells */
+.table-tags-container {
+  max-height: 100px;
+  overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: 100%;
+}
+
+.pdd-section-tag {
+  max-width: 100%;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  display: inline-block;
+  margin: 2px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  height: auto;
+  line-height: 1.5;
+}
+
+/* Fix card backgrounds and text in dark theme */
+body.dark-theme .detail-card,
+body.dark-theme .detail-card .ant-card-head,
+body.dark-theme .detail-card .ant-card-body,
+body.dark-theme .test-detail-content {
+  background-color: var(--dark-card-bg, #21252a) !important;
+  color: var(--dark-text, #e4e6eb) !important;
+  border-color: var(--dark-border, #3a3f46) !important;
+}
+
+body.dark-theme .detail-text,
+body.dark-theme .test-detail-content p,
+body.dark-theme .explanation-content,
+body.dark-theme .info-value {
+  color: var(--dark-text-secondary, #a0a0a0) !important;
+}
+
+body.dark-theme .media-container {
+  background-color: rgba(0, 0, 0, 0.2) !important;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+/* Make video player more visible in dark theme */
+body.dark-theme video.detail-media {
+  background-color: #000 !important;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  max-width: 100%;
+  max-height: 400px;
+  margin: 0 auto;
+}
+
+/* Fix responsiveness for modal content */
+@media (max-width: 768px) {
+  .ant-modal {
+    width: 95% !important;
+    max-width: 95% !important;
+    margin: 10px auto;
+  }
+  
+  .ant-modal-content {
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  
+  .detail-media {
+    max-height: 300px;
+    max-width: 100%;
+  }
+}
+
+/* Make line breaks in text content work properly */
+.detail-text, 
+.question-text {
+  white-space: pre-line;
+  word-break: break-word;
+  line-height: 1.6;
+}
+
+/* Fix width of tag containers */
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+}
+
+/* Ensure content doesn't overflow in cards */
+.ant-card-body {
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Make all media containers responsive */
+.media-container {
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.media-container video,
+.media-container img {
+  max-width: 100%;
+  height: auto;
+  max-height: 400px;
+  object-fit: contain;
+}
+
+/* Loading overlay styles for modals */
+.modal-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  border-radius: 8px;
+}
+
+.loading-modal .ant-modal-content {
+  position: relative;
+}
+
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px;
+  color: white;
+  text-align: center;
+  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 8px;
+  max-width: 80%;
+  width: 400px;
+}
+
+.loading-text {
+  margin-top: 16px;
+  font-size: 16px;
+  font-weight: 500;
+  color: white;
+}
+
+/* Improved progress bar styles */
+.ant-progress.ant-progress-status-active .ant-progress-bg::before {
+  animation-duration: 1s;
+}
+
+body.dark-theme .modal-loading-overlay,
+.dark-theme-support .modal-loading-overlay {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
+body.dark-theme .loading-content,
+.dark-theme-support .loading-content {
+  background-color: rgba(33, 37, 41, 0.8);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-theme .ant-progress-inner,
+.dark-theme-support .ant-progress-inner {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.dark-theme .ant-progress-bg,
+.dark-theme-support .ant-progress-bg {
+  background: linear-gradient(90deg, var(--primary-color) 0%, var(--primary-hover) 100%) !important;
+}
+
+body.dark-theme .ant-progress-text,
+.dark-theme-support .ant-progress-text {
+  color: var(--dark-text) !important;
+}
+
+/* Ensure cancel button is visible in both themes */
+.loading-content .ant-btn-primary.ant-btn-dangerous {
+  background-color: #ff4d4f !important;
+  border-color: #ff4d4f !important;
+  color: white !important;
+}
+
+.loading-content .ant-btn-primary.ant-btn-dangerous:hover {
+  background-color: #ff1f1f !important;
+  border-color: #ff1f1f !important;
+}
+
+/* Ensure spinner is visible */
+.loading-content .ant-spin-dot-item {
+  background-color: white !important;
+}
+
+/* Media loading container */
+.media-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  height: 200px;
+  text-align: center;
+}
+
+.media-loading .ant-progress {
+  width: 90%;
+  max-width: 300px;
+  margin: 16px 0;
+}
+
+body.dark-theme .media-loading .ant-progress-inner {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.dark-theme .media-loading .ant-progress-bg {
+  background: linear-gradient(90deg, var(--primary-color) 0%, var(--primary-hover) 100%) !important;
+}
+
+body.dark-theme .media-loading .ant-progress-text {
+  color: var(--dark-text) !important;
+}
+
+/* Media preview with light theme support */
+.media-preview {
+  margin: 16px 0;
+  text-align: center;
+  background-color: transparent;
+}
+
+.media-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 200px;
+  margin: 0 auto;
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: transparent !important;
+}
+
+/* PDD section selector styles with light theme support */
+.pdd-section-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  margin: 4px;
+  border-radius: 16px;
+  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
+  background-color: var(--bg-secondary, var(--light-bg-secondary));
+  color: var(--text-color, var(--light-text-primary));
+  border: 1px solid var(--border-color, var(--light-border-color));
+}
+
+/* Ensure the white theme properly handles inputs and textareas */
+body:not(.dark-theme) .form-input,
+body:not(.dark-theme) .form-textarea,
+body:not(.dark-theme) .form-select,
+body:not(.dark-theme) input,
+body:not(.dark-theme) textarea,
+body:not(.dark-theme) select {
+  background-color: #ffffff;
+  color: #333333;
+  border-color: #d9d9d9;
+}
+
+/* Make inputs in white theme more visible */
+body:not(.dark-theme) .checkbox-item,
+body:not(.dark-theme) .file-input-container,
+body:not(.dark-theme) .language-btn:not(.active),
+body:not(.dark-theme) .pdd-section-tag {
+  background-color: #ffffff;
+  color: #333333;
+  border-color: #d9d9d9;
+}
+
+/* Make white theme input placeholders visible */
+body:not(.dark-theme) input::placeholder,
+body:not(.dark-theme) textarea::placeholder {
+  color: #999999;
+}
+
+/* Ensure dark theme overrides take precedence over light theme styles */
+body.dark-theme .form-input,
+body.dark-theme .form-textarea,
+body.dark-theme .form-select,
+body.dark-theme input,
+body.dark-theme textarea,
+body.dark-theme select,
+.dark-theme-support .form-input,
+.dark-theme-support .form-textarea,
+.dark-theme-support .form-select,
+.dark-theme-support input,
+.dark-theme-support textarea,
+.dark-theme-support select {
+  background-color: var(--bg-dark-secondary, #272b30) !important;
+  color: var(--text-light, #fff) !important;
+  border-color: var(--border-dark, #333) !important;
+}
+
+/* Make checkboxes and form items properly styled in dark theme */
+body.dark-theme .checkbox-item,
+body.dark-theme .file-input-container,
+body.dark-theme .language-btn:not(.active),
+.dark-theme-support .checkbox-item,
+.dark-theme-support .file-input-container,
+.dark-theme-support .language-btn:not(.active) {
+  background-color: var(--bg-dark-secondary, #272b30) !important;
+  color: var(--text-light, #fff) !important;
+  border-color: var(--border-dark, #333) !important;
+}
+
+/* Ensure dropdown options are visible */
+body.dark-theme option,
+.dark-theme-support option {
+  background-color: var(--bg-dark-secondary, #272b30);
+  color: var(--text-light, #fff);
+}
+
+/* Make placeholders visible in dark mode */
+body.dark-theme input::placeholder,
+body.dark-theme textarea::placeholder,
+.dark-theme-support input::placeholder,
+.dark-theme-support textarea::placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Ensure form containers have proper background in dark theme */
+body.dark-theme .form-section,
+.dark-theme-support .form-section {
+  background-color: var(--bg-dark, #1f1f1f) !important;
+  color: var(--text-light, #fff) !important;
+  border-color: var(--border-dark, #333) !important;
+}
+
+/* Fix file upload areas in dark theme */
+body.dark-theme .file-input-container,
+.dark-theme-support .file-input-container {
+  background-color: var(--bg-dark, #1f1f1f) !important;
+  border: 2px dashed var(--primary-color) !important;
+}
+
+/* Make active elements highlighted properly in dark theme */
+body.dark-theme .language-btn.active,
+.dark-theme-support .language-btn.active {
+  background-color: var(--primary-color) !important;
+  color: white !important;
+  border-color: var(--primary-color) !important;
+}
+
+/* Make sure checkboxes are visible in dark theme but without the orange squares */
+body.dark-theme .checkbox-item input[type="checkbox"],
+body.dark-theme .option-radio,
+.dark-theme-support .checkbox-item input[type="checkbox"],
+.dark-theme-support .option-radio {
+  accent-color: var(--primary-color) !important;
+  outline: none !important; /* Remove the orange squares */
+}
+
+/* Fix the checkbox labels in dark theme */
+body.dark-theme .checkbox-item span,
+.dark-theme-support .checkbox-item span {
+  color: var(--text-light, #fff) !important;
+}
+
+/* Improve option rows styling in dark theme */
+body.dark-theme .option-row,
+.dark-theme-support .option-row {
+  background-color: transparent !important;
+}
+
+/* Fix checkbox container background */
+body.dark-theme .checkbox-list,
+.dark-theme-support .checkbox-list {
+  background-color: transparent !important; /* Use transparent instead of a specific color */
+  border-color: var(--border-dark, #333) !important;
+}
+
+/* Ensure buttons have correct styling in dark theme */
+body.dark-theme .form-button.secondary,
+.dark-theme-support .form-button.secondary {
+  background-color: var(--bg-dark-secondary, #272b30) !important;
+  color: var(--text-light, #fff) !important;
+  border-color: var(--border-dark, #333) !important;
+}
+
+/* Fix hover state on checkboxes in dark theme */
+body.dark-theme .checkbox-item:hover,
+.dark-theme-support .checkbox-item:hover {
+  background-color: var(--bg-dark-hover, #32383e) !important;
+}
+
+/* Add CSS class styling for dark inputs */
+.dark-input {
+  background-color: rgba(39, 43, 48, 0.5) !important;
+  color: var(--text-light, #fff) !important;
+  border-color: var(--border-dark, #333) !important;
+}
+
+/* Fix individual checkbox items properly */
+body.dark-theme .checkbox-item,
+.dark-theme-support .checkbox-item {
+  background-color: rgba(39, 43, 48, 0.5) !important;
+  color: var(--text-light, #fff) !important;
+  border-color: var(--border-dark, #333) !important;
+}
+
+/* Fix the form section in dark theme */
+body.dark-theme .test-creator .form-section,
+.dark-theme-support .form-section {
+  background-color: rgba(31, 31, 31, 0.8) !important;
+  border: 1px solid var(--border-dark, #333) !important;
+}
+
+/* Reset background colors for form elements in dark theme */
+body.dark-theme .form-row,
+body.dark-theme .checkbox-list,
+.dark-theme-support .form-row,
+.dark-theme-support .checkbox-list {
+  background-color: transparent !important;
+}
+
+/* Fix radio buttons in dark theme */
+body.dark-theme .option-radio,
+.dark-theme-support .option-radio {
+  accent-color: var(--primary-color) !important;
+}
+
+/* Reset the media-preview background */
+body.dark-theme .media-preview,
+.dark-theme-support .media-preview {
+  background-color: transparent !important;
+}
+
+/* Fix language selector in dark theme */
+body.dark-theme .language-selector,
+.dark-theme-support .language-selector {
+  background-color: transparent !important;
+}
+
+/* Light theme reset - ensure no lingering dark theme styles */
+body:not(.dark-theme) .form-input,
+body:not(.dark-theme) .form-textarea,
+body:not(.dark-theme) .form-select,
+body:not(.dark-theme) .checkbox-item,
+body:not(.dark-theme) input,
+body:not(.dark-theme) textarea,
+body:not(.dark-theme) select {
+  background-color: #ffffff;
+  color: #333333;
+}
+
+/* Fix text and label colors in dark theme */
+body.dark-theme .form-label,
+.dark-theme-support .form-label {
+  color: #ffffff !important;
+}
+
+/* Fix button colors in dark theme */
+body.dark-theme .form-button.secondary,
+.dark-theme-support .form-button.secondary {
+  background-color: rgba(39, 43, 48, 0.5) !important;
+  color: #ffffff !important;
+  border-color: var(--border-dark, #333) !important;
+}
+
+/* Fix dark text in dark theme for pagination and filter labels */
+body.dark-theme .ant-pagination-total-text,
+.dark-theme-support .ant-pagination-total-text {
+  color: var(--text-light, #fff) !important;
+}
+
+body.dark-theme .ant-select-selection-placeholder,
+.dark-theme-support .ant-select-selection-placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+body.dark-theme .ant-select-arrow,
+.dark-theme-support .ant-select-arrow {
+  color: var(--text-light, #fff) !important;
+}
+
+body.dark-theme .ant-select-clear,
+.dark-theme-support .ant-select-clear {
+  background-color: transparent !important;
+  color: var(--text-light, #fff) !important;
+}
+
+body.dark-theme .ant-empty-description,
+.dark-theme-support .ant-empty-description {
+  color: var(--text-light, #fff) !important;
+}
+
+/* Fix select options in dark theme */
+body.dark-theme .ant-select-dropdown,
+.dark-theme-support .ant-select-dropdown {
+  background-color: var(--bg-dark-secondary, #272b30) !important;
+  border-color: var(--border-dark, #333) !important;
+}
+
+body.dark-theme .ant-select-item-option-content,
+.dark-theme-support .ant-select-item-option-content {
+  color: var(--text-light, #fff) !important;
+}
+
+body.dark-theme .ant-select-item-option:hover,
+.dark-theme-support .ant-select-item-option:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.dark-theme .ant-select-item-option-selected,
+.dark-theme-support .ant-select-item-option-selected {
+  background-color: var(--primary-color) !important;
+  color: white !important;
+}
+
+/* Make sure filter labels are visible in dark theme */
+body.dark-theme .tests-filters .ant-select-selection-placeholder,
+.dark-theme-support .tests-filters .ant-select-selection-placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+}

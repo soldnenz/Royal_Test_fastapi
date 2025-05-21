@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react';
-import { LICENSE_CATEGORIES, PDD_CATEGORIES, ALLOWED_MEDIA_TYPES, API_BASE_URL } from '../../shared/config';
+import React, { useState, useRef, useEffect } from 'react';
+import { LICENSE_CATEGORIES, PDD_SECTIONS, ALLOWED_MEDIA_TYPES, API_BASE_URL } from '../../shared/config';
 import LoadingSpinner from '../../shared/components/LoadingSpinner';
 import ErrorDisplay from '../../shared/components/ErrorDisplay';
+import ProgressBar from '../../shared/components/ProgressBar';
 import { useToast, TOAST_TYPES } from '../../shared/ToastContext';
 
 const TestCreator = ({ onCreated }) => {
@@ -13,10 +14,13 @@ const TestCreator = ({ onCreated }) => {
   const [options, setOptions] = useState([{ text: { ru: '', kz: '', en: '' } }, { text: { ru: '', kz: '', en: '' } }]);
   const [correctOptionIndex, setCorrectOptionIndex] = useState(0);
   const [media, setMedia] = useState(null);
+  const [afterAnswerMedia, setAfterAnswerMedia] = useState(null);
   const [pddSearchTerm, setPddSearchTerm] = useState('');
   const [activeLanguage, setActiveLanguage] = useState('ru'); // Default language
   const fileInputRef = useRef(null);
+  const afterAnswerFileInputRef = useRef(null);
   const dropzoneRef = useRef(null);
+  const afterAnswerDropzoneRef = useRef(null);
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -24,10 +28,136 @@ const TestCreator = ({ onCreated }) => {
   const [progress, setProgress] = useState(0);
   const { showToast } = useToast();
   
-  // Filter PDD categories based on search term
-  const filteredPddCategories = PDD_CATEGORIES.filter(
-    cat => cat.title.toLowerCase().includes(pddSearchTerm.toLowerCase())
-  );
+  // Add theme detection
+  useEffect(() => {
+    // Проверка и обновление темы при загрузке
+    const isDarkMode = document.body.classList.contains('dark-theme');
+    if (isDarkMode) {
+      document.querySelector('.test-creator')?.classList.add('dark-theme-support');
+      // Apply dark theme to all form elements - use a more subtle approach
+      const formElements = document.querySelectorAll('.form-row, .checkbox-list, .file-input-container, .media-preview');
+      formElements.forEach(el => {
+        el.classList.add('dark-theme-element');
+        // Don't set explicit background colors here
+        el.style.backgroundColor = 'transparent';
+        el.style.color = 'var(--text-light, #fff)';
+        el.style.borderColor = 'var(--border-dark, #333)';
+      });
+      
+      // Use CSS classes instead of inline styles for inputs
+      // This makes the style more consistent and easier to override with CSS
+      const inputElements = document.querySelectorAll('input, textarea, select');
+      inputElements.forEach(el => {
+        el.classList.add('dark-input');
+        // Remove previous inline styles
+        el.style.backgroundColor = '';
+        el.style.color = '';
+        el.style.borderColor = '';
+      });
+    } else {
+      // Apply light theme to form elements
+      document.querySelector('.test-creator')?.classList.remove('dark-theme-support');
+      const formElements = document.querySelectorAll('.form-row, .checkbox-list, .file-input-container, .media-preview');
+      formElements.forEach(el => {
+        el.classList.remove('dark-theme-element');
+        el.style.backgroundColor = '';
+        el.style.color = '';
+        el.style.borderColor = '';
+      });
+      
+      // Remove dark input classes
+      const inputElements = document.querySelectorAll('input, textarea, select');
+      inputElements.forEach(el => {
+        el.classList.remove('dark-input');
+      });
+      
+      // Fix form input elements for light theme - use a more subtle approach
+      const inputElements2 = document.querySelectorAll('input, textarea, select');
+      inputElements2.forEach(el => {
+        el.style.backgroundColor = '';
+        el.style.color = '';
+        el.style.borderColor = '';
+      });
+    }
+    
+    // Добавляем слушатель изменения темы на body
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          const isDark = document.body.classList.contains('dark-theme');
+          if (isDark) {
+            document.querySelector('.test-creator')?.classList.add('dark-theme-support');
+            // Apply dark theme to all form elements
+            const formElements = document.querySelectorAll('.form-row, .checkbox-list, .file-input-container, .media-preview');
+            formElements.forEach(el => {
+              el.classList.add('dark-theme-element');
+              el.style.backgroundColor = 'transparent';
+              el.style.color = 'var(--text-light, #fff)';
+              el.style.borderColor = 'var(--border-dark, #333)';
+            });
+            
+            // Use CSS classes instead of inline styles for inputs
+            const inputElements = document.querySelectorAll('input, textarea, select');
+            inputElements.forEach(el => {
+              el.classList.add('dark-input');
+              // Remove previous inline styles
+              el.style.backgroundColor = '';
+              el.style.color = '';
+              el.style.borderColor = '';
+            });
+          } else {
+            document.querySelector('.test-creator')?.classList.remove('dark-theme-support');
+            // Remove dark theme from all form elements
+            const formElements = document.querySelectorAll('.form-row, .checkbox-list, .file-input-container, .media-preview');
+            formElements.forEach(el => {
+              el.classList.remove('dark-theme-element');
+              el.style.backgroundColor = '';
+              el.style.color = '';
+              el.style.borderColor = '';
+            });
+            
+            // Remove dark input classes
+            const inputElements = document.querySelectorAll('input, textarea, select');
+            inputElements.forEach(el => {
+              el.classList.remove('dark-input');
+            });
+            
+            // Fix form input elements for light theme
+            const inputElements2 = document.querySelectorAll('input, textarea, select');
+            inputElements2.forEach(el => {
+              el.style.backgroundColor = '';
+              el.style.color = '';
+              el.style.borderColor = '';
+            });
+          }
+        }
+      });
+    });
+    
+    observer.observe(document.body, { attributes: true });
+    
+    // Log sections for debugging
+    console.log('PDD_SECTIONS:', PDD_SECTIONS);
+    
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+  
+  // Filter PDD sections (not categories) based on search term
+  const filteredPddSections = Array.isArray(PDD_SECTIONS) ? 
+    PDD_SECTIONS.filter(
+      section => section && typeof section === 'object' && section.title && 
+      typeof section.title === 'string' && 
+      section.title.toLowerCase().includes(pddSearchTerm.toLowerCase())
+    ) : [];
+
+  // Check if PDD_SECTIONS is empty and log warning
+  useEffect(() => {
+    if (!Array.isArray(PDD_SECTIONS) || PDD_SECTIONS.length === 0) {
+      console.warn('PDD_SECTIONS is empty or not an array', PDD_SECTIONS);
+    }
+  }, []);
 
   // Handle form submission
   const handleSubmit = async (e) => {
@@ -38,6 +168,21 @@ const TestCreator = ({ onCreated }) => {
       showToast('Введите текст вопроса на русском языке', TOAST_TYPES.ERROR);
       setError('Введите текст вопроса на русском языке');
       return;
+    }
+    
+    if (!questionText.kz.trim() || !questionText.en.trim()) {
+      showToast('Заполните текст вопроса на всех языках', TOAST_TYPES.ERROR);
+      setError('Заполните текст вопроса на всех языках');
+      return;
+    }
+    
+    // Validate options have all languages filled
+    for (let i = 0; i < options.length; i++) {
+      if (!options[i].text.ru.trim() || !options[i].text.kz.trim() || !options[i].text.en.trim()) {
+        showToast(`Заполните вариант ${i+1} на всех языках`, TOAST_TYPES.ERROR);
+        setError(`Заполните вариант ${i+1} на всех языках`);
+        return;
+      }
     }
     
     if (selectedCategories.length === 0) {
@@ -58,9 +203,16 @@ const TestCreator = ({ onCreated }) => {
       return;
     }
     
-    if (options.some(opt => !opt.text.ru.trim())) {
-      showToast('Все варианты ответа должны быть заполнены (на русском языке)', TOAST_TYPES.ERROR);
-      setError('Все варианты ответа должны быть заполнены (на русском языке)');
+    // Validate media file sizes (max 50MB)
+    if (media && media.size > 50 * 1024 * 1024) {
+      showToast('Размер основного медиа файла превышает лимит 50МБ', TOAST_TYPES.ERROR);
+      setError('Размер основного медиа файла превышает лимит 50МБ');
+      return;
+    }
+    
+    if (afterAnswerMedia && afterAnswerMedia.size > 50 * 1024 * 1024) {
+      showToast('Размер дополнительного медиа файла превышает лимит 50МБ', TOAST_TYPES.ERROR);
+      setError('Размер дополнительного медиа файла превышает лимит 50МБ');
       return;
     }
     
@@ -84,7 +236,8 @@ const TestCreator = ({ onCreated }) => {
         correct_index: correctOptionIndex,
         categories: selectedCategories,
         pdd_section_uids: selectedSections,
-        media_filename: media?.name || null
+        media_filename: media?.name || null,
+        after_answer_media_filename: afterAnswerMedia?.name || null
       };
       
       // Create FormData for multipart/form-data
@@ -93,6 +246,10 @@ const TestCreator = ({ onCreated }) => {
       
       if (media) {
         formData.append('file', media);
+      }
+      
+      if (afterAnswerMedia) {
+        formData.append('after_answer_file', afterAnswerMedia);
       }
       
       // Use XMLHttpRequest to track upload progress
@@ -157,14 +314,18 @@ const TestCreator = ({ onCreated }) => {
     ]);
     setCorrectOptionIndex(0);
     setMedia(null);
+    setAfterAnswerMedia(null);
     setPddSearchTerm('');
     setError(null);
     setProgress(0);
     setActiveLanguage('ru');
     
-    // Clear file input
+    // Clear file inputs
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+    if (afterAnswerFileInputRef.current) {
+      afterAnswerFileInputRef.current.value = '';
     }
   };
 
@@ -249,11 +410,18 @@ const TestCreator = ({ onCreated }) => {
     }
   };
 
-  // Handle media file selection
+  // Handle main media file selection
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
       if (ALLOWED_MEDIA_TYPES.includes(file.type)) {
+        if (file.size > 50 * 1024 * 1024) {
+          showToast('Размер файла превышает лимит 50МБ', TOAST_TYPES.ERROR);
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
+          return;
+        }
         setMedia(file);
       } else {
         showToast('Неподдерживаемый тип файла. Разрешены: JPG, PNG и MP4.', TOAST_TYPES.ERROR);
@@ -265,7 +433,30 @@ const TestCreator = ({ onCreated }) => {
     }
   };
 
-  // Handle drop zone events
+  // Handle after-answer media file selection
+  const handleAfterAnswerFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (ALLOWED_MEDIA_TYPES.includes(file.type)) {
+        if (file.size > 50 * 1024 * 1024) {
+          showToast('Размер файла превышает лимит 50МБ', TOAST_TYPES.ERROR);
+          if (afterAnswerFileInputRef.current) {
+            afterAnswerFileInputRef.current.value = '';
+          }
+          return;
+        }
+        setAfterAnswerMedia(file);
+      } else {
+        showToast('Неподдерживаемый тип файла. Разрешены: JPG, PNG и MP4.', TOAST_TYPES.ERROR);
+        // Clear file input
+        if (afterAnswerFileInputRef.current) {
+          afterAnswerFileInputRef.current.value = '';
+        }
+      }
+    }
+  };
+
+  // Handle main media drop zone events
   const handleDragOver = (e) => {
     e.preventDefault();
     if (dropzoneRef.current) {
@@ -288,6 +479,10 @@ const TestCreator = ({ onCreated }) => {
     const file = e.dataTransfer.files?.[0];
     if (file) {
       if (ALLOWED_MEDIA_TYPES.includes(file.type)) {
+        if (file.size > 50 * 1024 * 1024) {
+          showToast('Размер файла превышает лимит 50МБ', TOAST_TYPES.ERROR);
+          return;
+        }
         setMedia(file);
         // Update file input for consistency
         if (fileInputRef.current) {
@@ -295,6 +490,47 @@ const TestCreator = ({ onCreated }) => {
           const dataTransfer = new DataTransfer();
           dataTransfer.items.add(file);
           fileInputRef.current.files = dataTransfer.files;
+        }
+      } else {
+        showToast('Неподдерживаемый тип файла. Разрешены: JPG, PNG и MP4.', TOAST_TYPES.ERROR);
+      }
+    }
+  };
+
+  // Handle after-answer media drop zone events
+  const handleAfterAnswerDragOver = (e) => {
+    e.preventDefault();
+    if (afterAnswerDropzoneRef.current) {
+      afterAnswerDropzoneRef.current.style.background = 'rgba(100, 200, 255, 0.3)';
+    }
+  };
+
+  const handleAfterAnswerDragLeave = () => {
+    if (afterAnswerDropzoneRef.current) {
+      afterAnswerDropzoneRef.current.style.background = 'var(--bg-secondary)';
+    }
+  };
+
+  const handleAfterAnswerDrop = (e) => {
+    e.preventDefault();
+    if (afterAnswerDropzoneRef.current) {
+      afterAnswerDropzoneRef.current.style.background = 'var(--bg-secondary)';
+    }
+    
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      if (ALLOWED_MEDIA_TYPES.includes(file.type)) {
+        if (file.size > 50 * 1024 * 1024) {
+          showToast('Размер файла превышает лимит 50МБ', TOAST_TYPES.ERROR);
+          return;
+        }
+        setAfterAnswerMedia(file);
+        // Update file input for consistency
+        if (afterAnswerFileInputRef.current) {
+          // This is a workaround as we can't directly set files property
+          const dataTransfer = new DataTransfer();
+          dataTransfer.items.add(file);
+          afterAnswerFileInputRef.current.files = dataTransfer.files;
         }
       } else {
         showToast('Неподдерживаемый тип файла. Разрешены: JPG, PNG и MP4.', TOAST_TYPES.ERROR);
@@ -413,16 +649,20 @@ const TestCreator = ({ onCreated }) => {
         <div className="form-row">
           <label className="form-label">Разделы ПДД:</label>
           <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 'var(--input-radius)' }}>
-            {filteredPddCategories.map((section) => (
-              <label key={section.uid} className="checkbox-item">
-                <input
-                  type="checkbox"
-                  checked={selectedSections.includes(section.uid)}
-                  onChange={() => handleSectionChange(section.uid)}
-                />
-                <span>{section.title}</span>
-              </label>
-            ))}
+            {filteredPddSections.length > 0 ? (
+              filteredPddSections.map((section) => (
+                <label key={section.uid} className="checkbox-item">
+                  <input
+                    type="checkbox"
+                    checked={selectedSections.includes(section.uid)}
+                    onChange={() => handleSectionChange(section.uid)}
+                  />
+                  <span>{section.title}</span>
+                </label>
+              ))
+            ) : (
+              <div>Нет соответствующих разделов</div>
+            )}
           </div>
         </div>
 
@@ -481,39 +721,50 @@ const TestCreator = ({ onCreated }) => {
           </div>
         </div>
 
-        {/* Media upload */}
+        {/* Main Media upload */}
         <div className="form-row">
-          <label className="form-label">Медиафайл:</label>
-          <div
-            ref={dropzoneRef}
-            className="file-input-container"
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            📂 Перетащите файл сюда или{' '}
-            <label htmlFor="media" className="file-label">
-              выберите
-            </label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              id="media"
-              className="file-input"
-              accept="image/jpeg,image/png,video/mp4,video/quicktime"
-              onChange={handleFileChange}
-            />
-          </div>
-
-          {/* Media preview */}
-          {media && (
+          <label className="form-label">Основной медиафайл (макс. 50 МБ):</label>
+          
+          {!media ? (
+            <div
+              ref={dropzoneRef}
+              className="file-input-container"
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              📂 Перетащите файл сюда или{' '}
+              <label htmlFor="media" className="file-label">
+                выберите
+              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                id="media"
+                className="file-input"
+                accept="image/jpeg,image/png,video/mp4,video/quicktime"
+                onChange={handleFileChange}
+              />
+            </div>
+          ) : (
             <div className="media-preview">
-              {media.type.startsWith('image') ? (
-                <img src={URL.createObjectURL(media)} alt="Preview" />
-              ) : (
-                <video src={URL.createObjectURL(media)} controls />
-              )}
-              <div style={{ marginTop: '0.5rem' }}>
+              <div className="media-container">
+                {media.type.startsWith('image') ? (
+                  <img src={URL.createObjectURL(media)} alt="Preview" />
+                ) : media.type.startsWith('video') ? (
+                  <video controls>
+                    <source src={URL.createObjectURL(media)} type={media.type} />
+                    Ваш браузер не поддерживает видео.
+                  </video>
+                ) : (
+                  <div className="media-placeholder">Неподдерживаемый тип файла</div>
+                )}
+              </div>
+              <div className="media-info">
+                <span className="media-name">{media.name}</span>
+                <span className="media-size">({(media.size / 1024 / 1024).toFixed(2)} МБ)</span>
+              </div>
+              <div className="media-actions">
                 <button
                   type="button"
                   className="form-button"
@@ -532,13 +783,76 @@ const TestCreator = ({ onCreated }) => {
           )}
         </div>
 
+        {/* After-answer Media upload */}
+        <div className="form-row">
+          <label className="form-label">Дополнительный медиафайл для показа после ответа (макс. 50 МБ):</label>
+          
+          {!afterAnswerMedia ? (
+            <div
+              ref={afterAnswerDropzoneRef}
+              className="file-input-container"
+              onDragOver={handleAfterAnswerDragOver}
+              onDragLeave={handleAfterAnswerDragLeave}
+              onDrop={handleAfterAnswerDrop}
+            >
+              📂 Перетащите файл сюда или{' '}
+              <label htmlFor="afterAnswerMedia" className="file-label">
+                выберите
+              </label>
+              <input
+                ref={afterAnswerFileInputRef}
+                type="file"
+                id="afterAnswerMedia"
+                className="file-input"
+                accept="image/jpeg,image/png,video/mp4,video/quicktime"
+                onChange={handleAfterAnswerFileChange}
+              />
+            </div>
+          ) : (
+            <div className="media-preview">
+              <div className="media-container">
+                {afterAnswerMedia.type.startsWith('image') ? (
+                  <img src={URL.createObjectURL(afterAnswerMedia)} alt="Preview" />
+                ) : afterAnswerMedia.type.startsWith('video') ? (
+                  <video controls>
+                    <source src={URL.createObjectURL(afterAnswerMedia)} type={afterAnswerMedia.type} />
+                    Ваш браузер не поддерживает видео.
+                  </video>
+                ) : (
+                  <div className="media-placeholder">Неподдерживаемый тип файла</div>
+                )}
+              </div>
+              <div className="media-info">
+                <span className="media-name">{afterAnswerMedia.name}</span>
+                <span className="media-size">({(afterAnswerMedia.size / 1024 / 1024).toFixed(2)} МБ)</span>
+              </div>
+              <div className="media-actions">
+                <button
+                  type="button"
+                  className="form-button"
+                  style={{ backgroundColor: 'var(--danger)', padding: '0.5rem 1rem' }}
+                  onClick={() => {
+                    setAfterAnswerMedia(null);
+                    if (afterAnswerFileInputRef.current) {
+                      afterAnswerFileInputRef.current.value = '';
+                    }
+                  }}
+                >
+                  Удалить медиа
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Progress bar */}
         {loading && (
-          <div className="progress-bar">
-            <div
-              className="progress-bar-inner"
-              style={{ width: `${progress}%` }}
-            ></div>
+          <div className="form-row">
+            <ProgressBar 
+              progress={progress} 
+              label={`Загрузка... ${Math.round(progress)}%`}
+              color="var(--accent)" 
+            />
           </div>
         )}
 

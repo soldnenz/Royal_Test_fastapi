@@ -196,12 +196,19 @@ body.dark-theme .card:hover {
   gap: 12px;
   padding: 15px 20px;
   border-radius: 12px;
-  background: var(--card-bg-light);
+  background-color: #FFFFFF;
+  color: #333;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
   animation: slideIn 0.3s ease forwards;
   position: relative;
   overflow: hidden;
   border-left: 4px solid;
+}
+
+body.dark-theme .toast {
+  background-color: #2c3245;
+  color: #ffffff;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
 }
 
 .toast.success {
@@ -256,6 +263,7 @@ body.dark-theme .card:hover {
 .toast-message {
   font-size: 0.85rem;
   opacity: 0.85;
+  color: inherit;
 }
 
 .toast-close {
@@ -267,6 +275,9 @@ body.dark-theme .card:hover {
   justify-content: center;
   opacity: 0.6;
   transition: opacity 0.2s;
+  color: inherit;
+  background: transparent;
+  border: none;
 }
 
 .toast-close:hover {
@@ -337,6 +348,11 @@ body.dark-theme .card:hover {
 }
 
 @media (max-width: 768px) {
+  .dashboard-content {
+    margin-left: 0;
+    width: 100%;
+  }
+  
   .dashboard-main {
     padding: 1rem;
     min-height: calc(100vh - 60px);
@@ -378,4 +394,61 @@ a,
 .menu-link,
 .toast {
   transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* Mobile sidebar overlay */
+.mobile-sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 400;
+  transition: opacity 0.3s ease;
+  opacity: 0;
+}
+
+.mobile-sidebar-overlay.active {
+  display: block;
+  opacity: 1;
+}
+
+@media (max-width: 768px) {
+  .dashboard-content {
+    margin-left: 0;
+    width: 100%;
+  }
+  
+  .dashboard-main {
+    padding: 1rem;
+  }
+}
+
+/* Ensure consistent button styling in dark theme */
+body.dark-theme .btn-success,
+body.dark-theme .btn-action.btn-success {
+  background-color: #28a745 !important;
+  border-color: #28a745 !important;
+  color: white !important;
+}
+
+body.dark-theme .btn-success:hover:not(:disabled),
+body.dark-theme .btn-action.btn-success:hover:not(:disabled) {
+  background-color: #218838 !important;
+  border-color: #1e7e34 !important;
+}
+
+body.dark-theme .btn-danger,
+body.dark-theme .btn-action.btn-danger {
+  background-color: #dc3545 !important;
+  border-color: #dc3545 !important;
+  color: white !important;
+}
+
+body.dark-theme .btn-danger:hover:not(:disabled),
+body.dark-theme .btn-action.btn-danger:hover:not(:disabled) {
+  background-color: #c82333 !important;
+  border-color: #bd2130 !important;
 }

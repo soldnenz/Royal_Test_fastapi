@@ -168,7 +168,8 @@ async def search_users_by_query(
         {"email": sanitized_query},
         {"phone": sanitized_query},
         {"full_name": {"$regex": regex_pattern, "$options": "i"}},
-        {"referred_by": sanitized_query}
+        {"referred_by": sanitized_query},
+        {"referral_code": sanitized_query}  # Добавляем поиск по реферальному коду
     ])
     
     logger.info(f"User search initiated by {current_user['id']} with query: {sanitized_query}")
@@ -203,8 +204,13 @@ async def search_users_by_query(
                 "last_activity": None
             }
             
-            # Собираем ID пользователей для пакетных запросов
-            user_cache[user_id_str] = user_data
+            # Сохраняем пользовательский объект для последующей обработки
+            # Важно сохранить referral_code и другие важные поля
+            user_cache[user_id_str] = {
+                "referral_code": user.get("referral_code", None),
+                **user
+            }
+            
             results.append(user_data)
         
         # Параллельное получение данных для всех пользователей для увеличения производительности
@@ -279,9 +285,110 @@ async def search_users_by_query(
                     "user_agent": activity.get("user_agent", None)
                 }
             
-            # 4. Получаем информацию о реферальной системе
+            # 4. Получаем информацию о промокодах пользователей
+            promo_codes = {}
+            
+            # Создаем список ID пользователей в обоих форматах (ObjectId и строки)
+            user_id_objs = user_ids
+            user_id_strs = [str(user_id) for user_id in user_ids]
+            
+            # Ищем промокоды, созданные пользователями, учитывая оба формата хранения ID
+            promo_query = {
+                "$or": [
+                    {"created_by_user_id": {"$in": user_id_objs}},  # Если ID хранится как ObjectId
+                    {"created_by_user_id": {"$in": user_id_strs}}   # Если ID хранится как строка
+                ]
+            }
+            
+            promo_cursor = db.promo_codes.find(promo_query)
+            
+            async for promo in promo_cursor:
+                # Определяем ID пользователя, учитывая, что оно может быть как ObjectId, так и строкой
+                user_id_raw = promo.get("created_by_user_id")
+                if isinstance(user_id_raw, ObjectId):
+                    user_id_str = str(user_id_raw)
+                else:
+                    user_id_str = user_id_raw
+                
+                # Если ID не найдено или не валидно, пропускаем запись
+                if not user_id_str or user_id_str not in user_cache:
+                    continue
+                
+                if user_id_str not in promo_codes:
+                    promo_codes[user_id_str] = []
+                
+                # Собираем информацию о пользователях, которые активировали промокод
+                promo_used_by = promo.get("used_by", [])
+                used_by_users = []
+                
+                for used_user_id in promo_used_by:
+                    if ObjectId.is_valid(used_user_id):
+                        user_info = await db.users.find_one({"_id": ObjectId(used_user_id)})
+                        if user_info:
+                            # Находим подписку, активированную этим промокодом
+                            sub = await db.subscriptions.find_one({
+                                "user_id": ObjectId(used_user_id),
+                                "promo_code": promo.get("code"),
+                                "activation_method": "promocode"
+                            })
+                            
+                            used_by_users.append({
+                                "user_id": str(user_info["_id"]),
+                                "full_name": user_info.get("full_name", ""),
+                                "iin": user_info.get("iin", ""),
+                                "activated_at": sub.get("created_at").isoformat() if sub and sub.get("created_at") else None
+                            })
+                
+                promo_codes[user_id_str].append({
+                    "code": promo.get("code"),
+                    "subscription_type": promo.get("subscription_type"),
+                    "duration_days": promo.get("duration_days"),
+                    "is_active": promo.get("is_active"),
+                    "usage_limit": promo.get("usage_limit"),
+                    "usage_count": promo.get("usage_count", 0),
+                    "expires_at": promo.get("expires_at").isoformat() if promo.get("expires_at") else None,
+                    "type": "created",  # Пометка, что это созданный пользователем промокод
+                    "used_by": used_by_users
+                })
+            
+            # Также ищем промокоды, которые пользователь активировал
+            for user_id in user_ids:
+                user_id_str = str(user_id)
+                
+                # Находим подписки пользователя, активированные через промокод
+                user_subs = await db.subscriptions.find({
+                    "user_id": user_id,
+                    "activation_method": "promocode"
+                }).to_list(length=10)
+                
+                for sub in user_subs:
+                    promo_code = sub.get("promo_code")
+                    if not promo_code:
+                        continue
+                        
+                    # Находим детали промокода
+                    promo = await db.promo_codes.find_one({"code": promo_code})
+                    if not promo:
+                        continue
+                        
+                    if user_id_str not in promo_codes:
+                        promo_codes[user_id_str] = []
+                        
+                    # Добавляем информацию о использованном промокоде
+                    promo_codes[user_id_str].append({
+                        "code": promo_code,
+                        "subscription_type": promo.get("subscription_type"),
+                        "duration_days": promo.get("duration_days"),
+                        "is_active": False,  # Уже использован
+                        "activated_at": sub.get("created_at").isoformat() if sub.get("created_at") else None,
+                        "expires_at": sub.get("expires_at").isoformat() if sub.get("expires_at") else None,
+                        "type": "used"  # Пометка, что это использованный промокод
+                    })
+            
+            # 5. Добавляем данные в результат
             for user_data in results:
                 user_id_str = user_data["id"]
+                user_obj = user_cache.get(user_id_str, {})
                 
                 # Добавляем активную подписку, если есть
                 if user_id_str in active_subscriptions:
@@ -294,19 +401,37 @@ async def search_users_by_query(
                 # Добавляем информацию о последней активности
                 if user_id_str in user_activity:
                     user_data["last_activity"] = user_activity[user_id_str]
-            
-            # Подсчет реферальной информации - делаем индивидуально, т.к. требует сложных вычислений
-            for user_data in results:
-                user_id_str = user_data["id"]
-                user_obj = user_cache.get(user_id_str, {})
                 
-                if "referral_code" in user_obj:
+                # Добавляем информацию о промокодах
+                if user_id_str in promo_codes:
+                    if "promo_codes" not in user_data:
+                        user_data["promo_codes"] = promo_codes[user_id_str]
+                
+                # Добавляем информацию о реферальной системе
+                referral_code = user_obj.get("referral_code")
+                if referral_code:
                     try:
                         # Счетчик приведенных пользователей с лимитом времени
-                        referred_count = await db.users.count_documents(
-                            {"referred_by": user_obj.get("referral_code")},
-                            max_time_ms=2000
-                        )
+                        referred_users_cursor = db.users.find(
+                            {"referred_by": referral_code}
+                        ).limit(20).max_time_ms(2000)
+                        
+                        referred_users = []
+                        referred_count = 0
+                        
+                        # Собираем информацию о пользователях, которые использовали реферальный код
+                        async for ref_user in referred_users_cursor:
+                            referred_count += 1
+                            referred_users.append({
+                                "user_id": str(ref_user["_id"]),
+                                "full_name": ref_user.get("full_name", ""),
+                                "iin": ref_user.get("iin", ""),
+                                "created_at": ref_user.get("created_at").isoformat() if ref_user.get("created_at") else None,
+                                "has_subscription": await db.subscriptions.count_documents(
+                                    {"user_id": ref_user["_id"], "is_active": True}
+                                ) > 0,
+                                "referred_use": ref_user.get("referred_use", False)
+                            })
                         
                         # Подсчет бонусов с лимитом времени
                         total_bonus = 0
@@ -318,18 +443,66 @@ async def search_users_by_query(
                             total_bonus += tx.get("amount", 0)
                         
                         user_data["referral_system"] = {
-                            "code": user_obj.get("referral_code", None),
+                            "code": referral_code,
                             "referred_users_count": referred_count,
-                            "earned_bonus": total_bonus
+                            "earned_bonus": total_bonus,
+                            "referred_users": referred_users
                         }
                     except Exception as e:
                         logger.error(f"Error processing referral data for user {user_id_str}: {str(e)}")
                         user_data["referral_system"] = {
-                            "code": user_obj.get("referral_code", None),
+                            "code": referral_code,
                             "referred_users_count": 0,
                             "earned_bonus": 0,
                             "error": "Не удалось получить полные данные"
                         }
+                
+                # Также проверяем наличие реферальных кодов в коллекции referrals
+                try:
+                    referrals_cursor = db.referrals.find({"owner_user_id": user_id_str}).max_time_ms(2000)
+                    referrals = []
+                    
+                    async for ref in referrals_cursor:
+                        ref_code = ref.get("code")
+                        
+                        # Находим пользователей, которые активировали этот реферальный код
+                        activated_users = []
+                        if ref_code:
+                            ref_users_cursor = db.users.find({"referred_by": ref_code}).limit(20).max_time_ms(2000)
+                            
+                            async for ref_user in ref_users_cursor:
+                                has_subscription = await db.subscriptions.count_documents({
+                                    "user_id": ref_user["_id"], 
+                                    "is_active": True
+                                }) > 0
+                                
+                                activated_users.append({
+                                    "user_id": str(ref_user["_id"]),
+                                    "full_name": ref_user.get("full_name", ""),
+                                    "iin": ref_user.get("iin", ""),
+                                    "created_at": ref_user.get("created_at").isoformat() if ref_user.get("created_at") else None,
+                                    "has_subscription": has_subscription,
+                                    "referred_use": ref_user.get("referred_use", False)
+                                })
+                        
+                        referrals.append({
+                            "code": ref_code,
+                            "type": ref.get("type"),
+                            "rate": ref.get("rate"),
+                            "description": ref.get("description"),
+                            "active": ref.get("active", True),
+                            "created_at": ref.get("created_at").isoformat() if ref.get("created_at") else None,
+                            "activated_users": activated_users,
+                            "activated_count": len(activated_users)
+                        })
+                    
+                    if referrals:
+                        if not user_data.get("referral_system"):
+                            user_data["referral_system"] = {"referrals": referrals}
+                        else:
+                            user_data["referral_system"]["referrals"] = referrals
+                except Exception as e:
+                    logger.error(f"Error fetching referrals for user {user_id_str}: {str(e)}")
         
         if not results:
             logger.info(f"No users found for query: {sanitized_query}")
@@ -337,8 +510,6 @@ async def search_users_by_query(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={"message": "Пользователь не найден", "query": sanitized_query}
             )
-        
-
         
         return success(
             data=results, 

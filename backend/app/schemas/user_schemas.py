@@ -136,6 +136,13 @@ class UserOut(BaseModel):
     referred_by: Optional[str] = None
     referred_use: Optional[bool] = False
     money: Optional[float] = 0.0
+    is_banned: Optional[bool] = False
+    ban_info: Optional[Dict[str, Any]] = None
+    subscription: Optional[Dict[str, Any]] = None
+    subscription_history: Optional[List[Dict[str, Any]]] = []
+    referral_system: Optional[Dict[str, Any]] = None
+    last_activity: Optional[Dict[str, Any]] = None
+    promo_codes: Optional[List[Dict[str, Any]]] = None
 
     class Config:
         populate_by_name = True
@@ -153,7 +160,55 @@ class UserOut(BaseModel):
                 "created_at": "2025-03-26T12:34:56",
                 "referred_by": "REF987KLM",
                 "referred_use": True,
-                "money": 1000.99
+                "money": 1000.99,
+                "is_banned": False,
+                "ban_info": None,
+                "subscription": {
+                    "subscription_type": "vip",
+                    "is_active": True,
+                    "expires_at": "2025-06-26T12:34:56",
+                    "activation_method": "promocode",
+                    "created_at": "2025-03-26T12:34:56"
+                },
+                "subscription_history": [
+                    {
+                        "date": "2025-03-26T12:34:56",
+                        "type": "vip",
+                        "duration": "30 дней",
+                        "status": "Активна"
+                    }
+                ],
+                "referral_system": {
+                    "code": "ABC123",
+                    "referred_users_count": 5,
+                    "earned_bonus": 500,
+                    "referrals": [
+                        {
+                            "code": "73251970",
+                            "type": "user",
+                            "rate": {"type": "percent", "value": 10},
+                            "description": "раздача",
+                            "active": True,
+                            "created_at": "2025-05-20T15:09:19.035000"
+                        }
+                    ]
+                },
+                "last_activity": {
+                    "last_login": "2025-03-26T12:34:56",
+                    "ip_address": "192.168.1.1",
+                    "user_agent": "Mozilla/5.0..."
+                },
+                "promo_codes": [
+                    {
+                        "code": "PROMO123",
+                        "subscription_type": "vip",
+                        "duration_days": 30,
+                        "is_active": True,
+                        "usage_limit": 1,
+                        "usage_count": 0,
+                        "expires_at": "2025-06-26T12:34:56"
+                    }
+                ]
             }
         }
 
@@ -218,6 +273,22 @@ class UserBanCreate(BaseModel):
                 "ban_type": "temporary",
                 "ban_days": 7,
                 "reason": "Нарушение правил сервиса"
+            }
+        }
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+    
+    @field_validator("email")
+    @classmethod
+    def validate_email_field(cls, v): return validate_ascii_email(v)
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "email": "user@example.com",
+                "password": "password123"
             }
         }
 

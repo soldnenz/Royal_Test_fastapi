@@ -15,8 +15,10 @@ const UserBanModal = ({ show, onClose, user, onRefresh }) => {
     reason: ''
   });
   const [unbanReason, setUnbanReason] = useState('');
+  const [isUserBanned, setIsUserBanned] = useState(user?.is_banned || false);
   const { showToast } = useToast();
 
+  // Just fetch ban data when modal shows
   useEffect(() => {
     if (show && user) {
       fetchBanData();
@@ -36,10 +38,26 @@ const UserBanModal = ({ show, onClose, user, onRefresh }) => {
       
       if (response.ok) {
         const data = await response.json();
-        if (data.status === 'success' && data.data) {
+        
+        if ((data.status === 'success' || data.status === 'ok') && Array.isArray(data.data)) {
           setBanData(data.data);
+          
+          // Check if there's an active ban
+          const hasActiveBan = data.data.some(ban => ban.is_active);
+          setIsUserBanned(hasActiveBan);
+          
+          // Update user ban status if needed (without additional API calls)
+          if (hasActiveBan !== user.is_banned) {
+            onRefresh && onRefresh({ ...user, is_banned: hasActiveBan });
+          }
         } else {
           setBanData([]);
+          
+          // If no ban data but user is marked as banned, update status
+          if (user.is_banned) {
+            setIsUserBanned(false);
+            onRefresh && onRefresh({ ...user, is_banned: false });
+          }
         }
       } else {
         setBanData([]);
@@ -87,9 +105,10 @@ const UserBanModal = ({ show, onClose, user, onRefresh }) => {
       const result = await response.json();
       
       if (response.ok) {
+        setIsUserBanned(true);
+        onRefresh && onRefresh({ ...user, is_banned: true });
         showToast('Пользователь успешно заблокирован', 'success');
         onClose();
-        if (onRefresh) onRefresh();
       } else {
         const errMsg = result.detail?.message || result.message || `Ошибка ${response.status}`;
         showToast(errMsg, 'error');
@@ -124,9 +143,10 @@ const UserBanModal = ({ show, onClose, user, onRefresh }) => {
       const result = await response.json();
       
       if (response.ok) {
+        setIsUserBanned(false);
+        onRefresh && onRefresh({ ...user, is_banned: false });
         showToast('Пользователь успешно разблокирован', 'success');
         onClose();
-        if (onRefresh) onRefresh();
       } else {
         const errMsg = result.detail?.message || result.message || `Ошибка ${response.status}`;
         showToast(errMsg, 'error');
@@ -140,10 +160,9 @@ const UserBanModal = ({ show, onClose, user, onRefresh }) => {
   };
   
   const toggleBanDuration = () => {
-    if (banFormData.duration_type === 'permanent') {
-      document.getElementById('ban_days_group').style.display = 'none';
-    } else {
-      document.getElementById('ban_days_group').style.display = 'block';
+    const banDaysGroup = document.getElementById('ban_days_group');
+    if (banDaysGroup) {
+      banDaysGroup.style.display = banFormData.duration_type === 'permanent' ? 'none' : 'block';
     }
   };
 
@@ -195,21 +214,21 @@ const UserBanModal = ({ show, onClose, user, onRefresh }) => {
           <span className="info-label">ID пользователя:</span>
           <span className="info-value">{user?.id}</span>
         </div>
-        <div className={`info-item ${user?.is_banned ? 'banned-status' : 'active-status'}`}>
-          <span className="info-label">Статус:</span>
+        <div className={`info-item ${isUserBanned ? 'banned-status' : 'active-status'}`}>
+          <span className="info-label">СТАТУС:</span>
           <span className="info-value">
-            {user?.is_banned ? 'ПОЛЬЗОВАТЕЛЬ ЗАБЛОКИРОВАН' : 'АКТИВЕН'}
+            {isUserBanned ? 'ЗАБЛОКИРОВАН' : 'АКТИВЕН'}
           </span>
         </div>
       </div>
 
-      {user?.is_banned ? (
+      {isUserBanned ? (
         <div className="info-card active-ban-card">
           <h6 className="info-card-title ban-title">
             <i className='bx bx-block'></i> Активная блокировка
           </h6>
           
-          {activeBan ? (
+          {activeBan && (
             <>
               <div className="info-item ban-type">
                 <span className="info-label">Тип блокировки:</span>
@@ -262,11 +281,6 @@ const UserBanModal = ({ show, onClose, user, onRefresh }) => {
                 </>
               )}
             </>
-          ) : (
-            <div className="info-item">
-              <span className="info-label">Информация:</span>
-              <span className="info-value">Пользователь отмечен как заблокированный, но история блокировок не найдена.</span>
-            </div>
           )}
           
           <div className="form-group mt-3">

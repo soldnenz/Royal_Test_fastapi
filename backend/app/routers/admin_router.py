@@ -131,8 +131,11 @@ async def ban_user(
             }
         )
         
-        # Invalidate all user tokens
-        await db.tokens.delete_many({"user_id": ObjectId(ban_data.user_id)})
+        # Mark all user tokens as inactive instead of deleting them
+        await db.tokens.update_many(
+            {"user_id": ObjectId(ban_data.user_id)},
+            {"$set": {"revoked": True}}
+        )
         
         ban["_id"] = str(result.inserted_id)
         ban["user_id"] = str(ban["user_id"])

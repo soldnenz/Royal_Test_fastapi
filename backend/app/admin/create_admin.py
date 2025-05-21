@@ -7,7 +7,7 @@ async def create_admin():
     email = input("Email (или пропусти): ") or None
     full_name = input("ФИО: ")
     telegram_id = int(input("Telegram ID: "))
-    role = input("Роль (admin/superadmin): ")
+    role = input("Роль (admin/superadmin/tests_creator): ")
     password = input("Пароль: ")
 
     if not is_strong_password(password):

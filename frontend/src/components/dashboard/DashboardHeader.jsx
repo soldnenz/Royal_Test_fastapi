@@ -4,11 +4,24 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { translations } from '../../translations/translations';
 
-const DashboardHeader = ({ profileData, toggleSidebar, isSidebarOpen }) => {
-  const { theme, toggleTheme } = useTheme();
-  const { language, changeLanguage } = useLanguage();
+const DashboardHeader = ({ 
+  profileData, 
+  toggleSidebar, 
+  isSidebarOpen, 
+  onToggleTheme, 
+  onChangeLanguage,
+  currentTheme,
+  currentLanguage
+}) => {
+  // Use props for theme/language if provided, otherwise use context
+  const themeContext = useTheme();
+  const languageContext = useLanguage();
+  
+  const theme = currentTheme || themeContext.theme;
+  const language = currentLanguage || languageContext.language;
+  
   const navigate = useNavigate();
-  const t = translations[language];
+  const t = translations[language] || translations['en']; // Fallback to English
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isLanguageOpen, setIsLanguageOpen] = useState(false);
   const profileRef = useRef(null);
@@ -34,7 +47,13 @@ const DashboardHeader = ({ profileData, toggleSidebar, isSidebarOpen }) => {
   // Handle language change with forced component update
   const handleLanguageChange = (newLang) => {
     if (language !== newLang) {
-      changeLanguage(newLang);
+      // Use prop handler if provided, otherwise use context
+      if (onChangeLanguage) {
+        onChangeLanguage(newLang);
+      } else {
+        languageContext.changeLanguage(newLang);
+      }
+      
       setIsLanguageOpen(false);
       
       // Force a re-render by setting a state or reloading the translations
@@ -44,6 +63,16 @@ const DashboardHeader = ({ profileData, toggleSidebar, isSidebarOpen }) => {
         // which should trigger a re-render if needed
         setIsLanguageOpen(false);
       }, 50);
+    }
+  };
+
+  // Handle theme toggle
+  const handleToggleTheme = () => {
+    // Use prop handler if provided, otherwise use context
+    if (onToggleTheme) {
+      onToggleTheme();
+    } else {
+      themeContext.toggleTheme();
     }
   };
 
@@ -87,7 +116,7 @@ const DashboardHeader = ({ profileData, toggleSidebar, isSidebarOpen }) => {
       <div className="flex items-center space-x-1 sm:space-x-3">
         {/* Theme toggle */}
         <button
-          onClick={toggleTheme}
+          onClick={handleToggleTheme}
           className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
           aria-label={theme === 'dark' ? t.lightTheme : t.darkTheme}
         >

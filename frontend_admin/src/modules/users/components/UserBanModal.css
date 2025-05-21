@@ -179,4 +179,27 @@
 .btn-danger:hover:not(:disabled) {
   background-color: #c82333;
   border-color: #bd2130;
+}
+
+/* Ensure same colors in dark theme */
+body.dark-theme .btn-success {
+  background-color: #28a745;
+  border-color: #28a745;
+  color: white;
+}
+
+body.dark-theme .btn-success:hover:not(:disabled) {
+  background-color: #218838;
+  border-color: #1e7e34;
+}
+
+body.dark-theme .btn-danger {
+  background-color: #dc3545;
+  border-color: #dc3545;
+  color: white;
+}
+
+body.dark-theme .btn-danger:hover:not(:disabled) {
+  background-color: #c82333;
+  border-color: #bd2130;
 } 

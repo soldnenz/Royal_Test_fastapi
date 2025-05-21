@@ -36,6 +36,11 @@ class UserModel(BaseModel):
     # Сумма пользователя
     money: float = Field(0.0, description="Сумма пользователя (по умолчанию 0.0)")
 
+    # Статус бана пользователя
+    is_banned: bool = Field(False, description="Флаг блокировки пользователя")
+    
+    # Информация о бане, если пользователь заблокирован
+    ban_info: Optional[dict] = Field(None, description="Информация о блокировке")
 
     # Дата создания в формате UTC+5 (строкой или ISO-форматом)
     created_at: str = Field(..., description="Дата/время создания (UTC+5)")
@@ -63,6 +68,8 @@ class UserModel(BaseModel):
                 "referred_by": "INVITE456",
                 "referred_use": True,
                 "money": 1000.99,  # Пример с суммой
+                "is_banned": False,  # По умолчанию не заблокирован
+                "ban_info": None,    # Нет информации о блокировке
                 "created_at": "2025-03-26 12:34:56"
             }
         }

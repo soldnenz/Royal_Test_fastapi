@@ -25,6 +25,7 @@ from app.core.response import error
 from app.routers import auth, user, reset_password, admin_router, test_router, subscription_router, referrals_router, transaction_router, admin_router
 from app.admin.telegram_2fa import bot, router as telegram_routers
 from app.routers import lobby_router
+from app.routers.lobby_router import start_background_tasks
 from app.routers import files_router
 from app.routers import websocket_router
 from app.websocket.lobby_ws import lobby_ws_endpoint, ws_manager
@@ -139,7 +140,7 @@ async def validation_exception_handler(request, exc: RequestValidationError):
 # Запуск Telegram-бота через polling
 async def start_bot():
     dp = Dispatcher()
-    dp.include_router(telegram_router)
+    dp.include_router(telegram_routers)
     await dp.start_polling(bot)
 
 async def check_stalled_lobbies():
@@ -202,3 +203,4 @@ async def check_stalled_lobbies():
 async def startup_event():
     asyncio.create_task(start_bot())
     asyncio.create_task(check_stalled_lobbies())  # Запускаем проверку зависших лобби
+    asyncio.create_task(start_background_tasks())  # Запускаем задачи фоновой обработки

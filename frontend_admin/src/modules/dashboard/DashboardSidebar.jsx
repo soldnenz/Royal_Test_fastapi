@@ -182,8 +182,8 @@ const DashboardSidebar = ({ isOpen, toggleSidebar, className = '' }) => {
     }
   }, [isMobile, isOpen, handleToggleSidebar]);
   
-  // Language selector component
-  const LanguageSelector = () => (
+  // Language selector component is now commented out
+  /* const LanguageSelector = () => (
     <div className="language-selector">
       <button
         type="button"
@@ -207,7 +207,7 @@ const DashboardSidebar = ({ isOpen, toggleSidebar, className = '' }) => {
         EN
       </button>
     </div>
-  );
+  ); */
   
   // Определение класса сайдбара на основе состояния
   const sidebarClass = `dashboard-sidebar ${isOpen ? 'open' : 'closed'} ${isCompact && !isMobile ? 'compact' : ''} ${className}`;
@@ -240,7 +240,8 @@ const DashboardSidebar = ({ isOpen, toggleSidebar, className = '' }) => {
           )}
         </div>
         
-        <LanguageSelector />
+        {/* Remove language selector */}
+        {/* <LanguageSelector /> */}
         
         <nav className="sidebar-nav">
           {menuSections.map((section, index) => (

@@ -21,21 +21,25 @@
 
 /* Special status styles */
 .active-status {
-  background-color: rgba(40, 167, 69, 0.1);
-  padding: 10px;
+  background-color: rgba(40, 167, 69, 0.15);
+  padding: 12px;
   border-radius: 6px;
   margin-top: 0;
+  border: 2px solid #28a745;
+  box-shadow: 0 2px 5px rgba(40, 167, 69, 0.2);
 }
 
 .active-status .info-label {
   color: #28a745;
-  font-weight: 500;
+  font-weight: bold;
+  font-size: 1.05rem;
 }
 
 .active-status .info-value {
   color: #28a745;
-  font-weight: 500;
-  font-size: 1.1rem;
+  font-weight: bold;
+  font-size: 1.15rem;
+  text-shadow: 0 0 1px rgba(40, 167, 69, 0.2);
 }
 
 .banned-status {
@@ -94,10 +98,14 @@
   margin-top: 5px;
 }
 
+/* Таблицы - улучшенные стили для предотвращения выхода за рамки */
 .history-table {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 1rem;
+  table-layout: fixed;
+  overflow-x: auto;
+  display: block;
 }
 
 .history-table th,
@@ -105,6 +113,9 @@
   padding: 0.75rem;
   text-align: left;
   border-bottom: 1px solid var(--light-border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dark-theme .history-table th,
@@ -201,4 +212,99 @@
 
 .text-center {
   text-align: center;
+}
+
+/* Добавление стилей для секций промокодов и реферальной системы */
+.referral-users-section,
+.referral-codes-section,
+.referral-activations-section,
+.promo-codes-section,
+.promo-activations-section,
+.used-promo-codes-section {
+  margin-top: 20px;
+  border-top: 1px solid #eaeaea;
+  padding-top: 15px;
+}
+
+.referral-section-title,
+.promo-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 10px;
+}
+
+.referral-code-users,
+.promo-code-users {
+  margin-bottom: 20px;
+  padding: 10px;
+  background-color: #f9f9f9;
+  border-radius: 5px;
+}
+
+.referral-code-title,
+.promo-code-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+  padding-left: 5px;
+  border-left: 3px solid #696cff;
+}
+
+/* Задаем оптимальную ширину для столбцов таблицы промокодов */
+.promo-codes-section .history-table th:nth-child(1), /* Код */
+.promo-codes-section .history-table td:nth-child(1) {
+  width: 15%;
+}
+
+.promo-codes-section .history-table th:nth-child(2), /* Тип подписки */
+.promo-codes-section .history-table td:nth-child(2) {
+  width: 15%;
+}
+
+.promo-codes-section .history-table th:nth-child(3), /* Длительность */
+.promo-codes-section .history-table td:nth-child(3) {
+  width: 12%;
+}
+
+.promo-codes-section .history-table th:nth-child(4), /* Лимит */
+.promo-codes-section .history-table td:nth-child(4) {
+  width: 10%;
+}
+
+.promo-codes-section .history-table th:nth-child(5), /* Использовано */
+.promo-codes-section .history-table td:nth-child(5) {
+  width: 12%;
+}
+
+.promo-codes-section .history-table th:nth-child(6), /* Действует до */
+.promo-codes-section .history-table td:nth-child(6) {
+  width: 15%;
+}
+
+.promo-codes-section .history-table th:nth-child(7), /* Статус */
+.promo-codes-section .history-table td:nth-child(7) {
+  width: 10%;
+}
+
+/* Для адаптивных таблиц на мобильных устройствах */
+@media (max-width: 768px) {
+  .history-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .history-table th,
+  .history-table td {
+    min-width: 100px; /* Минимальная ширина ячеек */
+  }
+  
+  /* Снимаем фиксированные ширины для мобильных устройств */
+  .promo-codes-section .history-table th,
+  .promo-codes-section .history-table td {
+    width: auto;
+  }
 } 

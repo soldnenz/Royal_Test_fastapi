@@ -21,7 +21,7 @@ body.modal-open {
 }
 
 .modal-content {
-  background-color: var(--light-card-bg);
+  background-color: #FFFFFF;
   color: var(--light-text);
   margin: auto;
   padding: 0;
@@ -68,7 +68,7 @@ body.modal-open {
   position: sticky;
   top: 0;
   z-index: 10;
-  background-color: var(--light-card-bg);
+  background-color: #FFFFFF;
   padding: 1.5rem;
   display: flex;
   justify-content: space-between;
@@ -108,7 +108,7 @@ body.modal-open {
   gap: 0.5rem;
   border-bottom-left-radius: 8px;
   border-bottom-right-radius: 8px;
-  background-color: var(--light-card-bg);
+  background-color: #FFFFFF;
   position: sticky;
   bottom: 0;
 }
@@ -151,7 +151,7 @@ body.modal-open {
 
 /* Info cards in modals */
 .info-card {
-  background: var(--light-card-bg);
+  background: #FFFFFF;
   border: 1px solid var(--light-border);
   border-radius: 8px;
   padding: 1.25rem;

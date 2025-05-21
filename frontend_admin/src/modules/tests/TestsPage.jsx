@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import TestsList from './TestsList';
 import TestCreator from './TestCreator';
 import TestEditor from './TestEditor';
@@ -8,8 +8,24 @@ import './Tests.css';
 const TestsPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const activeTab = searchParams.get('tab') || 'list';
-  const testUid = searchParams.get('uid');
+  const { uid } = useParams(); // Get UID from URL params if available
+  
+  // If we have a UID from URL params, use that, otherwise look in search params
+  const testUid = uid || searchParams.get('uid');
+  
+  // If we came directly to an edit URL, set activeTab to 'edit'
+  const defaultTab = uid ? 'edit' : 'list';
+  const activeTab = searchParams.get('tab') || defaultTab;
+
+  useEffect(() => {
+    // If we have a UID from URL params but no tab in search params, update URL
+    if (uid && !searchParams.get('tab')) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.set('tab', 'edit');
+      newParams.set('uid', uid);
+      navigate({ search: newParams.toString() }, { replace: true });
+    }
+  }, [uid, searchParams, navigate]);
 
   const handleTabChange = (tab, params = {}) => {
     const newParams = new URLSearchParams();
@@ -26,7 +42,6 @@ const TestsPage = () => {
   return (
     <div className="tests-container">
       <div className="page-header">
-        <h1>Управление тестами</h1>
         <div className="tabs-container">
           <button 
             className={`tab-button ${activeTab === 'list' ? 'active' : ''}`}

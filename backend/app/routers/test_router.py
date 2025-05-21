@@ -6,7 +6,7 @@ from typing import List
 from fastapi.encoders import jsonable_encoder
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.encoders import jsonable_encoder
 from dotenv import load_dotenv
 import json
@@ -23,6 +23,8 @@ from app.core.gridfs_utils import save_media_to_gridfs, get_media_file, delete_m
 import base64
 from app.core.config import settings
 from app.core.response import success
+import logging
+import time
 
 
 load_dotenv()
@@ -30,7 +32,14 @@ load_dotenv()
 router = APIRouter()
 
 ALLOWED_TYPES = settings.allowed_media_types
-MAX_FILE_SIZE_MB = settings.max_file_size_mb
+MAX_FILE_SIZE_MB = 50  # Ограничение размера файла до 50 МБ
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger("test_router")
 
 def generate_uid(length: int = 10) -> str:
     """
@@ -42,6 +51,7 @@ def generate_uid(length: int = 10) -> str:
 async def create_question(
     question_data_str: str = Form(...),
     file: UploadFile = File(None),
+    after_answer_file: UploadFile = File(None),
     current_user: dict = Depends(get_current_admin_user),
     db = Depends(get_database)
 ):
@@ -51,7 +61,7 @@ async def create_question(
       - Проверяет, что пользователь имеет достаточные права (админ или создатель тестов).
       - Валидирует MIME‑тип и размер файла, если он передан.
       - Генерирует уникальный 10-значный uid.
-      - Сохраняет медиафайл в GridFS (если передан) с обработкой ошибок.
+      - Сохраняет медиафайлы в GridFS (если переданы) с обработкой ошибок.
       - Формирует варианты ответа с метками (A, B, ...).
       - Возвращает созданный вопрос с преобразованием ObjectId в строку.
     """
@@ -73,6 +83,7 @@ async def create_question(
     created_by_name = current_user["full_name"]
     created_by_iin = current_user["iin"]
 
+    # Обработка основного медиафайла
     media_file_id = None
     media_filename = None
     if file:
@@ -81,12 +92,35 @@ async def create_question(
             raise HTTPException(status_code=400, detail=f"Недопустимый тип файла: {file.content_type}")
         # Проверка размера файла
         if file.size and file.size > MAX_FILE_SIZE_MB * 1024 * 1024:
-            raise HTTPException(status_code=400, detail="Превышен допустимый размер файла")
+            raise HTTPException(status_code=400, detail=f"Превышен допустимый размер файла (макс. {MAX_FILE_SIZE_MB} МБ)")
         try:
             media_file_id = await save_media_to_gridfs(file, db)
             media_filename = file.filename
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Ошибка сохранения файла: {e}")
+
+    # Обработка дополнительного медиафайла (после ответа)
+    after_answer_media_file_id = None
+    after_answer_media_filename = None
+    if after_answer_file:
+        # Проверка MIME типа
+        if after_answer_file.content_type not in ALLOWED_TYPES:
+            raise HTTPException(status_code=400, detail=f"Недопустимый тип дополнительного файла: {after_answer_file.content_type}")
+        # Проверка размера файла
+        if after_answer_file.size and after_answer_file.size > MAX_FILE_SIZE_MB * 1024 * 1024:
+            raise HTTPException(status_code=400, detail=f"Превышен допустимый размер дополнительного файла (макс. {MAX_FILE_SIZE_MB} МБ)")
+        try:
+            after_answer_media_file_id = await save_media_to_gridfs(after_answer_file, db)
+            after_answer_media_filename = after_answer_file.filename
+        except Exception as e:
+            # Если произошла ошибка при сохранении дополнительного файла, но основной был сохранен,
+            # нужно удалить основной файл, чтобы не создавать "мусор" в GridFS
+            if media_file_id:
+                try:
+                    await delete_media_file(str(media_file_id), db)
+                except Exception:
+                    pass  # Игнорируем ошибку при удалении
+            raise HTTPException(status_code=500, detail=f"Ошибка сохранения дополнительного файла: {e}")
 
     # Формирование вариантов ответа с метками (A, B, C, …)
     try:
@@ -96,6 +130,17 @@ async def create_question(
         ]
         correct_label = string.ascii_uppercase[question_data.correct_index]
     except Exception as e:
+        # Если произошла ошибка, нужно удалить сохраненные медиафайлы
+        if media_file_id:
+            try:
+                await delete_media_file(str(media_file_id), db)
+            except Exception:
+                pass
+        if after_answer_media_file_id:
+            try:
+                await delete_media_file(str(after_answer_media_file_id), db)
+            except Exception:
+                pass
         raise HTTPException(status_code=400, detail=f"Ошибка формирования вариантов ответа: {e}")
 
     # Подготовка объяснения
@@ -121,13 +166,31 @@ async def create_question(
         "deleted_at": None,
         "media_file_id": str(media_file_id) if media_file_id else None,
         "media_filename": media_filename,
-        "explanation": explanation
+        "after_answer_media_file_id": str(after_answer_media_file_id) if after_answer_media_file_id else None,
+        "after_answer_media_id": str(after_answer_media_file_id) if after_answer_media_file_id else None,  # Добавляем для совместимости
+        "after_answer_media_filename": after_answer_media_filename,
+        "explanation": explanation,
+        # Добавляем флаги наличия медиа для фронтенда
+        "has_media": bool(media_file_id and media_filename),
+        "has_after_answer_media": bool(after_answer_media_file_id and after_answer_media_filename),
+        "has_after_media": bool(after_answer_media_file_id and after_answer_media_filename)  # Добавляем для совместимости
     }
 
     try:
         result = await db.questions.insert_one(question_dict)
         question_dict["id"] = str(result.inserted_id)
     except Exception as e:
+        # Если произошла ошибка при записи в БД, удаляем сохраненные медиафайлы
+        if media_file_id:
+            try:
+                await delete_media_file(str(media_file_id), db)
+            except Exception:
+                pass
+        if after_answer_media_file_id:
+            try:
+                await delete_media_file(str(after_answer_media_file_id), db)
+            except Exception:
+                pass
         raise HTTPException(status_code=500, detail=f"Ошибка записи в базу: {e}")
 
     return success(data=jsonable_encoder(question_dict, custom_encoder={ObjectId: str}))
@@ -137,6 +200,7 @@ async def create_question(
 async def edit_question(
     payload: str = Form(...),      # Принимаем payload как строку
     new_file: UploadFile = File(None),
+    new_after_answer_file: UploadFile = File(None),
     current_user: dict = Depends(get_current_admin_user),
     db = Depends(get_database)
 ):
@@ -182,42 +246,110 @@ async def edit_question(
     if payload_data.new_explanation:
         update_fields["explanation"] = payload_data.new_explanation.dict()
 
-    # Если пользователь решил удалить медиа, сбрасываем поля
+    # Получаем текущие данные вопроса
+    existing_question = await db.questions.find_one({"uid": payload_data.question_id})
+    if not existing_question:
+        raise HTTPException(status_code=404, detail="Вопрос не найден")
+
+    # Если пользователь решил удалить основное медиа, удаляем соответствующие поля
     if payload_data.remove_media:
         try:
-            # Получаем ID медиа-файла из базы данных
-            existing_question = await db.questions.find_one({"uid": payload_data.question_id})
-            if existing_question and existing_question.get("media_file_id"):
-                await delete_media_file(existing_question["media_file_id"], db)
+            if existing_question.get("media_file_id"):
+                media_file_id = existing_question["media_file_id"]
+                # Проверяем существует ли файл перед удалением
+                file_exists = await db.fs.files.find_one({"_id": ObjectId(media_file_id)})
+                if file_exists:
+                    await delete_media_file(media_file_id, db)
+                else:
+                    logger.warning(f"File {media_file_id} not found when trying to delete it")
                 update_fields["media_file_id"] = None
                 update_fields["media_filename"] = None
         except RuntimeError as e:
-            raise HTTPException(status_code=500, detail=f"Ошибка удаления медиа файла: {e}")
+            logger.error(f"Error deleting media file: {e}")
+            update_fields["media_file_id"] = None
+            update_fields["media_filename"] = None
 
-   # Если выбран новый файл и заменяем старое медиа, обновляем медиа
-    if payload_data.replace_media and new_file:
-        # Извлекаем документ вопроса по uid, чтобы проверить наличие предыдущего медиа
-        existing_question = await db.questions.find_one({"uid": payload_data.question_id})
-        if existing_question and existing_question.get("media_file_id"):
-            try:
-                # Удаляем предыдущий медиа файл
-                await delete_media_file(existing_question["media_file_id"], db)
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Ошибка удаления старого медиа файла: {e}")
-
-        # Далее проверяем новый файл на соответствие допустимым типам и размерам
-        if new_file.content_type not in ALLOWED_TYPES:
-            raise HTTPException(status_code=400, detail=f"Недопустимый тип файла: {new_file.content_type}")
-        if new_file.size and new_file.size > MAX_FILE_SIZE_MB * 1024 * 1024:
-            raise HTTPException(status_code=400, detail="Превышен допустимый размер файла")
+    # Если пользователь решил удалить дополнительное медиа (после ответа), удаляем соответствующие поля
+    if payload_data.remove_after_answer_media:
         try:
-            # Сохраняем новый файл в GridFS
+            if existing_question.get("after_answer_media_file_id"):
+                after_answer_media_file_id = existing_question["after_answer_media_file_id"]
+                # Проверяем существует ли файл перед удалением
+                file_exists = await db.fs.files.find_one({"_id": ObjectId(after_answer_media_file_id)})
+                if file_exists:
+                    await delete_media_file(after_answer_media_file_id, db)
+                else:
+                    logger.warning(f"File {after_answer_media_file_id} not found when trying to delete it")
+                update_fields["after_answer_media_file_id"] = None
+                update_fields["after_answer_media_filename"] = None
+        except RuntimeError as e:
+            logger.error(f"Error deleting after answer media file: {e}")
+            update_fields["after_answer_media_file_id"] = None
+            update_fields["after_answer_media_filename"] = None
+
+    # Если выбран новый основной файл и заменяем старое медиа, обновляем медиа
+    if new_file:
+        if payload_data.replace_media:
+            # Удаляем предыдущий основной медиа файл, если он существует
+            if existing_question.get("media_file_id"):
+                try:
+                    media_file_id = existing_question["media_file_id"]
+                    # Проверяем существует ли файл перед удалением
+                    file_exists = await db.fs.files.find_one({"_id": ObjectId(media_file_id)})
+                    if file_exists:
+                        await delete_media_file(media_file_id, db)
+                    else:
+                        logger.warning(f"File {media_file_id} not found when trying to replace it")
+                except Exception as e:
+                    logger.error(f"Error deleting old main media file: {e}")
+        elif existing_question.get("media_file_id"):
+            # Если файл уже существует и replace_media=false - не заменяем
+            raise HTTPException(status_code=400, detail="Основной медиафайл уже существует. Для замены укажите replace_media=true")
+
+        # Проверяем новый основной файл на соответствие допустимым типам и размерам
+        if new_file.content_type not in ALLOWED_TYPES:
+            raise HTTPException(status_code=400, detail=f"Недопустимый тип основного файла: {new_file.content_type}")
+        if new_file.size and new_file.size > MAX_FILE_SIZE_MB * 1024 * 1024:
+            raise HTTPException(status_code=400, detail=f"Превышен допустимый размер основного файла (макс. {MAX_FILE_SIZE_MB} МБ)")
+        try:
+            # Сохраняем новый основной файл в GridFS
             file_id = await save_media_to_gridfs(new_file, db)
             update_fields["media_file_id"] = str(file_id)
             update_fields["media_filename"] = new_file.filename
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Ошибка сохранения нового файла: {e}")
+            raise HTTPException(status_code=500, detail=f"Ошибка сохранения нового основного файла: {e}")
 
+    # Если выбран новый дополнительный файл и заменяем старое дополнительное медиа, обновляем его
+    if new_after_answer_file:
+        if payload_data.replace_after_answer_media:
+            # Удаляем предыдущий дополнительный медиа файл, если он существует
+            if existing_question.get("after_answer_media_file_id"):
+                try:
+                    after_answer_media_file_id = existing_question["after_answer_media_file_id"]
+                    # Проверяем существует ли файл перед удалением
+                    file_exists = await db.fs.files.find_one({"_id": ObjectId(after_answer_media_file_id)})
+                    if file_exists:
+                        await delete_media_file(after_answer_media_file_id, db)
+                    else:
+                        logger.warning(f"File {after_answer_media_file_id} not found when trying to replace it")
+                except Exception as e:
+                    logger.error(f"Error deleting old additional media file: {e}")
+        elif existing_question.get("after_answer_media_file_id"):
+            # Если дополнительный файл уже существует и replace_after_answer_media=false - не заменяем
+            raise HTTPException(status_code=400, detail="Дополнительный медиафайл уже существует. Для замены укажите replace_after_answer_media=true")
+
+        # Проверяем новый дополнительный файл на соответствие допустимым типам и размерам
+        if new_after_answer_file.content_type not in ALLOWED_TYPES:
+            raise HTTPException(status_code=400, detail=f"Недопустимый тип дополнительного файла: {new_after_answer_file.content_type}")
+        if new_after_answer_file.size and new_after_answer_file.size > MAX_FILE_SIZE_MB * 1024 * 1024:
+            raise HTTPException(status_code=400, detail=f"Превышен допустимый размер дополнительного файла (макс. {MAX_FILE_SIZE_MB} МБ)")
+        try:
+            # Сохраняем новый дополнительный файл в GridFS
+            file_id = await save_media_to_gridfs(new_after_answer_file, db)
+            update_fields["after_answer_media_file_id"] = str(file_id)
+            update_fields["after_answer_media_filename"] = new_after_answer_file.filename
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Ошибка сохранения нового дополнительного файла: {e}")
 
     update_fields["updated_at"] = datetime.utcnow()
     update_fields["modified_by"] = current_user["full_name"]
@@ -229,6 +361,27 @@ async def edit_question(
     )
     if result.modified_count == 0:
         raise HTTPException(status_code=400, detail="Ошибка при обновлении вопроса")
+    
+    # Получаем обновленные данные вопроса
+    updated_question = await db.questions.find_one({"uid": payload_data.question_id})
+    if updated_question:
+        updated_question["id"] = str(updated_question["_id"])
+        del updated_question["_id"]
+        
+        # Конвертируем ID в строки
+        if updated_question.get("media_file_id"):
+            updated_question["media_file_id"] = str(updated_question["media_file_id"])
+        if updated_question.get("after_answer_media_file_id"):
+            updated_question["after_answer_media_file_id"] = str(updated_question["after_answer_media_file_id"])
+            updated_question["after_answer_media_id"] = str(updated_question["after_answer_media_file_id"])
+        
+        # Добавляем информацию о наличии медиа
+        updated_question["has_media"] = bool(updated_question.get("media_file_id") and updated_question.get("media_filename"))
+        updated_question["has_after_answer_media"] = bool(updated_question.get("after_answer_media_file_id") and updated_question.get("after_answer_media_filename"))
+        updated_question["has_after_media"] = updated_question["has_after_answer_media"]
+        
+        return success(data={"message": "Вопрос обновлён", "question": jsonable_encoder(updated_question)})
+    
     return success(data={"message": "Вопрос обновлён"})
 
 @router.delete("/", response_model=dict)
@@ -241,6 +394,7 @@ async def delete_question(
     Мягкое удаление вопроса:
       - Обновляет поля deleted, deleted_by и deleted_at.
       - Производит проверку корректности идентификатора.
+      - Удаляет связанные медиафайлы из GridFS.
     """
     if not current_user or current_user.get("role") not in ["admin", "tests_creator"]:
         raise HTTPException(status_code=403, detail="Доступ запрещён. Требуется роль администратора или создателя тестов.")
@@ -249,31 +403,75 @@ async def delete_question(
     if "full_name" not in current_user or "iin" not in current_user:
         raise HTTPException(status_code=400, detail="Данные пользователя неполные.")
 
-    try:
-        question_obj_id = ObjectId(payload.question_id)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Неверный формат идентификатора: {e}")
-
-    # Получаем документ вопроса и проверяем наличие медиа-файла
-    existing_question = await db.questions.find_one({"_id": question_obj_id})
-    if existing_question and existing_question.get("media_file_id"):
+    # Сначала ищем вопрос по uid (предпочтительный формат)
+    existing_question = await db.questions.find_one({"uid": payload.question_id})
+    
+    # Если не нашли, пробуем найти по ObjectId
+    if not existing_question:
+        try:
+            question_obj_id = ObjectId(payload.question_id)
+            existing_question = await db.questions.find_one({"_id": question_obj_id})
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Неверный формат идентификатора: {e}")
+    
+    if not existing_question:
+        raise HTTPException(status_code=404, detail="Вопрос не найден")
+    
+    # Получаем информацию о наличии медиафайлов
+    has_main_media = bool(existing_question.get("media_file_id"))
+    has_additional_media = bool(existing_question.get("after_answer_media_file_id"))
+    
+    # Удаляем медиа-файлы из GridFS
+    deleted_main_media = False
+    deleted_additional_media = False
+    
+    if has_main_media:
         try:
             await delete_media_file(existing_question["media_file_id"], db)
-        except RuntimeError as e:
-            raise HTTPException(status_code=500, detail=f"Ошибка удаления медиа файла: {e}")
+            deleted_main_media = True
+        except Exception as e:
+            print(f"Ошибка при удалении основного медиа: {e}")
+    
+    if has_additional_media:
+        try:
+            await delete_media_file(existing_question["after_answer_media_file_id"], db)
+            deleted_additional_media = True
+        except Exception as e:
+            print(f"Ошибка при удалении дополнительного медиа: {e}")
 
+    # Обновляем флаги удаления в документе
     update_fields = {
         "deleted": True,
         "deleted_by": payload.deleted_by,
         "deleted_at": datetime.utcnow()
     }
-    result = await db.questions.update_one(
-        {"_id": question_obj_id},
-        {"$set": update_fields}
-    )
+    
+    # Определяем ID для обновления (используем _id если он есть, иначе uid)
+    if "_id" in existing_question:
+        result = await db.questions.update_one(
+            {"_id": existing_question["_id"]},
+            {"$set": update_fields}
+        )
+    else:
+        result = await db.questions.update_one(
+            {"uid": existing_question["uid"]},
+            {"$set": update_fields}
+        )
+    
     if result.modified_count == 0:
-        raise HTTPException(status_code=404, detail="Вопрос не найден")
-    return success(data={"message": "Вопрос удалён"})
+        raise HTTPException(status_code=400, detail="Ошибка при удалении вопроса")
+    
+    # Формируем детальный ответ
+    response_data = {
+        "message": "Вопрос успешно удален",
+        "question_id": existing_question.get("uid", str(existing_question.get("_id"))),
+        "media_deleted": {
+            "main_media": deleted_main_media,
+            "additional_media": deleted_additional_media
+        }
+    }
+    
+    return success(data=response_data)
 
 @router.get("/by_uid/{uid}", response_model=dict)
 async def get_question_by_uid(
@@ -281,29 +479,77 @@ async def get_question_by_uid(
     current_user: dict = Depends(get_current_admin_user),
     db=Depends(get_database)
 ):
+    start_time = time.time()
+    
     if current_user["role"] not in {"admin", "moderator", "tests_creator"}:
         raise HTTPException(status_code=403, detail="Доступ запрещён")
 
+    # Stage 1: Database lookup
+    db_start_time = time.time()
     question = await db.questions.find_one({"uid": uid, "deleted": False})
+    db_time = time.time() - db_start_time
+    logger.info(f"Database lookup for question {uid} took {db_time:.4f} seconds")
+    
     if not question:
         raise HTTPException(status_code=404, detail="Вопрос не найден")
 
+    # Stage 2: Processing question data
+    processing_start_time = time.time()
     question["id"] = str(question["_id"])
     del question["_id"]
 
     # Convert media_file_id to string if it exists
     if question.get("media_file_id"):
         question["media_file_id"] = str(question["media_file_id"])
+    if question.get("after_answer_media_file_id"):
+        question["after_answer_media_file_id"] = str(question["after_answer_media_file_id"])
+        # Добавляем совместимый ключ для фронтенда
+        question["after_answer_media_id"] = str(question["after_answer_media_file_id"])
 
-    # Добавляем base64 медиафайл
+    # Добавляем флаги наличия медиа
+    question["has_media"] = bool(question.get("media_file_id") and question.get("media_filename"))
+    question["has_after_answer_media"] = bool(question.get("after_answer_media_file_id") and question.get("after_answer_media_filename"))
+    question["has_after_media"] = question["has_after_answer_media"]  # Для совместимости
+    
+    processing_time = time.time() - processing_start_time
+    logger.info(f"Processing basic question data took {processing_time:.4f} seconds")
+
+    # Stage 3: Loading main media file
     if question.get("media_file_id"):
+        media_start_time = time.time()
         try:
             file_data = await get_media_file(question["media_file_id"], db)
-            question["media_file_base64"] = base64.b64encode(file_data).decode("utf-8")
+            if file_data:
+                question["media_file_base64"] = base64.b64encode(file_data).decode("utf-8")
+            else:
+                question["media_file_base64"] = None
+                logger.warning(f"Media file {question['media_file_id']} not found or empty")
         except Exception as e:
-            print(e)
+            logger.error(f"Error loading main media: {e}")
             question["media_file_base64"] = None
+        
+        media_time = time.time() - media_start_time
+        logger.info(f"Loading main media file took {media_time:.4f} seconds")
+    
+    # Stage 4: Loading after-answer media file
+    if question.get("after_answer_media_file_id"):
+        after_media_start_time = time.time()
+        try:
+            file_data = await get_media_file(question["after_answer_media_file_id"], db)
+            if file_data:
+                question["after_answer_media_base64"] = base64.b64encode(file_data).decode("utf-8")
+            else:
+                question["after_answer_media_base64"] = None
+                logger.warning(f"After-answer media file {question['after_answer_media_file_id']} not found or empty")
+        except Exception as e:
+            logger.error(f"Error loading after-answer media: {e}")
+            question["after_answer_media_base64"] = None
+        
+        after_media_time = time.time() - after_media_start_time
+        logger.info(f"Loading after-answer media file took {after_media_time:.4f} seconds")
 
+    # Stage 5: Multilingual text processing
+    ml_start_time = time.time()
     # Преобразование данных из БД к модели MultilingualText
     # Если данные старые (до обновления) и хранятся как строка
     if isinstance(question.get("question_text"), str):
@@ -329,6 +575,12 @@ async def get_question_by_uid(
                     "kz": option["text"],
                     "en": option["text"]
                 }
+    
+    ml_time = time.time() - ml_start_time
+    logger.info(f"Processing multilingual text took {ml_time:.4f} seconds")
+
+    total_time = time.time() - start_time
+    logger.info(f"Total processing time for question {uid}: {total_time:.4f} seconds")
 
     return success(data=jsonable_encoder(question))
 
@@ -353,8 +605,16 @@ async def get_all_questions(
         # Convert media_file_id to string if it exists
         if q.get("media_file_id"):
             q["media_file_id"] = str(q["media_file_id"])
-        # Добавляем признак наличия медиа
+        if q.get("after_answer_media_file_id"):
+            q["after_answer_media_file_id"] = str(q["after_answer_media_file_id"])
+            # Добавляем дополнительный ключ для совместимости
+            q["after_answer_media_id"] = str(q["after_answer_media_file_id"])
+            
+        # Добавляем признаки наличия медиа
         q["has_media"] = bool(q.get("media_file_id") and q.get("media_filename"))
+        q["has_after_answer_media"] = bool(q.get("after_answer_media_file_id") and q.get("after_answer_media_filename"))
+        # Добавляем дополнительный ключ для совместимости
+        q["has_after_media"] = q["has_after_answer_media"]
 
         # Преобразование данных из БД к модели MultilingualText
         # Если данные старые (до обновления) и хранятся как строка
@@ -385,6 +645,45 @@ async def get_all_questions(
         # Очищаем тяжелые поля
         q.pop("media_file_id", None)
         q.pop("media_filename", None)
+        q.pop("after_answer_media_file_id", None)
+        q.pop("after_answer_media_filename", None)
         questions.append(q)
 
     return success(data=jsonable_encoder(questions))
+
+@router.get("/media/{media_id}", response_model=dict)
+async def get_media_by_id(
+    media_id: str,
+    current_user: dict = Depends(get_current_admin_user),
+    db=Depends(get_database)
+):
+    """
+    Получение медиафайла по ID с поддержкой потоковой передачи.
+    Доступ только для администраторов.
+    """
+    if current_user["role"] not in {"admin", "moderator", "tests_creator"}:
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
+
+    try:
+        # Получаем информацию о файле
+        file_info = await db.fs.files.find_one({"_id": ObjectId(media_id)})
+        if not file_info:
+            raise HTTPException(status_code=404, detail="Медиафайл не найден")
+
+        # Получаем сам файл
+        file_data = await get_media_file(media_id, db)
+        
+        # Определяем тип контента
+        content_type = file_info.get("contentType", "application/octet-stream")
+        
+        # Создаем потоковый ответ
+        return StreamingResponse(
+            iter([file_data]),
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f"inline; filename={file_info.get('filename', 'media')}",
+                "Content-Length": str(file_info.get("length", 0))
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при получении медиафайла: {str(e)}")

@@ -46,6 +46,14 @@ const UsersPage = () => {
       });
       
       if (!response.ok) {
+        if (response.status === 404) {
+          // Handle 404 response specifically
+          setUsers([]);
+          showToast('Ничего не найдено', 'info');
+          setIsSearching(false);
+          return;
+        }
+        
         const errorData = await response.json();
         const errorMessage = errorData && errorData.detail && errorData.detail.message 
           ? errorData.detail.message 
@@ -56,11 +64,48 @@ const UsersPage = () => {
       const data = await response.json();
       
       if ((data.status === 'success' || data.status === 'ok') && Array.isArray(data.data)) {
-        setUsers(data.data);
-        showToast(`Найдено пользователей: ${data.data.length}`, 'success');
+        // Store the found users
+        const foundUsers = data.data;
+        setUsers(foundUsers);
+        
+        // Check ban status for each user in parallel
+        await Promise.all(foundUsers.map(async (user) => {
+          try {
+            if (!user.id) return;
+            
+            const banResponse = await fetch(`${API_BASE_URL}/admin_function/bans/${user.id}`, {
+              method: 'GET',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include'
+            });
+            
+            if (banResponse.ok) {
+              const banData = await banResponse.json();
+              
+              if ((banData.status === 'success' || banData.status === 'ok') && Array.isArray(banData.data)) {
+                // Check if there's an active ban
+                const hasActiveBan = banData.data.some(ban => ban.is_active);
+                
+                // Update user ban status if needed
+                if (hasActiveBan !== user.is_banned) {
+                  // Update the user in the list
+                  setUsers(prevUsers => 
+                    prevUsers.map(u => 
+                      u.id === user.id ? { ...u, is_banned: hasActiveBan } : u
+                    )
+                  );
+                }
+              }
+            }
+          } catch (error) {
+            console.error(`Error checking ban status for user ${user.id}:`, error);
+          }
+        }));
+        
+        showToast(`Найдено пользователей: ${foundUsers.length}`, 'success');
       } else {
         setUsers([]);
-        showToast('Ничего не найдено', 'error');
+        showToast('Ничего не найдено', 'info');
       }
     } catch (error) {
       console.error('Search error:', error);
@@ -105,8 +150,21 @@ const UsersPage = () => {
   };
 
   // Refresh user data after modal actions
-  const refreshUserData = () => {
-    if (searchQuery.trim()) {
+  const refreshUserData = (updatedUser = null) => {
+    if (updatedUser) {
+      // If we received an updated user, update it in the users array
+      setUsers(prevUsers => 
+        prevUsers.map(user => 
+          user.id === updatedUser.id ? { ...user, ...updatedUser } : user
+        )
+      );
+
+      // Also update selectedUser if it's the same user
+      if (selectedUser && selectedUser.id === updatedUser.id) {
+        setSelectedUser({ ...selectedUser, ...updatedUser });
+      }
+    } else if (searchQuery.trim()) {
+      // Otherwise, perform a new search to refresh all data
       handleSearch();
     }
   };

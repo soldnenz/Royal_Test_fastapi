@@ -21,7 +21,7 @@ const UserDetailsModal = ({ show, onClose, userId, onRefresh }) => {
   const fetchUserDetails = async () => {
     setIsLoading(true);
     try {
-      // Fetch user details
+      // Fetch user details first
       const response = await fetch(`${API_BASE_URL}/users/admin/search_users?query=${userId}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
@@ -38,27 +38,45 @@ const UserDetailsModal = ({ show, onClose, userId, onRefresh }) => {
         throw new Error('User details not found');
       }
       
+      // Get the user data
       const user = data.data[0];
-      setUserData(user);
       
-      // If user is banned, fetch ban details
-      if (user.is_banned) {
-        try {
-          const banResponse = await fetch(`${API_BASE_URL}/admin_function/bans/${userId}`, {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include'
-          });
-          
-          if (banResponse.ok) {
-            const banData = await banResponse.json();
-            if (banData.status === 'success' && banData.data && banData.data.length > 0) {
-              setBanData(banData.data);
-            }
+      // Then fetch ban data
+      try {
+        const banResponse = await fetch(`${API_BASE_URL}/admin_function/bans/${userId}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include'
+        });
+        
+        if (banResponse.ok) {
+          const banData = await banResponse.json();
+          if ((banData.status === 'success' || banData.status === 'ok') && banData.data) {
+            setBanData(banData.data);
+            
+            // Check if there's an active ban
+            const hasActiveBan = Array.isArray(banData.data) && 
+              banData.data.some(ban => ban.is_active);
+            
+            // Set the user data with the correct ban status
+            setUserData({
+              ...user,
+              is_banned: hasActiveBan
+            });
+            return;
           }
-        } catch (error) {
-          console.error('Error fetching ban details:', error);
         }
+        
+        // If we get here, there was no ban data or it was empty,
+        // so set the user as not banned
+        setUserData({
+          ...user,
+          is_banned: false
+        });
+        
+      } catch (error) {
+        console.error('Error fetching ban details:', error);
+        setUserData(user); // Use original user data if ban fetch fails
       }
     } catch (error) {
       console.error('Error fetching user details:', error);
@@ -152,7 +170,19 @@ const UserDetailsModal = ({ show, onClose, userId, onRefresh }) => {
   const renderBlockingInfo = () => {
     if (!userData) return <div className="loading-text">Загрузка информации о блокировке...</div>;
 
-    if (userData.is_banned) {
+    // Check if user is banned - either from user data or from ban data
+    const hasBanData = Array.isArray(banData) && banData.length > 0;
+    const hasActiveBan = hasBanData && banData.some(ban => ban.is_active);
+    const isBanned = userData.is_banned || hasActiveBan;
+    
+    console.log('UserDetailsModal - Ban status:', { 
+      hasBanData, 
+      hasActiveBan, 
+      userBanFlag: userData.is_banned, 
+      finalIsBanned: isBanned 
+    });
+    
+    if (isBanned) {
       const activeBan = banData?.find(ban => ban.is_active) || banData?.[0];
       
       return (
@@ -217,33 +247,6 @@ const UserDetailsModal = ({ show, onClose, userId, onRefresh }) => {
             </>
           )}
           
-          <div className="form-group mt-3">
-            <label htmlFor="unban_reason_details" className="form-label">
-              Причина разблокировки
-            </label>
-            <textarea 
-              className="form-control" 
-              id="unban_reason_details" 
-              placeholder="Укажите причину разблокировки" 
-              value={unbanReason}
-              onChange={(e) => setUnbanReason(e.target.value)}
-              required
-            />
-            <small className="form-text text-muted">
-              Причина разблокировки будет сохранена в истории блокировок.
-            </small>
-          </div>
-          
-          <div className="text-center mt-3">
-            <button 
-              className="btn-action btn-success" 
-              onClick={handleUnban}
-            >
-              <i className='bx bx-check-shield'></i>
-              Разблокировать пользователя
-            </button>
-          </div>
-          
           {banData && banData.length > 1 && (
             <div className="ban-history">
               <h6 className="ban-history-title">
@@ -307,7 +310,7 @@ const UserDetailsModal = ({ show, onClose, userId, onRefresh }) => {
       <>
         <div className="info-item active-status">
           <span className="info-label">СТАТУС:</span>
-          <span className="info-value">АКТИВЕН</span>
+          <span className="info-value">Не забанен</span>
         </div>
       </>
     );
@@ -405,31 +408,279 @@ const UserDetailsModal = ({ show, onClose, userId, onRefresh }) => {
     if (!userData) return <div className="loading-text">Загрузка реферальной информации...</div>;
 
     if (userData.referral_system) {
+      // Проверяем, есть ли у пользователя основной реферальный код
+      const hasMainReferralCode = userData.referral_system.code;
+      
       return (
         <>
-          <div className="info-item">
-            <span className="info-label">Реферальный код:</span>
-            <span className="info-value info-highlight">
-              {userData.referral_system.code || '-'}
-            </span>
-          </div>
-          <div className="info-item">
-            <span className="info-label">Привел пользователей:</span>
-            <span className="info-value">
-              {userData.referral_system.referred_users_count || '0'}
-            </span>
-          </div>
-          <div className="info-item">
-            <span className="info-label">Заработано бонусов:</span>
-            <span className="info-value">
-              ₸ {userData.referral_system.earned_bonus || '0'}
-            </span>
-          </div>
+          {/* Отображаем основную информацию только если есть код */}
+          {hasMainReferralCode && (
+            <>
+              <div className="info-item">
+                <span className="info-label">Реферальный код:</span>
+                <span className="info-value info-highlight">
+                  {userData.referral_system.code || '-'}
+                </span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Привел пользователей:</span>
+                <span className="info-value">
+                  {userData.referral_system.referred_users_count || '0'}
+                </span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Заработано бонусов:</span>
+                <span className="info-value">
+                  ₸ {userData.referral_system.earned_bonus || '0'}
+                </span>
+              </div>
+            </>
+          )}
+          
+          {/* Список пользователей, которые использовали реферальный код */}
+          {userData.referral_system.referred_users && userData.referral_system.referred_users.length > 0 && (
+            <div className="referral-users-section">
+              <h6 className="referral-section-title">Пользователи, использовавшие реферальный код:</h6>
+              <table className="history-table">
+                <thead>
+                  <tr>
+                    <th>ФИО</th>
+                    <th>ИИН</th>
+                    <th>Дата регистрации</th>
+                    <th>Подписка</th>
+                    <th>Использовал код</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {userData.referral_system.referred_users.map((user, index) => (
+                    <tr key={index}>
+                      <td>{user.full_name || '-'}</td>
+                      <td>{user.iin || '-'}</td>
+                      <td>{user.created_at ? new Date(user.created_at).toLocaleDateString() : '-'}</td>
+                      <td>
+                        <span className={`badge ${user.has_subscription ? 'badge-success' : 'badge-secondary'}`}>
+                          {user.has_subscription ? 'Активна' : 'Нет'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`badge ${user.referred_use ? 'badge-success' : 'badge-secondary'}`}>
+                          {user.referred_use ? 'Да' : 'Нет'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          
+          {/* Другие реферальные коды пользователя */}
+          {userData.referral_system.referrals && userData.referral_system.referrals.length > 0 && (
+            <div className="referral-codes-section">
+              <h6 className="referral-section-title">Реферальные коды пользователя:</h6>
+              <table className="history-table">
+                <thead>
+                  <tr>
+                    <th>Код</th>
+                    <th>Тип</th>
+                    <th>Ставка</th>
+                    <th>Описание</th>
+                    <th>Статус</th>
+                    <th>Кол-во активаций</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {userData.referral_system.referrals.map((refCode, index) => (
+                    <tr key={index}>
+                      <td>{refCode.code || '-'}</td>
+                      <td>{refCode.type || '-'}</td>
+                      <td>{refCode.rate ? `${refCode.rate.type} ${refCode.rate.value}` : '-'}</td>
+                      <td>{refCode.description || '-'}</td>
+                      <td>
+                        <span className={`badge ${refCode.active ? 'badge-success' : 'badge-secondary'}`}>
+                          {refCode.active ? 'Активен' : 'Неактивен'}
+                        </span>
+                      </td>
+                      <td>{refCode.activated_count || 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              
+              {/* Пользователи, активировавшие реферальные коды */}
+              {userData.referral_system.referrals.some(ref => ref.activated_users && ref.activated_users.length > 0) && (
+                <div className="referral-activations-section">
+                  <h6 className="referral-section-title">Пользователи, активировавшие реферальные коды:</h6>
+                  {userData.referral_system.referrals.map((refCode, refIndex) => 
+                    refCode.activated_users && refCode.activated_users.length > 0 && (
+                      <div key={refIndex} className="referral-code-users">
+                        <h6 className="referral-code-title">Код: {refCode.code}</h6>
+                        <table className="history-table">
+                          <thead>
+                            <tr>
+                              <th>ФИО</th>
+                              <th>ИИН</th>
+                              <th>Дата регистрации</th>
+                              <th>Подписка</th>
+                              <th>Использовал код</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {refCode.activated_users.map((user, userIndex) => (
+                              <tr key={userIndex}>
+                                <td>{user.full_name || '-'}</td>
+                                <td>{user.iin || '-'}</td>
+                                <td>{user.created_at ? new Date(user.created_at).toLocaleDateString() : '-'}</td>
+                                <td>
+                                  <span className={`badge ${user.has_subscription ? 'badge-success' : 'badge-secondary'}`}>
+                                    {user.has_subscription ? 'Активна' : 'Нет'}
+                                  </span>
+                                </td>
+                                <td>
+                                  <span className={`badge ${user.referred_use ? 'badge-success' : 'badge-secondary'}`}>
+                                    {user.referred_use ? 'Да' : 'Нет'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </>
       );
     }
 
     return <div className="text-center">Реферальная информация отсутствует</div>;
+  };
+
+  const renderPromoCodesInfo = () => {
+    if (!userData) return <div className="loading-text">Загрузка информации о промокодах...</div>;
+
+    if (userData.promo_codes && userData.promo_codes.length > 0) {
+      // Сортируем по типу: сначала созданные, потом использованные
+      const sortedPromoCodes = [...userData.promo_codes].sort((a, b) => {
+        if (a.type === 'created' && b.type !== 'created') return -1;
+        if (a.type !== 'created' && b.type === 'created') return 1;
+        return 0;
+      });
+
+      const createdPromoCodes = sortedPromoCodes.filter(code => code.type === 'created');
+      const usedPromoCodes = sortedPromoCodes.filter(code => code.type === 'used');
+
+      return (
+        <>
+          {/* Созданные пользователем промокоды */}
+          {createdPromoCodes.length > 0 && (
+            <div className="promo-codes-section">
+              <h6 className="promo-section-title">Созданные промокоды:</h6>
+              <table className="history-table">
+                <thead>
+                  <tr>
+                    <th>Код</th>
+                    <th>Тип подписки</th>
+                    <th>Длительность</th>
+                    <th>Лимит</th>
+                    <th>Использовано</th>
+                    <th>Действует до</th>
+                    <th>Статус</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {createdPromoCodes.map((promo, index) => (
+                    <tr key={index}>
+                      <td>{promo.code || '-'}</td>
+                      <td>{promo.subscription_type || '-'}</td>
+                      <td>{promo.duration_days ? `${promo.duration_days} дн.` : '-'}</td>
+                      <td>{promo.usage_limit || '1'}</td>
+                      <td>{promo.usage_count || '0'}</td>
+                      <td>{promo.expires_at ? new Date(promo.expires_at).toLocaleDateString() : '-'}</td>
+                      <td>
+                        <span className={`badge ${promo.is_active ? 'badge-success' : 'badge-secondary'}`}>
+                          {promo.is_active ? 'Активен' : 'Неактивен'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Пользователи, активировавшие промокоды */}
+              {createdPromoCodes.some(promo => promo.used_by && promo.used_by.length > 0) && (
+                <div className="promo-activations-section">
+                  <h6 className="promo-section-title">Пользователи, активировавшие промокоды:</h6>
+                  {createdPromoCodes.map((promo, promoIndex) => 
+                    promo.used_by && promo.used_by.length > 0 && (
+                      <div key={promoIndex} className="promo-code-users">
+                        <h6 className="promo-code-title">Промокод: {promo.code}</h6>
+                        <table className="history-table">
+                          <thead>
+                            <tr>
+                              <th>ФИО</th>
+                              <th>ИИН</th>
+                              <th>Дата активации</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {promo.used_by.map((user, userIndex) => (
+                              <tr key={userIndex}>
+                                <td>{user.full_name || '-'}</td>
+                                <td>{user.iin || '-'}</td>
+                                <td>{user.activated_at ? new Date(user.activated_at).toLocaleDateString() : '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Использованные пользователем промокоды */}
+          {usedPromoCodes.length > 0 && (
+            <div className="used-promo-codes-section">
+              <h6 className="promo-section-title">Использованные промокоды:</h6>
+              <table className="history-table">
+                <thead>
+                  <tr>
+                    <th>Код</th>
+                    <th>Тип подписки</th>
+                    <th>Длительность</th>
+                    <th>Дата активации</th>
+                    <th>Истекает</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {usedPromoCodes.map((promo, index) => (
+                    <tr key={index}>
+                      <td>{promo.code || '-'}</td>
+                      <td>{promo.subscription_type || '-'}</td>
+                      <td>{promo.duration_days ? `${promo.duration_days} дн.` : '-'}</td>
+                      <td>{promo.activated_at ? new Date(promo.activated_at).toLocaleDateString() : '-'}</td>
+                      <td>{promo.expires_at ? new Date(promo.expires_at).toLocaleDateString() : '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {createdPromoCodes.length === 0 && usedPromoCodes.length === 0 && (
+            <div className="text-center">Нет информации о промокодах</div>
+          )}
+        </>
+      );
+    }
+
+    return <div className="text-center">Нет информации о промокодах</div>;
   };
 
   const renderActivityInfo = () => {
@@ -511,6 +762,13 @@ const UserDetailsModal = ({ show, onClose, userId, onRefresh }) => {
               <i className='bx bx-link'></i> Реферальная система
             </h6>
             <div>{renderReferralInfo()}</div>
+          </div>
+
+          <div className="info-card">
+            <h6 className="info-card-title">
+              <i className='bx bx-gift'></i> Промокоды
+            </h6>
+            <div>{renderPromoCodesInfo()}</div>
           </div>
 
           <div className="info-card">
