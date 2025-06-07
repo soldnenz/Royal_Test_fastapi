@@ -78,11 +78,11 @@ const StatsGrid = () => {
       {
         title: 'Доход',
         values: {
-          today: '₽3,450',
-          yesterday: '₽2,980',
-          week: '₽19,420',
-          month: '₽89,750',
-          year: '₽1,248,970'
+          today: '₸3,450',
+          yesterday: '₸2,980',
+          week: '₸19,420',
+          month: '₸89,750',
+          year: '₸1,248,970'
         },
         icon: 'bx bx-money',
         color: 'orange',

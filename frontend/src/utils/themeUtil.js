@@ -45,11 +45,23 @@ export const setTheme = (theme) => {
 // Apply theme to document
 export const applyTheme = (theme) => {
   if (theme === 'dark') {
+    // Apply dark-theme class for custom CSS variables
     document.documentElement.classList.add('dark-theme');
+    document.body.classList.add('dark-theme');
+    
+    // Apply dark class for Tailwind CSS
+    document.documentElement.classList.add('dark');
+    
     document.documentElement.style.setProperty('--text-color', 'rgba(255, 255, 255, 0.9)');
     document.documentElement.style.setProperty('--bg-color', '#1e1e2d');
   } else {
+    // Remove dark-theme class for custom CSS variables
     document.documentElement.classList.remove('dark-theme');
+    document.body.classList.remove('dark-theme');
+    
+    // Remove dark class for Tailwind CSS
+    document.documentElement.classList.remove('dark');
+    
     document.documentElement.style.setProperty('--text-color', 'rgba(0, 0, 0, 0.9)');
     document.documentElement.style.setProperty('--bg-color', '#ffffff');
   }

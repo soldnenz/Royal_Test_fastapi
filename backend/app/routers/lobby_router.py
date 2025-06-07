@@ -1999,3 +1999,113 @@ async def get_user_active_lobby(current_user: dict = Depends(get_current_actor))
     except Exception as e:
         logger.error(f"Ошибка при проверке активного лобби: {str(e)}")
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при проверке активного лобби")
+
+@router.get("/categories/stats", summary="Получить статистику по категориям и количеству вопросов")
+async def get_categories_stats(current_user: dict = Depends(get_current_actor)):
+    """
+    Возвращает статистику по категориям и количеству вопросов в каждой.
+    
+    Группирует вопросы по категориям и подсчитывает количество уникальных вопросов в каждой группе.
+    Также возвращает общее количество вопросов.
+    """
+    user_id = get_user_id(current_user)
+    logger.info(f"Пользователь {user_id} запрашивает статистику по категориям")
+    
+    try:
+        # Агрегация для подсчета вопросов по категориям
+        pipeline = [
+            # Фильтруем только неудаленные вопросы
+            {"$match": {"deleted": False}},
+            # Разворачиваем массив категорий
+            {"$unwind": "$categories"},
+            # Группируем по категориям и считаем количество
+            {"$group": {
+                "_id": "$categories",
+                "count": {"$sum": 1}
+            }},
+            # Сортируем по названию категории
+            {"$sort": {"_id": 1}}
+        ]
+        
+        category_stats = await db.questions.aggregate(pipeline).to_list(None)
+        
+        # Получаем общее количество вопросов
+        total_questions = await db.questions.count_documents({"deleted": False})
+        
+        # Преобразуем результат в удобный формат
+        categories_dict = {}
+        for stat in category_stats:
+            categories_dict[stat["_id"]] = stat["count"]
+        
+        logger.info(f"Статистика по категориям: {categories_dict}, общее количество: {total_questions}")
+        
+        # Определяем группы категорий для подсчета уникальных вопросов
+        category_groups = [
+            {
+                "id": "cat1",
+                "categories": ["A1", "A", "B1"],
+                "title": "A1, A, B1"
+            },
+            {
+                "id": "cat2", 
+                "categories": ["B", "BE"],
+                "title": "B, BE"
+            },
+            {
+                "id": "cat3",
+                "categories": ["C", "C1"], 
+                "title": "C, C1"
+            },
+            {
+                "id": "cat4",
+                "categories": ["BC1"],
+                "title": "BC1"
+            },
+            {
+                "id": "cat5",
+                "categories": ["D1", "D", "Tb"],
+                "title": "D1, D, Tb"
+            },
+            {
+                "id": "cat6",
+                "categories": ["C1", "CE", "D1", "DE"],
+                "title": "C1, CE, D1, DE"
+            },
+            {
+                "id": "cat7",
+                "categories": ["Tm"],
+                "title": "Tm"
+            }
+        ]
+        
+        # Считаем уникальные вопросы для каждой группы
+        grouped_categories = []
+        for group in category_groups:
+            # Считаем уникальные вопросы, которые содержат хотя бы одну из категорий группы
+            unique_questions_count = await db.questions.count_documents({
+                "deleted": False,
+                "categories": {"$in": group["categories"]}
+            })
+            
+            # Создаем breakdown для каждой категории в группе
+            breakdown = {}
+            for cat in group["categories"]:
+                breakdown[cat] = categories_dict.get(cat, 0)
+            
+            grouped_categories.append({
+                "id": group["id"],
+                "categories": group["categories"],
+                "title": group["title"], 
+                "total_questions": unique_questions_count,
+                "breakdown": breakdown
+            })
+        
+        return success(data={
+            "categories": grouped_categories,
+            "total_questions": total_questions,
+            "individual_categories": categories_dict
+        })
+        
+    except Exception as e:
+        logger.error(f"Ошибка при получении статистики категорий: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")

@@ -1,6 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FaTimes, FaCheck, FaArrowLeft, FaArrowRight, FaFlag, FaLanguage, FaMoon, FaSun, FaHistory } from 'react-icons/fa';
+import { 
+  FaTimes, FaCheck, FaArrowLeft, FaArrowRight, FaFlag, 
+  FaLanguage, FaMoon, FaSun, FaHistory, FaExclamationTriangle,
+  FaPlay, FaPause, FaVolumeUp, FaVolumeMute, FaExpand,
+  FaBars, FaQuestionCircle, FaLightbulb, FaClock, FaStar, FaChartBar, FaUser
+} from 'react-icons/fa';
 import api from '../utils/axios';
 import DashboardHeader from '../components/dashboard/DashboardHeader';
 import DashboardSidebar from '../components/dashboard/DashboardSidebar';
@@ -18,7 +23,6 @@ const TestPage = () => {
   const [error, setError] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(() => {
-    // Try to retrieve the last question index from localStorage
     const savedIndex = localStorage.getItem(`currentQuestionIndex_${lobbyId}`);
     return savedIndex ? parseInt(savedIndex, 10) : 0;
   });
@@ -30,32 +34,36 @@ const TestPage = () => {
   const [explanation, setExplanation] = useState(null);
   const [afterAnswerMedia, setAfterAnswerMedia] = useState(null);
   const [lobbyInfo, setLobbyInfo] = useState(null);
-  const [timeLeft, setTimeLeft] = useState(40 * 60); // 40 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(40 * 60);
   const [mediaLoading, setMediaLoading] = useState(false);
-  const [mediaProgress, setMediaProgress] = useState(0);
   const [isExamMode, setIsExamMode] = useState(false);
   const [testCompleted, setTestCompleted] = useState(false);
   const [testResults, setTestResults] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isHistorySidebarOpen, setIsHistorySidebarOpen] = useState(false);
+  const [isQuestionNavOpen, setIsQuestionNavOpen] = useState(false);
   const [profileData, setProfileData] = useState(null);
   const [videoError, setVideoError] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportData, setReportData] = useState({ type: '', description: '' });
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [videoProgress, setVideoProgress] = useState(0);
+  const [videoLoading, setVideoLoading] = useState(false);
+  
   const intervalRef = useRef(null);
+  const videoRef = useRef(null);
+  const afterVideoRef = useRef(null);
+  const videoIntervalRef = useRef(null);
+  const videoProgressRef = useRef(null);
   const isDarkTheme = theme === 'dark';
-  const [videoBlobUrl, setVideoBlobUrl] = useState(null);
-  const videoFetchController = useRef(null);
-  // Флаг, показывающий, нужно ли отображать медиа-объяснение внизу
-  const [showExtraMedia, setShowExtraMedia] = useState(false);
 
-  // Initialize theme when component mounts
+  // Initialize theme
   useEffect(() => {
     initTheme();
-    // Set up initial theme class on body
     document.body.classList.toggle('dark-theme', theme === 'dark');
   }, []);
 
-  // Handle theme changes from other components
+  // Handle theme changes
   useEffect(() => {
     const handleThemeChange = () => {
       const newTheme = getCurrentTheme();
@@ -64,46 +72,41 @@ const TestPage = () => {
     };
     
     window.addEventListener('themeChange', handleThemeChange);
-    return () => {
-      window.removeEventListener('themeChange', handleThemeChange);
-    };
+    return () => window.removeEventListener('themeChange', handleThemeChange);
   }, []);
 
-  // Handle language changes from other components
+  // Handle language changes
   useEffect(() => {
     const handleLanguageChange = () => {
       setCurrentLanguage(getCurrentLanguage());
     };
     
     window.addEventListener('languageChange', handleLanguageChange);
-    return () => {
-      window.removeEventListener('languageChange', handleLanguageChange);
-    };
+    return () => window.removeEventListener('languageChange', handleLanguageChange);
   }, []);
 
-  // Save current question index when it changes
+  // Save current question index
   useEffect(() => {
     localStorage.setItem(`currentQuestionIndex_${lobbyId}`, currentQuestionIndex.toString());
   }, [currentQuestionIndex, lobbyId]);
 
-  // Handle theme toggle
+  // Theme toggle
   const handleToggleTheme = () => {
     const newTheme = toggleTheme();
     setTheme(newTheme);
     document.body.classList.toggle('dark-theme', newTheme === 'dark');
   };
 
-  // Handle language change
+  // Language change
   const handleChangeLanguage = (newLanguage) => {
     if (setLanguage(newLanguage)) {
       setCurrentLanguage(newLanguage);
-      // Dispatch an event to notify other components
       window.dispatchEvent(new Event('languageChange'));
     }
   };
 
+  // Load profile data
   useEffect(() => {
-    // Load user profile data
     const fetchProfileData = async () => {
       try {
         const response = await api.get('/auth/profile');
@@ -120,17 +123,161 @@ const TestPage = () => {
     });
   }, []);
 
-  // Toggle sidebar
-  const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
+  // Toggle sidebars
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const toggleQuestionNav = () => setIsQuestionNavOpen(!isQuestionNavOpen);
+  
+  // Close navigation when clicking overlay
+  const closeQuestionNav = () => setIsQuestionNavOpen(false);
+
+  // Video progress tracking
+  const updateVideoProgress = useCallback((video) => {
+    if (!video || video.duration === 0) return;
+    const progress = (video.currentTime / video.duration) * 100;
+    setVideoProgress(progress);
+  }, []);
+
+  // Advanced video management with auto-loop and progress tracking
+  const setupVideoAutoplay = useCallback((video) => {
+    if (!video) return;
+
+    // Clear any existing intervals
+    if (videoIntervalRef.current) {
+      clearInterval(videoIntervalRef.current);
+    }
+    if (videoProgressRef.current) {
+      clearInterval(videoProgressRef.current);
+    }
+
+    // Set video properties
+    video.muted = true;
+    video.loop = false; // НЕ ЗАЦИКЛИВАЕМ автоматически
+    video.currentTime = 1; // Start from 1 second
+    setVideoLoading(true);
+
+    // Show loading progress
+    let loadProgress = 0;
+    const loadInterval = setInterval(() => {
+      loadProgress += 10;
+      setVideoProgress(loadProgress);
+      if (loadProgress >= 100) {
+        clearInterval(loadInterval);
+        setVideoLoading(false);
+      }
+    }, 100);
+
+    // Start playing after 1 second delay
+    setTimeout(() => {
+      video.play().then(() => {
+        setVideoLoading(false);
+        clearInterval(loadInterval);
+        
+        // Запустить повтор через 10 секунд после окончания видео
+        const handleVideoEnd = () => {
+          setTimeout(() => {
+            if (video && !video.paused && video.readyState >= 3) {
+              video.currentTime = 1;
+              video.play().catch(console.log);
+            }
+          }, 10000); // 10 секунд после окончания
+        };
+        
+        video.addEventListener('ended', handleVideoEnd);
+        
+        // Cleanup для ended listener
+        return () => {
+          video.removeEventListener('ended', handleVideoEnd);
+        };
+      }).catch(console.log);
+    }, 1000);
+
+    // Track video progress
+    videoProgressRef.current = setInterval(() => {
+      updateVideoProgress(video);
+    }, 100);
+
+    // Handle click to restart
+    const handleVideoClick = () => {
+      video.currentTime = 1;
+      video.play().catch(console.log);
+    };
+
+    video.addEventListener('click', handleVideoClick);
+
+    // Cleanup function
+    return () => {
+      video.removeEventListener('click', handleVideoClick);
+      if (videoIntervalRef.current) {
+        clearInterval(videoIntervalRef.current);
+      }
+      if (videoProgressRef.current) {
+        clearInterval(videoProgressRef.current);
+      }
+      clearInterval(loadInterval);
+    };
+  }, [updateVideoProgress]);
+
+  // Setup video when media loads
+  useEffect(() => {
+    if (videoRef.current && currentQuestion?.has_media && currentQuestion?.media_type === 'video') {
+      return setupVideoAutoplay(videoRef.current);
+    }
+  }, [currentQuestion, setupVideoAutoplay]);
+
+  // Setup after-answer video
+  useEffect(() => {
+    if (afterVideoRef.current && afterAnswerMedia) {
+      return setupVideoAutoplay(afterVideoRef.current);
+    }
+  }, [afterAnswerMedia, setupVideoAutoplay]);
+
+  // Cleanup intervals on unmount
+  useEffect(() => {
+    return () => {
+      if (videoIntervalRef.current) {
+        clearInterval(videoIntervalRef.current);
+      }
+      if (videoProgressRef.current) {
+        clearInterval(videoProgressRef.current);
+      }
+    };
+  }, []);
+
+  // Report functionality
+  const handleOpenReport = () => {
+    setShowReportModal(true);
+    setReportData({ type: '', description: '' });
   };
 
-  // Toggle history sidebar
-  const toggleHistorySidebar = () => {
-    setIsHistorySidebarOpen(!isHistorySidebarOpen);
+  const handleCloseReport = () => {
+    setShowReportModal(false);
+    setReportData({ type: '', description: '' });
   };
 
-  // Fetch lobby info
+  const handleSubmitReport = async (e) => {
+    e.preventDefault();
+    if (!reportData.type || !reportData.description.trim()) return;
+
+    setReportSubmitting(true);
+    try {
+      await api.post(`/lobbies/lobbies/${lobbyId}/report`, {
+        question_id: questions[currentQuestionIndex],
+        report_type: reportData.type,
+        description: reportData.description
+      });
+      
+      // Show success message
+      alert(getTranslation('reportSubmittedSuccessfully') || 'Report submitted successfully');
+      handleCloseReport();
+    } catch (err) {
+      console.error('Error submitting report:', err);
+      alert(getTranslation('reportSubmissionFailed') || 'Failed to submit report. Please try again.');
+    } finally {
+      setReportSubmitting(false);
+    }
+  };
+
+  // Fetch lobby information
   useEffect(() => {
     const fetchLobbyInfo = async () => {
       try {
@@ -142,52 +289,38 @@ const TestPage = () => {
           console.log("Lobby info loaded successfully:", response.data.data);
           setLobbyInfo(response.data.data);
           
-          // Check if the test is already completed
           if (response.data.data.status === 'completed' || response.data.data.status === 'inactive') {
             setTestCompleted(true);
             fetchTestResults();
-            return; // Exit early if test is already completed
+            return;
           }
           
-          // Check if exam mode is enabled
           setIsExamMode(response.data.data.exam_mode === true);
           
-          // Initialize question IDs
           if (response.data.data.question_ids && response.data.data.question_ids.length > 0) {
             setQuestions(response.data.data.question_ids);
             
-            // Sync server state with local storage
-            // Get server answers for comparison
             const serverAnswers = response.data.data.user_answers || {};
-            
-            // Load saved answers from localStorage if they exist
             let localAnswers = {};
             const savedAnswers = localStorage.getItem(`userAnswers_${lobbyId}`);
             if (savedAnswers) {
               try {
                 localAnswers = JSON.parse(savedAnswers);
-                console.log("Loaded saved answers from localStorage:", localAnswers);
               } catch (e) {
                 console.error("Error parsing saved answers:", e);
               }
             }
             
-            // Merge server and local answers, with server taking precedence
             const mergedAnswers = { ...localAnswers, ...serverAnswers };
             
-            // Update state and localStorage with merged answers
             if (Object.keys(mergedAnswers).length > 0) {
               setUserAnswers(mergedAnswers);
               localStorage.setItem(`userAnswers_${lobbyId}`, JSON.stringify(mergedAnswers));
-              console.log("Merged answers (server + local):", mergedAnswers);
               
-              // Determine current question index based on answered questions
               const answeredQuestionIds = Object.keys(mergedAnswers);
               if (answeredQuestionIds.length > 0) {
                 const lastAnsweredId = answeredQuestionIds[answeredQuestionIds.length - 1];
                 const lastAnsweredIndex = response.data.data.question_ids.indexOf(lastAnsweredId);
-                
-                // Set to the next unanswered question or the last question if all are answered
                 const nextIndex = Math.min(lastAnsweredIndex + 1, response.data.data.question_ids.length - 1);
                 setCurrentQuestionIndex(nextIndex);
                 localStorage.setItem(`currentQuestionIndex_${lobbyId}`, nextIndex.toString());
@@ -195,7 +328,6 @@ const TestPage = () => {
             }
           }
         } else {
-          console.error('Error in lobby info response:', response.data);
           setError(response.data.message || 'Failed to load test information');
         }
         
@@ -203,7 +335,6 @@ const TestPage = () => {
         setSyncing(false);
       } catch (err) {
         console.error('Error fetching lobby info:', err);
-        console.error('Error response data:', err.response?.data);
         setError(err.response?.data?.message || 'Failed to load test information');
         setLoading(false);
         setSyncing(false);
@@ -213,62 +344,7 @@ const TestPage = () => {
     fetchLobbyInfo();
   }, [lobbyId]);
 
-  // Add function to fetch video as blob
-  const fetchVideoAsBlob = async (url) => {
-    try {
-      // Cancel any existing fetch
-      if (videoFetchController.current) {
-        videoFetchController.current.abort();
-      }
-      
-      // Create new controller for this fetch
-      videoFetchController.current = new AbortController();
-      
-      console.log("Fetching video as blob:", url);
-      setMediaLoading(true);
-      
-      const response = await fetch(url, {
-        signal: videoFetchController.current.signal
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const blob = await response.blob();
-      console.log("Video blob received:", blob.size, "bytes, type:", blob.type);
-      
-      // Create a blob URL
-      const blobUrl = URL.createObjectURL(blob);
-      console.log("Blob URL created:", blobUrl);
-      
-      setVideoBlobUrl(blobUrl);
-      setMediaLoading(false);
-      setVideoError(false);
-      
-      return blobUrl;
-    } catch (err) {
-      if (err.name === 'AbortError') {
-        console.log("Video fetch aborted");
-      } else {
-        console.error("Error fetching video blob:", err);
-        setVideoError(true);
-      }
-      setMediaLoading(false);
-      return null;
-    }
-  };
-
-  // Add cleanup for blob URLs
-  useEffect(() => {
-    return () => {
-      if (videoBlobUrl) {
-        URL.revokeObjectURL(videoBlobUrl);
-      }
-    };
-  }, [videoBlobUrl]);
-
-  // Update the fetchCurrentQuestion function to handle media
+  // Fetch current question
   const fetchCurrentQuestion = async () => {
     if (!questions.length || currentQuestionIndex >= questions.length) return;
     
@@ -276,42 +352,18 @@ const TestPage = () => {
     
     try {
       setMediaLoading(true);
-      setMediaProgress(0);
       setVideoError(false);
       
-      console.log(`Fetching question ${questionId} for lobby ${lobbyId}`);
-      const response = await api.get(`/lobbies/lobbies/${lobbyId}/questions/${questionId}`, {
-        onDownloadProgress: (progressEvent) => {
-          if (progressEvent.total) {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            setMediaProgress(percentCompleted);
-          }
-        }
-      });
-      
-      console.log(`Question data:`, response.data.data);
+      const response = await api.get(`/lobbies/lobbies/${lobbyId}/questions/${questionId}`);
       
       if (response.data.status === "ok") {
-        // Get the question data
         const questionData = response.data.data;
         
-        // Debug the media type
-        console.log(`Question media type from API: ${questionData.media_type}`);
-        
-        // Add media URL directly if has_media is true - WITHOUT timestamp to enable caching
         if (questionData.has_media) {
-          const mediaUrl = `/api/lobbies/files/media/${questionId}`;
+          const mediaUrl = `/api/lobbies/files/media/${questionId}?t=${Date.now()}`;
           questionData.media_url = mediaUrl;
-          console.log(`Setting direct media URL: ${mediaUrl}`);
-          
-          // If it's a video, start fetching it as a blob
-          if (questionData.media_type === 'video') {
-            console.log("Video item detected - will fetch as blob");
-            fetchVideoAsBlob(mediaUrl);
-          }
         }
         
-        // Store the question with media URL already set
         setCurrentQuestion(questionData);
         setAnswerSubmitted(false);
         setSelectedAnswer(null);
@@ -319,25 +371,17 @@ const TestPage = () => {
         setExplanation(null);
         setAfterAnswerMedia(null);
         
-        // Check if user has already answered this question
         if (userAnswers[questionId] !== undefined) {
           setSelectedAnswer(userAnswers[questionId]);
           setAnswerSubmitted(true);
           
-          // If not in exam mode, also get the correct answer and explanation
           if (!isExamMode) {
             fetchCorrectAnswer(questionId);
           }
         }
         
-        // For videos, check if testing is needed (only do visual verification, don't actually fetch)
-        if (questionData.has_media && questionData.media_type === 'video') {
-          console.log("Video item detected - will be loaded by video element directly");
-        }
-        
         setMediaLoading(false);
       } else {
-        console.error('Error in question response:', response.data);
         setError(response.data.message || 'Failed to load question');
         setMediaLoading(false);
       }
@@ -348,17 +392,16 @@ const TestPage = () => {
     }
   };
 
-  // Save user answers to localStorage whenever they change
+  // Save user answers to localStorage
   useEffect(() => {
     if (Object.keys(userAnswers).length > 0) {
       localStorage.setItem(`userAnswers_${lobbyId}`, JSON.stringify(userAnswers));
     }
   }, [userAnswers, lobbyId]);
 
-  // Setup timer for exam mode
+  // Timer for exam mode
   useEffect(() => {
     if (isExamMode && !testCompleted) {
-      // Try to retrieve saved time from localStorage first
       const savedTimeLeft = localStorage.getItem(`exam_timer_${lobbyId}`);
       if (savedTimeLeft) {
         setTimeLeft(parseInt(savedTimeLeft, 10));
@@ -367,12 +410,9 @@ const TestPage = () => {
       intervalRef.current = setInterval(() => {
         setTimeLeft(prevTime => {
           const newTime = prevTime <= 1 ? 0 : prevTime - 1;
-          
-          // Save the current time to localStorage
           localStorage.setItem(`exam_timer_${lobbyId}`, newTime.toString());
           
           if (newTime <= 0) {
-            // Time's up, finish the test
             clearInterval(intervalRef.current);
             finishTest();
             return 0;
@@ -399,59 +439,19 @@ const TestPage = () => {
         setCorrectAnswer(response.data.data.correct_index);
         setExplanation(response.data.data.explanation);
         
-        // Fetch after-answer media if available
         if (response.data.data.has_after_media) {
           fetchAfterAnswerMedia(questionId);
         }
-      } else {
-        console.error('Error in correct answer response:', response.data);
       }
     } catch (err) {
       console.error('Error fetching correct answer:', err);
     }
   };
 
-  // Improve the fetchAfterAnswerMedia function
   const fetchAfterAnswerMedia = async (questionId) => {
     try {
       setMediaLoading(true);
-      setMediaProgress(0);
-      
-      // Create direct URL to the after-answer media WITHOUT timestamp
-      const mediaUrl = `/api/lobbies/files/after-answer-media/${questionId}`;
-      
-      // Use the after_answer_media_type from current question data if available
-      if (currentQuestion) {
-        // Этот флаг указывает, что у вопроса есть видео/изображение после ответа
-        // которое должно заменить основное медиа
-        const updatedQuestion = {
-          ...currentQuestion,
-          has_after_answer_media: true,
-          after_answer_media_type: currentQuestion.after_answer_media_type || currentQuestion.media_type
-        };
-        setCurrentQuestion(updatedQuestion);
-        
-        // Если это видео, загрузить его как blob для лучшей совместимости
-        if (updatedQuestion.after_answer_media_type === 'video') {
-          console.log("After-answer video detected - will fetch as blob to replace main video");
-          try {
-            const blob = await fetch(mediaUrl).then(r => r.blob());
-            if (blob) {
-              // Освободить предыдущий blob URL перед созданием нового
-              if (videoBlobUrl) {
-                URL.revokeObjectURL(videoBlobUrl);
-              }
-              const newBlobUrl = URL.createObjectURL(blob);
-              console.log("Created blob URL for after-answer video:", newBlobUrl);
-              setVideoBlobUrl(newBlobUrl);
-            }
-          } catch (err) {
-            console.error("Error fetching after-answer video as blob:", err);
-          }
-        }
-      }
-      
-      // Set the media URL directly
+      const mediaUrl = `/api/lobbies/files/after-answer-media/${questionId}?t=${Date.now()}`;
       setAfterAnswerMedia(mediaUrl);
       setMediaLoading(false);
     } catch (err) {
@@ -460,28 +460,17 @@ const TestPage = () => {
     }
   };
 
-  // Update the handleAnswerSubmit function to better handle test completion
   const handleAnswerSubmit = async (answerIndex) => {
     if (answerSubmitted) return;
     
     setSelectedAnswer(answerIndex);
     setSyncing(true);
     
-    // First, update local state immediately for better UX
     const questionId = questions[currentQuestionIndex];
-    const isLastQuestion = currentQuestionIndex === questions.length - 1;
+    const updatedAnswers = { ...userAnswers, [questionId]: answerIndex };
     
-    // Create updated answers object
-    const updatedAnswers = {
-      ...userAnswers,
-      [questionId]: answerIndex
-    };
-    
-    // Mark answer as submitted in local state
     setAnswerSubmitted(true);
     setUserAnswers(updatedAnswers);
-    
-    // Save to localStorage regardless of server response
     localStorage.setItem(`userAnswers_${lobbyId}`, JSON.stringify(updatedAnswers));
     
     try {
@@ -491,167 +480,104 @@ const TestPage = () => {
       });
       
       if (response.data.status === "ok") {
-        // If not in exam mode, fetch the correct answer and explanation
         if (!isExamMode) {
           try {
             await fetchCorrectAnswer(questionId);
           } catch (err) {
-            console.warn("Could not fetch correct answer, likely because test is no longer active", err);
-            // Don't show error to user, we already saved the answer locally
+            console.warn("Could not fetch correct answer", err);
           }
-        }
-        
-        // Check if this is the last question and all questions are answered
-        const allAnswered = questions.every(qId => updatedAnswers[qId] !== undefined);
-        
-        if (isLastQuestion && allAnswered) {
-          console.log("This is the last question and all are answered. User should click Finish Test button.");
-        }
-      } else {
-        console.error('Error in answer submission response:', response.data);
-        // Don't show error on last question - we've already updated local state
-        if (!isLastQuestion) {
-          setError(response.data.message || 'Failed to submit your answer');
         }
       }
     } catch (err) {
       console.error('Error submitting answer:', err);
-      
-      // Check if it's the "Test not active" error
-      if (err.response && (
-          err.response.data?.message?.includes("не активен") ||
-          err.response.data?.message?.includes("not active") ||
-          err.response.data?.message?.includes("должен быть 'in_progress'")
-      )) {
-        console.log("Test is inactive but answer was saved locally");
-        // Clear any error so user doesn't see it
-        setError(null);
-        
-        // If not in exam mode and this happens on the last question, try to show the explanation anyway
-        if (!isExamMode && isLastQuestion) {
-          try {
-            // We'll just use a local explanation since we can't fetch from server
-            setCorrectAnswer(null); // We don't know what's correct
-            setExplanation({
-              ru: "Пояснение недоступно. Тест уже завершен.",
-              en: "Explanation unavailable. The test has already been completed."
-            });
-          } catch (e) {
-            console.error("Could not set local explanation:", e);
-          }
-        }
-      }
-      // Other errors are already handled by the local state update
-      else if (err.response) {
-        // Only show errors for non-last questions
-        if (!isLastQuestion) {
-          setError(err.response?.data?.message || 'Failed to submit your answer');
-        }
+      if (err.response && !err.response.data?.message?.includes("не активен")) {
+        setError(err.response?.data?.message || 'Failed to submit your answer');
       }
     } finally {
       setSyncing(false);
     }
   };
 
-  // Update useEffect for fetchCurrentQuestion
+  // Fetch current question effect
   useEffect(() => {
-    if (testCompleted) {
-      // Don't fetch questions if test is already completed
-      return;
-    }
+    if (testCompleted) return;
     
-    // Skip question fetch for the last question when already answered
-    // This prevents "Test not active" errors when answering the last question
     const isLastQuestion = currentQuestionIndex === questions.length - 1;
     const currentQuestionId = questions[currentQuestionIndex];
     const isQuestionAnswered = userAnswers[currentQuestionId] !== undefined;
     
     if (isLastQuestion && isQuestionAnswered) {
-      console.log("Last question is already answered - skipping question fetch to prevent 'Test not active' errors");
+      console.log("Last question is already answered");
       return;
     }
     
     fetchCurrentQuestion().catch(err => {
-      // Special handling for "Test not active" errors after answering the last question
       if (err.response?.status === 400 && 
           (err.response?.data?.message?.includes("не активен") || 
-           err.response?.data?.message?.includes("не запущен") ||
-           err.response?.data?.message?.includes("должен быть 'in_progress'"))) {
-        console.log("Test status changed to inactive after answering the last question");
-        // Don't show an error, just show the final screen with the finish button
-        
-        // Update UI to show completion message but don't auto-finish
+           err.response?.data?.message?.includes("не запущен"))) {
+        console.log("Test status changed to inactive");
         if (isLastQuestion) {
-          // Clear any error message that might be showing
           setError(null);
-          console.log("Last question answered. Please click 'Finish Test' button to see results.");
-          // Don't set testCompleted = true, let user click the button
-        } else {
-          console.error("Test became inactive but not all questions are answered");
         }
       } else {
-        // For other errors, show the error message
         console.error('Error fetching question:', err);
         setError(err.response?.data?.message || 'Failed to load question');
       }
     });
   }, [lobbyId, questions, currentQuestionIndex, userAnswers, isExamMode, testCompleted]);
 
-  // Improve handleNextQuestion to handle the case where the last question is answered
   const handleNextQuestion = () => {
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
-    } else if (!testCompleted) {
-      // Last question reached, but don't auto-finish
-      console.log("Last question reached. Please click 'Finish Test' button to see results.");
-      // Could display a message to the user here
     }
   };
 
   const handlePrevQuestion = () => {
     if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex - 1);
+      const newIndex = currentQuestionIndex - 1;
+      setCurrentQuestionIndex(newIndex);
+      setAnswerSubmitted(true); // Automatically show answer for previous questions
+      setSelectedAnswer(userAnswers[questions[newIndex]]);
+      setCorrectAnswer(null);
+      setExplanation(null);
+      setAfterAnswerMedia(null);
+      setVideoError(false);
+      setVideoProgress(0);
+      
+      // Fetch answer data for previous question
+      if (!isExamMode) {
+        fetchCorrectAnswer(questions[newIndex]);
+      }
     }
   };
 
-  // Make the finishTest function more robust
   const finishTest = async () => {
     try {
-      console.log(`Sending finish request for lobby ${lobbyId}`);
       setSyncing(true);
       
       try {
         const response = await api.post(`/lobbies/lobbies/${lobbyId}/finish`, {});
-        console.log(`Finish response:`, response.data);
         
         if (response.data.status === "ok") {
           setTestCompleted(true);
-          
-          // Clear timer if it's running
           if (intervalRef.current) {
             clearInterval(intervalRef.current);
           }
-          
-          // Fetch test results
           fetchTestResults();
         }
       } catch (err) {
-        console.error('Error finishing test:', err, err.response?.data);
+        console.error('Error finishing test:', err);
         
-        // Special handling for "Test not active" or "already completed" errors
-        // These are actually not errors for us - the test is already finished
         if (err.response?.status === 400 && 
             (err.response?.data?.message?.includes("не активен") || 
-             err.response?.data?.message?.includes("не запущен") ||
              err.response?.data?.message?.includes("уже завершен"))) {
-          console.log("Test already finished, fetching results anyway");
+          console.log("Test already finished");
           setTestCompleted(true);
           
           if (intervalRef.current) {
             clearInterval(intervalRef.current);
           }
           
-          // Still try to fetch results
           fetchTestResults();
         } else {
           setError(err.response?.data?.message || 'Failed to finish test');
@@ -668,48 +594,32 @@ const TestPage = () => {
 
   const fetchTestResults = async () => {
     try {
-      console.log(`Fetching test results for lobby ${lobbyId}`);
       const response = await api.get(`/lobbies/lobbies/${lobbyId}/results`);
-      
-      console.log(`Results response:`, response.data);
       
       if (response.data.status === "ok") {
         setTestResults(response.data.data);
-        // Clear any saved timer
         localStorage.removeItem(`exam_timer_${lobbyId}`);
-        // Clear saved answers
         localStorage.removeItem(`userAnswers_${lobbyId}`);
-        // Clear saved question index
         localStorage.removeItem(`currentQuestionIndex_${lobbyId}`);
       } else {
-        console.error('Error in test results response:', response.data);
         setError(response.data.message || 'Failed to load test results');
       }
     } catch (err) {
       console.error('Error fetching test results:', err);
-      console.error('Error response data:', err.response?.data);
-      // If we get a 404 or the lobby is no longer active, we'll show a basic results page
+      
       if (err.response?.status === 404 || 
-          (err.response?.data?.message && err.response?.data?.message.includes("Тест не активен"))) {
-        console.log("Test is completed but detailed results unavailable. Showing basic completion page.");
-        
-        // Create a minimal results object
+          (err.response?.data?.message && err.response?.data?.message.includes("не активен"))) {
         setTestResults({
           user_result: {
-            correct_count: Object.values(userAnswers).filter((_, i) => 
-              correctAnswer && i === correctAnswer).length,
+            correct_count: 0,
             total_questions: questions.length,
-            percentage: Math.round((Object.values(userAnswers).filter((_, i) => 
-              correctAnswer && i === correctAnswer).length / questions.length) * 100),
-            passed: false // We don't know, so assume not passed
+            percentage: 0,
+            passed: false
           }
         });
         
-        // Clear any saved timer
         localStorage.removeItem(`exam_timer_${lobbyId}`);
-        // Clear saved answers
         localStorage.removeItem(`userAnswers_${lobbyId}`);
-        // Clear saved question index
         localStorage.removeItem(`currentQuestionIndex_${lobbyId}`);
       } else {
         setError(err.response?.data?.message || 'Failed to load test results');
@@ -717,45 +627,21 @@ const TestPage = () => {
     }
   };
 
-  // Format time from seconds to MM:SS
+  // Format time
   const formatTime = (seconds) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
   };
 
-  // Return to dashboard
   const handleReturnToDashboard = () => {
     navigate('/dashboard');
-  };
-
-  // NO IMAGE placeholder when there's no media  
-  const NoMediaPlaceholder = () => (    
-    <div style={{       
-      width: '100%',       
-      height: '240px',       
-      background: '#f1f1f1',       
-      display: 'flex',       
-      alignItems: 'center',       
-      justifyContent: 'center',      
-      borderRadius: '8px',      
-      marginBottom: '20px'    
-    }}>      
-      <span style={{ color: '#555', fontSize: '16px', fontWeight: 'bold' }}>NO IMAGE</span>    
-    </div>  
-  );
-
-  // Simplified function just for compatibility with existing code
-  const fetchQuestionMedia = async (questionId) => {
-    // This function is now deprecated - all media handling is done in fetchCurrentQuestion
-    console.log("Media is handled directly by the video/img elements");
-    return true;
   };
 
   // Loading state
   if (loading) {
     return (
-      <div className={`app-container ${theme === 'dark' ? 'dark-theme' : ''}`}>
+      <div className={`app-container ${isDarkTheme ? 'dark-theme' : ''}`}>
         <DashboardHeader 
           profileData={profileData} 
           toggleSidebar={toggleSidebar} 
@@ -768,9 +654,11 @@ const TestPage = () => {
         <DashboardSidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
         
         <div className={`main-content ${isSidebarOpen ? 'sidebar-open' : ''}`}>
-          <div className="test-loading">
-            <div className="loading-spinner"></div>
-            <p>{getTranslation('loading')}</p>
+          <div className="loading-container">
+            <div className="loading-bar-container">
+              <div className="loading-bar"></div>
+            </div>
+            <div className="loading-text">{getTranslation('loading')}</div>
           </div>
         </div>
       </div>
@@ -780,7 +668,7 @@ const TestPage = () => {
   // Error state
   if (error) {
     return (
-      <div className={`app-container ${theme === 'dark' ? 'dark-theme' : ''}`}>
+      <div className={`app-container ${isDarkTheme ? 'dark-theme' : ''}`}>
         <DashboardHeader 
           profileData={profileData} 
           toggleSidebar={toggleSidebar} 
@@ -793,11 +681,11 @@ const TestPage = () => {
         <DashboardSidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
         
         <div className={`main-content ${isSidebarOpen ? 'sidebar-open' : ''}`}>
-          <div className="test-error">
-            <FaTimes size={48} color="red" />
-            <h2>{getTranslation('error')}</h2>
-            <p>{error}</p>
-            <button className="primary-button" onClick={handleReturnToDashboard}>
+          <div className="loading-container">
+            <FaTimes size={48} style={{ color: 'var(--error)', marginBottom: 'var(--space-lg)' }} />
+            <h2 style={{ marginBottom: 'var(--space-md)' }}>{getTranslation('error')}</h2>
+            <p style={{ marginBottom: 'var(--space-xl)', textAlign: 'center' }}>{error}</p>
+            <button className="btn btn-primary" onClick={handleReturnToDashboard}>
               {getTranslation('returnToDashboard')}
             </button>
           </div>
@@ -806,10 +694,54 @@ const TestPage = () => {
     );
   }
 
-  // Test completed and results available
+  // Test results
   if (testCompleted && testResults) {
+    const percentage = testResults.user_result.percentage;
+    const correctCount = testResults.user_result.correct_count;
+    const totalQuestions = testResults.user_result.total_questions;
+    const incorrectCount = totalQuestions - correctCount;
+    const isPassed = testResults.user_result.passed || percentage >= 70;
+    
+    // Calculate additional metrics
+    const totalTimeSpent = 40 * 60 - timeLeft; // in seconds
+    const averageTimePerQuestion = Math.round(totalTimeSpent / totalQuestions);
+    const efficiency = Math.round((correctCount / totalQuestions) * 100);
+    
+    // Determine skill level
+    let skillLevel = '';
+    let skillColor = '';
+    if (percentage >= 95) { 
+      skillLevel = getTranslation('excellent'); 
+      skillColor = 'var(--success)';
+    } else if (percentage >= 85) { 
+      skillLevel = getTranslation('veryGood'); 
+      skillColor = 'var(--success)';
+    } else if (percentage >= 75) { 
+      skillLevel = getTranslation('good'); 
+      skillColor = 'var(--warning)';
+    } else if (percentage >= 65) { 
+      skillLevel = getTranslation('satisfactory'); 
+      skillColor = 'var(--warning)';
+    } else if (percentage >= 50) { 
+      skillLevel = getTranslation('needsImprovement'); 
+      skillColor = 'var(--error)';
+    } else { 
+      skillLevel = getTranslation('poor'); 
+      skillColor = 'var(--error)';
+    }
+    
+    const formatTime = (seconds) => {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      const secs = seconds % 60;
+      if (hours > 0) {
+        return `${hours}:${minutes < 10 ? '0' : ''}${minutes}:${secs < 10 ? '0' : ''}${secs}`;
+      }
+      return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
+    };
+    
     return (
-      <div className={`app-container ${theme === 'dark' ? 'dark-theme' : ''}`}>
+      <div className={`app-container ${isDarkTheme ? 'dark-theme' : ''}`}>
         <DashboardHeader 
           profileData={profileData} 
           toggleSidebar={toggleSidebar} 
@@ -823,80 +755,238 @@ const TestPage = () => {
         
         <div className={`main-content ${isSidebarOpen ? 'sidebar-open' : ''}`}>
           <div className="test-results-container">
-            <h1>{getTranslation('testResults')}</h1>
-            
-            <div className="results-summary">
-              <div className="result-score">
-                <h2>{testResults.user_result.percentage}%</h2>
-                <p>{getTranslation('correctAnswers')}: {testResults.user_result.correct_count}/{testResults.user_result.total_questions}</p>
+            {/* Results Header */}
+            <div className="results-header">
+              <div className={`results-icon ${isPassed ? 'success' : 'failed'}`}>
+                {isPassed ? <FaStar size={48} /> : <FaTimes size={48} />}
               </div>
               
-              <div className="result-passed">
-                {testResults.user_result.passing_score ? (
-                  <div className="passed">
-                    <FaCheck size={32} />
-                    <span>{getTranslation('passed')}</span>
-                  </div>
-                ) : (
-                  <div className="failed">
-                    <FaTimes size={32} />
-                    <span>{getTranslation('failed')}</span>
-                  </div>
-                )}
+              <div className="results-title-section">
+                <h1 className="results-title">{getTranslation('testResults')}</h1>
+                <div className={`results-status ${isPassed ? 'passed' : 'failed'}`}>
+                  {isPassed ? getTranslation('passed') : getTranslation('failed')}
+                </div>
+              </div>
+              
+              <div className="results-score-circle">
+                <div className="score-percentage" style={{ color: skillColor }}>
+                  {percentage}%
+                </div>
+                <div className="score-description">
+                  {getTranslation('yourScore')}
+                </div>
               </div>
             </div>
             
-            {testResults.sections && testResults.sections.length > 0 && (
-              <div className="sections-results">
-                <h3>{getTranslation('resultsBySection')}</h3>
-                <div className="sections-grid">
-                  {testResults.sections.map((section, index) => (
-                    <div key={index} className="section-result">
-                      <h4>{section.section}</h4>
-                      <div className="section-score">
-                        <div className="progress-bar">
-                          <div className="progress" style={{ width: `${section.percentage}%` }}></div>
+            {/* Main Results Grid */}
+            <div className="results-grid">
+              {/* Score Overview Card */}
+              <div className="result-card score-overview">
+                <div className="card-header">
+                  <FaStar className="card-icon" />
+                  <h3>{getTranslation('overallPerformance')}</h3>
+                </div>
+                <div className="card-content">
+                  <div className="score-display">
+                    <div className="main-score" style={{ color: skillColor }}>
+                      {percentage}%
+                    </div>
+                    <div className="score-fraction">
+                      {correctCount} / {totalQuestions}
+                    </div>
+                    <div className="skill-level" style={{ color: skillColor }}>
+                      {skillLevel}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Detailed Statistics Card */}
+              <div className="result-card detailed-stats">
+                <div className="card-header">
+                  <FaChartBar className="card-icon" />
+                  <h3>{getTranslation('detailedAnalysis')}</h3>
+                </div>
+                <div className="card-content">
+                  <div className="stats-grid">
+                    <div className="stat-item">
+                      <span className="stat-label">{getTranslation('questionsCorrect')}</span>
+                      <span className="stat-value correct">{correctCount}</span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="stat-label">{getTranslation('questionsIncorrect')}</span>
+                      <span className="stat-value incorrect">{incorrectCount}</span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="stat-label">{getTranslation('totalQuestions')}</span>
+                      <span className="stat-value total">{totalQuestions}</span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="stat-label">{getTranslation('accuracy')}</span>
+                      <span className="stat-value">{percentage}%</span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="stat-label">{getTranslation('efficiency')}</span>
+                      <span className="stat-value">{efficiency}%</span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="stat-label">{getTranslation('completionRate')}</span>
+                      <span className="stat-value">100%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Time Analysis Card */}
+              <div className="result-card time-analysis">
+                <div className="card-header">
+                  <FaClock className="card-icon" />
+                  <h3>{getTranslation('timeAnalysis')}</h3>
+                </div>
+                <div className="card-content">
+                  <div className="time-stats">
+                    <div className="time-item">
+                      <span className="time-label">{getTranslation('timeSpent')}</span>
+                      <span className="time-value">{formatTime(totalTimeSpent)}</span>
+                    </div>
+                    <div className="time-item">
+                      <span className="time-label">{getTranslation('averageTimePerQuestion')}</span>
+                      <span className="time-value">{averageTimePerQuestion}s</span>
+                    </div>
+                    {isExamMode && (
+                      <div className="time-item">
+                        <span className="time-label">{getTranslation('timeRemaining')}</span>
+                        <span className="time-value">{formatTime(timeLeft)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Session Information Card */}
+              <div className="result-card session-info">
+                <div className="card-header">
+                  <FaUser className="card-icon" />
+                  <h3>{getTranslation('sessionInfo')}</h3>
+                </div>
+                <div className="card-content">
+                  <div className="session-stats">
+                    <div className="session-item">
+                      <span className="session-label">{getTranslation('testType')}</span>
+                      <span className="session-value">{isExamMode ? getTranslation('expert') : getTranslation('practice')}</span>
+                    </div>
+                    <div className="session-item">
+                      <span className="session-label">{getTranslation('testDate')}</span>
+                      <span className="session-value">{new Date().toLocaleDateString()}</span>
+                    </div>
+                    <div className="session-item">
+                      <span className="session-label">{getTranslation('passingScore')}</span>
+                      <span className="session-value">70%</span>
+                    </div>
+                    <div className="session-item">
+                      <span className="session-label">{getTranslation('difficulty')}</span>
+                      <span className="session-value">{getTranslation('medium')}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Performance Insights Card */}
+              <div className="result-card performance-insights">
+                <div className="card-header">
+                  <FaLightbulb className="card-icon" />
+                  <h3>{getTranslation('recommendation')}</h3>
+                </div>
+                <div className="card-content">
+                  <div className="insights">
+                    {isPassed ? (
+                      <>
+                        <div className="insight-item success">
+                          <FaCheck className="insight-icon" />
+                          <span>{getTranslation('congratulationsYouPassed')}</span>
                         </div>
-                        <span>{section.percentage}%</span>
+                        {percentage >= 95 && (
+                          <div className="insight-item">
+                            <FaStar className="insight-icon" />
+                            <span>{getTranslation('excellent')} {getTranslation('performance')}!</span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="insight-item warning">
+                          <FaTimes className="insight-icon" />
+                          <span>{getTranslation('testNotPassed')}</span>
+                        </div>
+                        <div className="insight-item">
+                          <FaHistory className="insight-icon" />
+                          <span>{getTranslation('retakeAdvice')}</span>
+                        </div>
+                      </>
+                    )}
+                    
+                    {incorrectCount > 0 && (
+                      <div className="insight-item">
+                        <FaExclamationTriangle className="insight-icon" />
+                        <span>{getTranslation('improvementAreas')}: {incorrectCount} {getTranslation('questionsIncorrect')}</span>
                       </div>
-                      <p>{section.correct}/{section.total}</p>
+                    )}
+                    
+                    <div className="insight-item">
+                      <FaClock className="insight-icon" />
+                      <span>{getTranslation('averageTimePerQuestion')}: {averageTimePerQuestion}s</span>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {testResults.user_result.best_section && (
-              <div className="best-worst-sections">
-                <div className="best-section">
-                  <h4>{getTranslation('bestSection')}</h4>
-                  <p>{testResults.user_result.best_section.section}</p>
-                  <div className="section-score">
-                    <div className="progress-bar">
-                      <div className="progress" style={{ width: `${testResults.user_result.best_section.percentage}%` }}></div>
-                    </div>
-                    <span>{testResults.user_result.best_section.percentage}%</span>
                   </div>
                 </div>
-                
-                {testResults.user_result.worst_section && (
-                  <div className="worst-section">
-                    <h4>{getTranslation('worstSection')}</h4>
-                    <p>{testResults.user_result.worst_section.section}</p>
-                    <div className="section-score">
-                      <div className="progress-bar">
-                        <div className="progress" style={{ width: `${testResults.user_result.worst_section.percentage}%` }}></div>
+              </div>
+              
+              {/* Summary Card - Full Width */}
+              <div className="result-card summary-card full-width">
+                <div className="card-header">
+                  <FaChartBar className="card-icon" />
+                  <h3>{getTranslation('summary')}</h3>
+                </div>
+                <div className="card-content">
+                  <div className="summary-content">
+                    <div className="summary-text">
+                      {isPassed ? (
+                        <p style={{ color: 'var(--success)', fontWeight: '600' }}>
+                          🎉 {getTranslation('congratulationsYouPassed')} 
+                          {percentage >= 95 && " " + getTranslation('excellent') + " " + getTranslation('performance') + "!"}
+                        </p>
+                      ) : (
+                        <p style={{ color: 'var(--error)', fontWeight: '600' }}>
+                          📚 {getTranslation('testNotPassed')} {getTranslation('nextSteps')}: {getTranslation('studyRecommendations')}
+                        </p>
+                      )}
+                      
+                      <div className="final-breakdown">
+                        <span className="breakdown-item">
+                          ✅ {correctCount} {getTranslation('questionsCorrect')}
+                        </span>
+                        <span className="breakdown-item">
+                          ❌ {incorrectCount} {getTranslation('questionsIncorrect')}
+                        </span>
+                        <span className="breakdown-item">
+                          ⏱️ {formatTime(totalTimeSpent)} {getTranslation('timeSpent')}
+                        </span>
+                        <span className="breakdown-item">
+                          🎯 {percentage}% {getTranslation('accuracy')}
+                        </span>
                       </div>
-                      <span>{testResults.user_result.worst_section.percentage}%</span>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
-            )}
+            </div>
             
-            <button className="primary-button" onClick={handleReturnToDashboard}>
-              {getTranslation('returnToDashboard')}
-            </button>
+            {/* Action Button */}
+            <div className="results-actions">
+              <button className="btn btn-large btn-primary" onClick={handleReturnToDashboard}>
+                <FaStar />
+                {getTranslation('returnToDashboard')}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -905,7 +995,7 @@ const TestPage = () => {
 
   // Active test
   return (
-    <div className={`app-container ${theme === 'dark' ? 'dark-theme' : ''}`}>
+    <div className={`app-container ${isDarkTheme ? 'dark-theme' : ''}`}>
       <DashboardHeader 
         profileData={profileData} 
         toggleSidebar={toggleSidebar} 
@@ -917,12 +1007,27 @@ const TestPage = () => {
       />
       <DashboardSidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
       
+      {/* Sync indicator */}
+      {syncing && (
+        <div className="sync-indicator">
+          <div className="sync-spinner"></div>
+          <span>{getTranslation('syncingWithServer')}</span>
+        </div>
+      )}
+      
+      {/* Question Navigation Overlay */}
+      <div 
+        className={`question-nav-overlay ${isQuestionNavOpen ? 'open' : ''}`}
+        onClick={closeQuestionNav}
+      />
+      
       <div className={`main-content ${isSidebarOpen ? 'sidebar-open' : ''}`}>
         <div className="test-page">
+          {/* Test Header */}
           <div className="test-header">
             <div className="test-progress">
               <div className="progress-text">
-                {getTranslation('question')} {currentQuestionIndex + 1}/{questions.length}
+                {getTranslation('question')} {currentQuestionIndex + 1} {getTranslation('of')} {questions.length}
               </div>
               <div className="progress-bar">
                 <div 
@@ -934,61 +1039,63 @@ const TestPage = () => {
             
             <div className="header-controls">
               {isExamMode && (
-                <div className="test-timer">
-                  <div className={`timer ${timeLeft < 60 ? 'timer-warning' : ''}`}>
-                    {formatTime(timeLeft)}
-                  </div>
+                <div className={`test-timer ${timeLeft < 300 ? 'timer-warning' : ''}`}>
+                  <FaClock />
+                  <span>{formatTime(timeLeft)}</span>
                 </div>
               )}
-              
-              <button 
-                className="finish-button" 
-                onClick={() => {
-                  if (confirm(getTranslation('confirmFinishTest'))) {
-                    finishTest();
-                  }
-                }}
-              >
-                {getTranslation('finishEarly')}
-              </button>
-              
-              <button 
-                className="history-button" 
-                onClick={toggleHistorySidebar}
-                title={getTranslation('questionHistory')}
-              >
-                <FaHistory />
-              </button>
             </div>
           </div>
           
+          {/* Test Content */}
           <div className="test-content">
-            {/* Question History Sidebar */}
-            <div className={`question-history-sidebar ${isHistorySidebarOpen ? 'open' : ''}`}>
-              <h3>{getTranslation('questionHistory')}</h3>
-              <div className="question-list">
+            {/* Question Navigation Sidebar */}
+            <div className={`question-nav-sidebar ${isQuestionNavOpen ? 'open' : ''}`}>
+              <button className="nav-close-btn" onClick={closeQuestionNav} title="Закрыть">
+                ×
+              </button>
+              
+              <div className="nav-header">
+                <div className="nav-title">{getTranslation('questionNavigator')}</div>
+                <div className="nav-subtitle">
+                  {Object.keys(userAnswers).length}/{questions.length} {getTranslation('answered')}
+                </div>
+              </div>
+              
+              <div className="question-grid">
                 {questions.map((questionId, index) => {
-                  let statusClass = '';
-                  if (userAnswers[questionId] !== undefined) {
-                    const isCorrect = !isExamMode && correctAnswer !== null && userAnswers[questionId] === correctAnswer;
-                    statusClass = isCorrect ? 'correct' : (isExamMode ? '' : 'incorrect');
-                  }
+                  const isAnswered = userAnswers[questionId] !== undefined;
+                  const isCurrent = index === currentQuestionIndex;
+                  const isCorrect = !isExamMode && correctAnswer !== null && userAnswers[questionId] === correctAnswer;
                   
-                  // Only make current question or answered questions clickable
-                  const isClickable = userAnswers[questionId] !== undefined || index === currentQuestionIndex;
+                  let className = 'question-nav-item';
+                  if (isCurrent) className += ' active';
+                  if (isAnswered) {
+                    if (isExamMode) {
+                      className += ' answered';
+                    } else {
+                      className += isCorrect ? ' answered' : ' incorrect';
+                    }
+                  }
                   
                   return (
                     <div 
                       key={questionId} 
-                      className={`question-item ${index === currentQuestionIndex ? 'active' : ''} ${statusClass} ${isClickable ? 'clickable' : 'disabled'}`}
-                      onClick={() => isClickable && setCurrentQuestionIndex(index)}
+                      className={className}
+                      onClick={() => {
+                        if (isAnswered || isCurrent) {
+                          setCurrentQuestionIndex(index);
+                          if (window.innerWidth <= 1024) {
+                            setIsQuestionNavOpen(false);
+                          }
+                        }
+                      }}
+                      style={{ 
+                        cursor: (isAnswered || isCurrent) ? 'pointer' : 'not-allowed',
+                        opacity: (isAnswered || isCurrent) ? 1 : 0.5
+                      }}
                     >
-                      <span className="question-number">{index + 1}</span>
-                      {userAnswers[questionId] !== undefined && !isExamMode && (
-                        <span className="answer-indicator">
-                          {statusClass === 'correct' ? <FaCheck className="correct-icon" /> : <FaTimes className="incorrect-icon" />}
-                        </span>
-                      )}
+                      {index + 1}
                     </div>
                   );
                 })}
@@ -996,224 +1103,175 @@ const TestPage = () => {
             </div>
             
             {/* Main Question Content */}
-            <div className="question-main-content">
-              {syncing && (
-                <div className="syncing-message">
-                  <div className="loading-spinner"></div>
-                  <p>{getTranslation('syncingWithServer')}</p>
-                </div>
-              )}
-              
+            <div className="question-main">
               {currentQuestion && (
-                <div className="question-container">
-                  <div className="question-text">
-                    <h2>
-                      {currentQuestion && localizeText(currentQuestion.question_text)}
-                    </h2>
-                    {/* Debug display of media type */}
-                    <div style={{fontSize: '10px', color: 'gray', marginTop: '5px'}}>
-                      Debug: Media type: {currentQuestion ? currentQuestion.media_type : 'none'}, 
-                      Has media: {currentQuestion && currentQuestion.has_media ? 'Yes' : 'No'},
-                      Media URL: {currentQuestion && currentQuestion.media_url ? 'Set' : 'Missing'}
+                <>
+                  <div className="question-header">
+                    <div className="question-title">
+                      {localizeText(currentQuestion.question_text)}
                     </div>
                   </div>
                   
+                  {/* Media Section */}
                   {mediaLoading ? (
-                    <div className="media-loading">
-                      <div className="progress-container">
-                        <div className="progress-bar">
-                          <div className="progress" style={{ width: `${mediaProgress}%` }}></div>
-                        </div>
-                        <div className="progress-text">{mediaProgress}%</div>
+                    <div className="loading-container" style={{ height: '200px' }}>
+                      <div className="loading-bar-container">
+                        <div className="loading-bar"></div>
                       </div>
-                      <p>{getTranslation('loadingMedia')}</p>
+                      <div className="loading-text">{getTranslation('loadingMedia')}</div>
                     </div>
                   ) : (
-                    <>
-                      <div className="question-media">
-                        {/* Если есть видео-объяснение и пользователь уже ответил, показываем его вместо основного видео */}
-                        {answerSubmitted && !isExamMode && afterAnswerMedia && currentQuestion && 
-                         currentQuestion.has_after_answer_media ? (
-                          currentQuestion.after_answer_media_type === 'video' ? (
-                            <div style={{ width: '100%', position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden' }}>
+                    <div className="question-media">
+                      {/* Show after-answer media if available and answered */}
+                      {answerSubmitted && !isExamMode && afterAnswerMedia ? (
+                        currentQuestion.after_answer_media_type === 'video' ? (
+                          <div className="media-container">
+                            <div className="video-container">
                               <video 
-                                controls
-                                autoPlay
-                                playsInline
+                                ref={afterVideoRef}
                                 className="question-video"
-                                poster="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiMzMzMzMzMiLz48dGV4dCB4PSI0MCIgeT0iMTAwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTUiIGZpbGw9IiNmZmYiPkxvYWRpbmcgdmlkZW8uLi48L3RleHQ+PC9zdmc+"
-                                onError={(e) => {
-                                  console.error("Video explanation loading error:", e);
-                                  e.target.onerror = null;
-                                  // Show placeholder for failed video
-                                  e.target.parentNode.innerHTML = `
-                                    <div class="video-error" style="width: 100%; height: 240px; background: #f1f1f1; display: flex; align-items: center; justify-content: center">
-                                      <span style="color: #555">Video explanation unavailable</span>
-                                    </div>
-                                  `;
-                                }}
                                 src={afterAnswerMedia}
-                                style={{ 
-                                  position: 'absolute',
-                                  top: 0,
-                                  left: 0,
-                                  width: '100%',
-                                  height: '100%'
-                                }}
+                                onError={() => setVideoError(true)}
                                 preload="metadata"
-                              >
-                                <p style={{ color: 'white', textAlign: 'center', marginTop: '20px' }}>
-                                  Загрузка видео объяснения...
-                                </p>
-                              </video>
+                                playsInline
+                                muted
+                                loop
+                              />
+                              {/* Video Progress Bar */}
+                              <div className={`video-progress-container ${videoLoading ? 'loading' : ''}`}>
+                                <div className="video-progress-bar">
+                                  <div 
+                                    className={videoLoading ? "video-loading-bar" : "video-progress"}
+                                    style={{ width: `${videoProgress}%` }}
+                                  ></div>
+                                </div>
+                              </div>
                             </div>
+                          </div>
+                        ) : (
+                          <img 
+                            src={afterAnswerMedia}
+                            alt="Explanation"
+                            className="question-image"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        )
+                      ) : (
+                        // Show main media
+                        currentQuestion.has_media && currentQuestion.media_url ? (
+                          currentQuestion.media_type === 'video' ? (
+                            videoError ? (
+                              <div className="no-media-placeholder">
+                                <FaExclamationTriangle style={{ marginRight: 'var(--space-sm)' }} />
+                                {getTranslation('videoError')}
+                              </div>
+                            ) : (
+                              <div className="media-container">
+                                <div className="video-container">
+                                  <video 
+                                    ref={videoRef}
+                                    className="question-video"
+                                    src={currentQuestion.media_url}
+                                    onError={() => setVideoError(true)}
+                                    preload="metadata"
+                                    playsInline
+                                    muted
+                                    loop
+                                  />
+                                  {/* Video Progress Bar */}
+                                  <div className={`video-progress-container ${videoLoading ? 'loading' : ''}`}>
+                                    <div className="video-progress-bar">
+                                      <div 
+                                        className={videoLoading ? "video-loading-bar" : "video-progress"}
+                                        style={{ width: `${videoProgress}%` }}
+                                      ></div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )
                           ) : (
                             <img 
-                              src={afterAnswerMedia}
-                              alt="Explanation image"
+                              src={currentQuestion.media_url}
+                              alt="Question"
                               className="question-image"
                               onError={(e) => {
-                                console.error("Image explanation loading error:", e);
-                                e.target.onerror = null;
-                                // Use inline SVG or data URI instead of external file
-                                e.target.src = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiNmMWYxZjEiLz48dGV4dCB4PSIzNSIgeT0iMTAwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTUiIGZpbGw9IiM1NTUiPkltYWdlIG5vdCBhdmFpbGFibGU8L3RleHQ+PC9zdmc+";
+                                e.target.style.display = 'none';
                               }}
-                              onLoad={() => console.log("Explanation image loaded successfully")}
                             />
                           )
                         ) : (
-                          // Показываем основное видео/изображение, если нет видео объяснения или пользователь еще не ответил
-                          currentQuestion && currentQuestion.has_media && currentQuestion.media_url ? (
-                            currentQuestion.media_type === 'video' ? (
-                              videoError ? (
-                                <div className="video-error">
-                                  <p>{getTranslation('videoError')}</p>
-                                  <div style={{ width: '100%', height: '240px', background: '#f1f1f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <span style={{ color: '#555' }}>Video unavailable</span>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div style={{ width: '100%', position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden' }}>
-                                  <video 
-                                    key={`video_${currentQuestion.id}_${videoBlobUrl || 'placeholder'}`}
-                                    controls
-                                    autoPlay
-                                    muted={false}
-                                    playsInline
-                                    className="question-video"
-                                    poster="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiMzMzMzMzMiLz48dGV4dCB4PSI0MCIgeT0iMTAwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTUiIGZpbGw9IiNmZmYiPkxvYWRpbmcgdmlkZW8uLi48L3RleHQ+PC9zdmc+"
-                                    onError={(e) => {
-                                      console.error("Video loading error:", e);
-                                      console.log("Video source that failed:", videoBlobUrl || currentQuestion.media_url);
-                                      // Try to create a more detailed error message
-                                      try {
-                                        console.log("Video element:", e.target);
-                                        console.log("Video error code:", e.target.error?.code);
-                                        console.log("Video error message:", e.target.error?.message);
-                                      } catch (err) {
-                                        console.error("Error in video error logging:", err);
-                                      }
-                                      setVideoError(true);
-                                      e.target.onerror = null;
-                                    }}
-                                    preload="metadata"
-                                    style={{ 
-                                      position: 'absolute',
-                                      top: 0,
-                                      left: 0,
-                                      width: '100%',
-                                      height: '100%'
-                                    }}
-                                    onLoadStart={() => console.log("Video load started")}
-                                    onLoadedData={() => console.log("Video data loaded successfully")}
-                                    onAbort={() => console.error("Video loading aborted")}
-                                    onStalled={() => console.error("Video loading stalled")}
-                                    src={videoBlobUrl || ""}
-                                  >
-                                    {!videoBlobUrl && (
-                                      <p style={{ color: 'white', textAlign: 'center', marginTop: '20px' }}>
-                                        Загрузка видео...
-                                      </p>
-                                    )}
-                                  </video>
-                                </div>
-                              )
-                            ) : (
-                              <img 
-                                key={`image_${currentQuestion.id}_${new Date().getTime()}`}
-                                src={currentQuestion.media_url}
-                                alt="Question image"
-                                className="question-image"
-                                onError={(e) => {
-                                  console.error("Image loading error:", e);
-                                  e.target.onerror = null;
-                                  // Use inline SVG or data URI instead of external file
-                                  e.target.src = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiNmMWYxZjEiLz48dGV4dCB4PSIzNSIgeT0iMTAwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTUiIGZpbGw9IiM1NTUiPkltYWdlIG5vdCBhdmFpbGFibGU8L3RleHQ+PC9zdmc+";
-                                }}
-                                onLoad={() => console.log("Image loaded successfully")}
-                                crossOrigin="anonymous"
-                              />
-                            )
-                          ) : (
-                            // Show "NO IMAGE" when no media is available
-                            <NoMediaPlaceholder />
-                          )
-                        )}
-                      </div>
-                      
-                      <div className="answer-options">
-                        {currentQuestion && currentQuestion.answers && currentQuestion.answers.map((answer, index) => {
-                          // Get answer text in current language
-                          const answerText = localizeText(answer);
-                          
-                          let answerClass = "answer-option";
-                          if (answerSubmitted) {
-                            if (index === selectedAnswer && (!isExamMode && index === correctAnswer)) {
-                              answerClass += " correct";
-                            } else if (index === selectedAnswer && (!isExamMode && index !== correctAnswer)) {
-                              answerClass += " incorrect";
-                            } else if (!isExamMode && index === correctAnswer) {
-                              answerClass += " correct";
-                            }
-                          } else if (index === selectedAnswer) {
-                            answerClass += " selected";
-                          }
-                          
-                          return (
-                            <div 
-                              key={index} 
-                              className={answerClass}
-                              onClick={() => !answerSubmitted && handleAnswerSubmit(index)}
-                            >
-                              <div className="answer-label">{String.fromCharCode(65 + index)}</div>
-                              <div className="answer-text">{answerText}</div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      
-                      {answerSubmitted && !isExamMode && (
-                        <div className="answer-explanation">
-                          {explanation && (
-                            <div className="explanation-text">
-                              <h3>{getTranslation('explanation')}</h3>
-                              <p>{localizeText(explanation)}</p>
-                            </div>
-                          )}
-                        </div>
+                          <div className="no-media-placeholder">
+                            <FaQuestionCircle style={{ marginRight: 'var(--space-sm)' }} />
+                            {getTranslation('noMedia')}
+                          </div>
+                        )
                       )}
-                    </>
+                    </div>
                   )}
-                </div>
+                  
+                  {/* Answer Options */}
+                  <div className="answer-options">
+                    {currentQuestion.answers && currentQuestion.answers.map((answer, index) => {
+                      const answerText = localizeText(answer);
+                      
+                      let answerClass = "answer-option";
+                      if (answerSubmitted) {
+                        if (index === selectedAnswer && (!isExamMode && index === correctAnswer)) {
+                          answerClass += " correct";
+                        } else if (index === selectedAnswer && (!isExamMode && index !== correctAnswer)) {
+                          answerClass += " incorrect";
+                        } else if (!isExamMode && index === correctAnswer) {
+                          answerClass += " correct";
+                        }
+                      } else if (index === selectedAnswer) {
+                        answerClass += " selected";
+                      }
+                      
+                      return (
+                        <div 
+                          key={index} 
+                          className={answerClass}
+                          onClick={() => !answerSubmitted && handleAnswerSubmit(index)}
+                          tabIndex={answerSubmitted ? -1 : 0}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter' && !answerSubmitted) {
+                              handleAnswerSubmit(index);
+                            }
+                          }}
+                        >
+                          <div className="answer-label">{String.fromCharCode(65 + index)}</div>
+                          <div className="answer-text">{answerText}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Explanation */}
+                  {answerSubmitted && !isExamMode && explanation && (
+                    <div className="answer-explanation">
+                      <div className="explanation-header">
+                        <FaLightbulb />
+                        <div className="explanation-title">{getTranslation('explanation')}</div>
+                      </div>
+                      <div className="explanation-content">
+                        {localizeText(explanation)}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
           
+          {/* Navigation */}
           <div className="test-navigation">
             <button 
               className="nav-button prev"
               onClick={handlePrevQuestion}
-              disabled={currentQuestionIndex === 0 || !answerSubmitted}
+              disabled={currentQuestionIndex === 0}
             >
               <FaArrowLeft />
               <span>{getTranslation('previousQuestion')}</span>
@@ -1241,6 +1299,102 @@ const TestPage = () => {
           </div>
         </div>
       </div>
+      
+      {/* Test Actions - Floating buttons */}
+      <div className="test-actions">
+        <button 
+          className="action-button nav" 
+          onClick={toggleQuestionNav}
+          data-tooltip={getTranslation('questionNavigator')}
+        >
+          <FaBars />
+          <span>{getTranslation('questionNavigator')}</span>
+        </button>
+        
+        <button 
+          className="action-button danger" 
+          onClick={handleOpenReport}
+          data-tooltip={getTranslation('reportQuestion')}
+        >
+          <FaExclamationTriangle />
+          <span>{getTranslation('report')}</span>
+        </button>
+        
+        <button 
+          className="action-button danger" 
+          onClick={() => {
+            if (confirm(getTranslation('confirmFinishTest'))) {
+              finishTest();
+            }
+          }}
+          data-tooltip={getTranslation('finishEarly')}
+        >
+          <FaFlag />
+          <span>{getTranslation('finishEarly')}</span>
+        </button>
+      </div>
+      
+      {/* Report Modal */}
+      {showReportModal && (
+        <div className="report-modal-overlay" onClick={handleCloseReport}>
+          <div className="report-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="report-modal-header">
+              <div className="report-modal-title">{getTranslation('reportQuestion')}</div>
+              <div className="report-modal-subtitle">
+                {getTranslation('question')} {currentQuestionIndex + 1}: {getTranslation('helpUsImprove')}
+              </div>
+            </div>
+            
+            <form className="report-form" onSubmit={handleSubmitReport}>
+              <div className="form-group">
+                <label className="form-label">{getTranslation('reportType')}</label>
+                <select 
+                  className="form-select"
+                  value={reportData.type}
+                  onChange={(e) => setReportData({...reportData, type: e.target.value})}
+                  required
+                >
+                  <option value="">{getTranslation('selectReportType')}</option>
+                  <option value="incorrect_answer">{getTranslation('incorrectAnswer')}</option>
+                  <option value="unclear_question">{getTranslation('unclearQuestion')}</option>
+                  <option value="technical_issue">{getTranslation('technicalIssue')}</option>
+                  <option value="inappropriate_content">{getTranslation('inappropriateContent')}</option>
+                  <option value="other">{getTranslation('other')}</option>
+                </select>
+              </div>
+              
+              <div className="form-group">
+                <label className="form-label">{getTranslation('description')}</label>
+                <textarea 
+                  className="form-textarea"
+                  value={reportData.description}
+                  onChange={(e) => setReportData({...reportData, description: e.target.value})}
+                  placeholder={getTranslation('describeIssue')}
+                  required
+                />
+              </div>
+              
+              <div className="report-modal-actions">
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={handleCloseReport}
+                  disabled={reportSubmitting}
+                >
+                  {getTranslation('cancel')}
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn btn-danger"
+                  disabled={reportSubmitting || !reportData.type || !reportData.description.trim()}
+                >
+                  {reportSubmitting ? getTranslation('submitting') : getTranslation('submitReport')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

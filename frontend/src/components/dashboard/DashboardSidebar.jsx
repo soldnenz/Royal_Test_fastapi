@@ -1,11 +1,18 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { translations } from '../../translations/translations';
 import React, { useState, useEffect } from 'react';
 import { FaHome, FaChartBar, FaClipboardList, FaUserFriends, FaCrown, FaCreditCard, FaUserAlt, FaCog, FaGift, FaUser, FaUsers, FaMoneyBill } from 'react-icons/fa';
 
-const DashboardSidebar = ({ isOpen, toggleSidebar }) => {
-  const { language } = useLanguage();
+const DashboardSidebar = ({ isOpen, toggleSidebar, currentTheme, currentLanguage }) => {
+  // Use props for theme/language if provided, otherwise use context
+  const languageContext = useLanguage();
+  const themeContext = useTheme();
+  
+  const language = currentLanguage || languageContext.language;
+  const theme = currentTheme || themeContext.theme;
+  
   const t = translations[language];
   const location = useLocation();
   const [isMobile, setIsMobile] = useState(false);

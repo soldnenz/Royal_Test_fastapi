@@ -4,6 +4,7 @@ import LoadingSpinner from '../../shared/components/LoadingSpinner';
 import ErrorDisplay from '../../shared/components/ErrorDisplay';
 import ProgressBar from '../../shared/components/ProgressBar';
 import { useToast, TOAST_TYPES } from '../../shared/ToastContext';
+import { WATERMARK_CONFIG, getFontSize, getWatermarkGrid } from './watermarkConfig';
 
 const TestCreator = ({ onCreated }) => {
   // Form state
@@ -26,6 +27,8 @@ const TestCreator = ({ onCreated }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [progress, setProgress] = useState(0);
+  const [watermarkProgress, setWatermarkProgress] = useState(0);
+  const [isProcessingWatermark, setIsProcessingWatermark] = useState(false);
   const { showToast } = useToast();
   
   // Add theme detection
@@ -158,6 +161,216 @@ const TestCreator = ({ onCreated }) => {
       console.warn('PDD_SECTIONS is empty or not an array', PDD_SECTIONS);
     }
   }, []);
+
+  // Add watermark to video function
+  const addWatermarkToVideo = async (videoFile, onProgress = () => {}) => {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      video.src = URL.createObjectURL(videoFile);
+      video.muted = true;
+      video.crossOrigin = 'anonymous';
+      video.preload = 'metadata';
+      
+      video.onloadedmetadata = async () => {
+        // Получаем все параметры из оригинального видео
+        const videoWidth = video.videoWidth;
+        const videoHeight = video.videoHeight;
+        const videoDuration = video.duration;
+        
+        // Пытаемся получить оригинальную частоту кадров, иначе используем 30 по умолчанию
+        let originalFrameRate = 30;
+        try {
+          // Создаем VideoDecoder для получения реальных параметров видео (если поддерживается)
+          if ('VideoDecoder' in window) {
+            originalFrameRate = video.videoFrameRate || 30;
+          }
+        } catch (e) {
+          console.log('Using default frame rate');
+        }
+        
+        // Создаем canvas с точными размерами оригинального видео
+        const canvas = document.createElement('canvas');
+        canvas.width = videoWidth;
+        canvas.height = videoHeight;
+        
+        const ctx = canvas.getContext('2d', { 
+          alpha: false,
+          colorSpace: 'srgb',
+          desynchronized: true
+        });
+        
+        // Используем конфигурацию водяных знаков
+        const fontSize = getFontSize(canvas.width, canvas.height);
+        const { gridSize, stepX, stepY, marginX, marginY } = getWatermarkGrid(canvas.width, canvas.height);
+        
+        // Определяем выходной формат
+        let selectedMimeType = null;
+        for (const type of WATERMARK_CONFIG.video.supportedFormats) {
+          if (MediaRecorder.isTypeSupported(type)) {
+            selectedMimeType = type;
+            break;
+          }
+        }
+        
+        if (!selectedMimeType) {
+          reject(new Error('Браузер не поддерживает запись видео'));
+          return;
+        }
+        
+        // Получаем максимально возможный битрейт для качества
+        const stream = canvas.captureStream(originalFrameRate);
+        
+        // Рассчитываем точный битрейт оригинального видео
+        const fileSizeInBits = videoFile.size * 8;
+        const originalBitrate = Math.floor(fileSizeInBits / videoDuration);
+        
+        // Используем оригинальный битрейт с компенсацией для водяных знаков
+        // +30% для компенсации дополнительных деталей от водяных знаков
+        const targetBitrate = Math.floor(originalBitrate * 1.15);
+        
+        const mediaRecorderOptions = {
+          mimeType: selectedMimeType,
+          videoBitsPerSecond: targetBitrate
+        };
+        
+        const mediaRecorder = new MediaRecorder(stream, mediaRecorderOptions);
+        
+        const chunks = [];
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            chunks.push(event.data);
+          }
+        };
+        
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(chunks, { type: selectedMimeType });
+          
+          // Сохраняем оригинальное расширение файла
+          const originalExtension = videoFile.name.split('.').pop().toLowerCase();
+          let outputExtension = originalExtension;
+          
+          // Только если браузер не поддерживает mp4, используем webm
+          if (originalExtension === 'mp4' && !selectedMimeType.includes('mp4')) {
+            outputExtension = 'webm';
+          }
+          
+          const watermarkedFile = new File([blob], 
+            videoFile.name.replace(/\.[^/.]+$/, `_watermarked.${outputExtension}`), {
+            type: selectedMimeType
+          });
+          resolve(watermarkedFile);
+        };
+        
+        // Создаем водяные знаки один раз для переиспользования
+        const watermarkCanvas = document.createElement('canvas');
+        watermarkCanvas.width = canvas.width;
+        watermarkCanvas.height = canvas.height;
+        const watermarkCtx = watermarkCanvas.getContext('2d', { alpha: true });
+        
+        // Очищаем canvas водяных знаков
+        watermarkCtx.clearRect(0, 0, watermarkCanvas.width, watermarkCanvas.height);
+        
+        // Настройки шрифта из конфигурации
+        watermarkCtx.fillStyle = WATERMARK_CONFIG.colors.text;
+        watermarkCtx.strokeStyle = WATERMARK_CONFIG.colors.stroke;
+        watermarkCtx.lineWidth = WATERMARK_CONFIG.colors.strokeWidth;
+        watermarkCtx.font = `${WATERMARK_CONFIG.font.weight} ${fontSize}px ${WATERMARK_CONFIG.font.family}`;
+        watermarkCtx.textAlign = 'center';
+        watermarkCtx.textBaseline = 'middle';
+        
+        // Настройки тени из конфигурации
+        if (WATERMARK_CONFIG.shadow.enabled) {
+          watermarkCtx.shadowColor = WATERMARK_CONFIG.shadow.color;
+          watermarkCtx.shadowBlur = WATERMARK_CONFIG.shadow.blur;
+          watermarkCtx.shadowOffsetX = WATERMARK_CONFIG.shadow.offsetX;
+          watermarkCtx.shadowOffsetY = WATERMARK_CONFIG.shadow.offsetY;
+        }
+        
+        // Рисуем водяные знаки один раз
+        for (let i = 1; i <= gridSize; i++) {
+          for (let j = 1; j <= gridSize; j++) {
+            const x = marginX + stepX * i;
+            const y = marginY + stepY * j;
+            
+            watermarkCtx.save();
+            watermarkCtx.translate(x, y);
+            watermarkCtx.rotate(WATERMARK_CONFIG.rotation * Math.PI / 180);
+            
+            // Сначала обводка, потом заливка для лучшей видимости
+            if (WATERMARK_CONFIG.colors.strokeWidth > 0) {
+              watermarkCtx.strokeText(WATERMARK_CONFIG.text, 0, 0);
+            }
+            watermarkCtx.fillText(WATERMARK_CONFIG.text, 0, 0);
+            
+            watermarkCtx.restore();
+          }
+        }
+        
+        // Рассчитываем точное количество кадров
+        const totalFrames = Math.floor(videoDuration * originalFrameRate);
+        const frameInterval = videoDuration / totalFrames;
+        
+        let currentFrame = 0;
+        let expectedTime = 0;
+        const startProcessingTime = performance.now();
+        
+        const processFrame = () => {
+          if (currentFrame >= totalFrames) {
+            mediaRecorder.stop();
+            return;
+          }
+          
+          // Точное время для текущего кадра
+          const exactTime = currentFrame * frameInterval;
+          video.currentTime = Math.min(exactTime, videoDuration - 0.01);
+          
+          video.onseeked = () => {
+            // Полностью очищаем canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Устанавливаем нормальные настройки для рисования оригинального видео
+            ctx.save();
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.globalAlpha = 1.0;
+            
+            // Рисуем оригинальный кадр видео БЕЗ изменений
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Восстанавливаем состояние после рисования видео
+            ctx.restore();
+            
+            // Теперь накладываем водяные знаки отдельно с их собственной прозрачностью
+            ctx.save();
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.globalAlpha = WATERMARK_CONFIG.opacity;
+            ctx.drawImage(watermarkCanvas, 0, 0);
+            ctx.restore();
+            
+            // Обновляем прогресс
+            const progressPercent = (currentFrame / totalFrames) * 100;
+            onProgress(progressPercent);
+            
+            currentFrame++;
+            
+            // Рассчитываем точную задержку для следующего кадра
+            expectedTime += frameInterval * 1000; // переводим в миллисекунды
+            const currentProcessingTime = performance.now() - startProcessingTime;
+            const delay = Math.max(0, expectedTime - currentProcessingTime);
+            
+            setTimeout(processFrame, delay);
+          };
+        };
+        
+        // Начинаем запись и обработку
+        mediaRecorder.start();
+        processFrame();
+      };
+      
+      video.onerror = () => {
+        reject(new Error('Ошибка при загрузке видео'));
+      };
+    });
+  };
 
   // Handle form submission
   const handleSubmit = async (e) => {
@@ -411,7 +624,7 @@ const TestCreator = ({ onCreated }) => {
   };
 
   // Handle main media file selection
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
       if (ALLOWED_MEDIA_TYPES.includes(file.type)) {
@@ -422,7 +635,31 @@ const TestCreator = ({ onCreated }) => {
           }
           return;
         }
-        setMedia(file);
+        
+        // Process video watermarks if it's a video file
+        if (file.type.startsWith('video/')) {
+          setIsProcessingWatermark(true);
+          setWatermarkProgress(0);
+          
+          try {
+            showToast('Добавление водяных знаков к видео...', TOAST_TYPES.INFO);
+            
+            const watermarkedFile = await addWatermarkToVideo(file, (progress) => {
+              setWatermarkProgress(progress);
+            });
+            
+            setMedia(watermarkedFile);
+            showToast('Водяные знаки успешно добавлены!', TOAST_TYPES.SUCCESS);
+          } catch (error) {
+            console.error('Ошибка при добавлении водяных знаков:', error);
+            showToast('Ошибка при добавлении водяных знаков. Используется оригинальное видео.', TOAST_TYPES.WARNING);
+            setMedia(file); // Use original file if watermarking fails
+          } finally {
+            setIsProcessingWatermark(false);
+          }
+        } else {
+          setMedia(file);
+        }
       } else {
         showToast('Неподдерживаемый тип файла. Разрешены: JPG, PNG и MP4.', TOAST_TYPES.ERROR);
         // Clear file input
@@ -434,7 +671,7 @@ const TestCreator = ({ onCreated }) => {
   };
 
   // Handle after-answer media file selection
-  const handleAfterAnswerFileChange = (e) => {
+  const handleAfterAnswerFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
       if (ALLOWED_MEDIA_TYPES.includes(file.type)) {
@@ -445,7 +682,31 @@ const TestCreator = ({ onCreated }) => {
           }
           return;
         }
-        setAfterAnswerMedia(file);
+        
+        // Process video watermarks if it's a video file
+        if (file.type.startsWith('video/')) {
+          setIsProcessingWatermark(true);
+          setWatermarkProgress(0);
+          
+          try {
+            showToast('Добавление водяных знаков к дополнительному видео...', TOAST_TYPES.INFO);
+            
+            const watermarkedFile = await addWatermarkToVideo(file, (progress) => {
+              setWatermarkProgress(progress);
+            });
+            
+            setAfterAnswerMedia(watermarkedFile);
+            showToast('Водяные знаки успешно добавлены к дополнительному видео!', TOAST_TYPES.SUCCESS);
+          } catch (error) {
+            console.error('Ошибка при добавлении водяных знаков:', error);
+            showToast('Ошибка при добавлении водяных знаков. Используется оригинальное видео.', TOAST_TYPES.WARNING);
+            setAfterAnswerMedia(file); // Use original file if watermarking fails
+          } finally {
+            setIsProcessingWatermark(false);
+          }
+        } else {
+          setAfterAnswerMedia(file);
+        }
       } else {
         showToast('Неподдерживаемый тип файла. Разрешены: JPG, PNG и MP4.', TOAST_TYPES.ERROR);
         // Clear file input
@@ -470,7 +731,7 @@ const TestCreator = ({ onCreated }) => {
     }
   };
 
-  const handleDrop = (e) => {
+  const handleDrop = async (e) => {
     e.preventDefault();
     if (dropzoneRef.current) {
       dropzoneRef.current.style.background = 'var(--bg-secondary)';
@@ -483,13 +744,50 @@ const TestCreator = ({ onCreated }) => {
           showToast('Размер файла превышает лимит 50МБ', TOAST_TYPES.ERROR);
           return;
         }
-        setMedia(file);
-        // Update file input for consistency
-        if (fileInputRef.current) {
-          // This is a workaround as we can't directly set files property
-          const dataTransfer = new DataTransfer();
-          dataTransfer.items.add(file);
-          fileInputRef.current.files = dataTransfer.files;
+        
+        // Process video watermarks if it's a video file
+        if (file.type.startsWith('video/')) {
+          setIsProcessingWatermark(true);
+          setWatermarkProgress(0);
+          
+          try {
+            showToast('Добавление водяных знаков к видео...', TOAST_TYPES.INFO);
+            
+            const watermarkedFile = await addWatermarkToVideo(file, (progress) => {
+              setWatermarkProgress(progress);
+            });
+            
+            setMedia(watermarkedFile);
+            showToast('Водяные знаки успешно добавлены!', TOAST_TYPES.SUCCESS);
+            
+            // Update file input for consistency
+            if (fileInputRef.current) {
+              const dataTransfer = new DataTransfer();
+              dataTransfer.items.add(watermarkedFile);
+              fileInputRef.current.files = dataTransfer.files;
+            }
+          } catch (error) {
+            console.error('Ошибка при добавлении водяных знаков:', error);
+            showToast('Ошибка при добавлении водяных знаков. Используется оригинальное видео.', TOAST_TYPES.WARNING);
+            setMedia(file); // Use original file if watermarking fails
+            
+            // Update file input for consistency
+            if (fileInputRef.current) {
+              const dataTransfer = new DataTransfer();
+              dataTransfer.items.add(file);
+              fileInputRef.current.files = dataTransfer.files;
+            }
+          } finally {
+            setIsProcessingWatermark(false);
+          }
+        } else {
+          setMedia(file);
+          // Update file input for consistency
+          if (fileInputRef.current) {
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            fileInputRef.current.files = dataTransfer.files;
+          }
         }
       } else {
         showToast('Неподдерживаемый тип файла. Разрешены: JPG, PNG и MP4.', TOAST_TYPES.ERROR);
@@ -511,7 +809,7 @@ const TestCreator = ({ onCreated }) => {
     }
   };
 
-  const handleAfterAnswerDrop = (e) => {
+  const handleAfterAnswerDrop = async (e) => {
     e.preventDefault();
     if (afterAnswerDropzoneRef.current) {
       afterAnswerDropzoneRef.current.style.background = 'var(--bg-secondary)';
@@ -524,13 +822,50 @@ const TestCreator = ({ onCreated }) => {
           showToast('Размер файла превышает лимит 50МБ', TOAST_TYPES.ERROR);
           return;
         }
-        setAfterAnswerMedia(file);
-        // Update file input for consistency
-        if (afterAnswerFileInputRef.current) {
-          // This is a workaround as we can't directly set files property
-          const dataTransfer = new DataTransfer();
-          dataTransfer.items.add(file);
-          afterAnswerFileInputRef.current.files = dataTransfer.files;
+        
+        // Process video watermarks if it's a video file
+        if (file.type.startsWith('video/')) {
+          setIsProcessingWatermark(true);
+          setWatermarkProgress(0);
+          
+          try {
+            showToast('Добавление водяных знаков к дополнительному видео...', TOAST_TYPES.INFO);
+            
+            const watermarkedFile = await addWatermarkToVideo(file, (progress) => {
+              setWatermarkProgress(progress);
+            });
+            
+            setAfterAnswerMedia(watermarkedFile);
+            showToast('Водяные знаки успешно добавлены к дополнительному видео!', TOAST_TYPES.SUCCESS);
+            
+            // Update file input for consistency
+            if (afterAnswerFileInputRef.current) {
+              const dataTransfer = new DataTransfer();
+              dataTransfer.items.add(watermarkedFile);
+              afterAnswerFileInputRef.current.files = dataTransfer.files;
+            }
+          } catch (error) {
+            console.error('Ошибка при добавлении водяных знаков:', error);
+            showToast('Ошибка при добавлении водяных знаков. Используется оригинальное видео.', TOAST_TYPES.WARNING);
+            setAfterAnswerMedia(file); // Use original file if watermarking fails
+            
+            // Update file input for consistency
+            if (afterAnswerFileInputRef.current) {
+              const dataTransfer = new DataTransfer();
+              dataTransfer.items.add(file);
+              afterAnswerFileInputRef.current.files = dataTransfer.files;
+            }
+          } finally {
+            setIsProcessingWatermark(false);
+          }
+        } else {
+          setAfterAnswerMedia(file);
+          // Update file input for consistency
+          if (afterAnswerFileInputRef.current) {
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            afterAnswerFileInputRef.current.files = dataTransfer.files;
+          }
         }
       } else {
         showToast('Неподдерживаемый тип файла. Разрешены: JPG, PNG и MP4.', TOAST_TYPES.ERROR);
@@ -846,13 +1181,22 @@ const TestCreator = ({ onCreated }) => {
         </div>
 
         {/* Progress bar */}
-        {loading && (
+        {(loading || isProcessingWatermark) && (
           <div className="form-row">
-            <ProgressBar 
-              progress={progress} 
-              label={`Загрузка... ${Math.round(progress)}%`}
-              color="var(--accent)" 
-            />
+            {loading && (
+              <ProgressBar 
+                progress={progress} 
+                label={`Загрузка... ${Math.round(progress)}%`}
+                color="var(--accent)" 
+              />
+            )}
+            {isProcessingWatermark && (
+              <ProgressBar 
+                progress={watermarkProgress} 
+                label={`Добавление водяных знаков... ${Math.round(watermarkProgress)}%`}
+                color="var(--primary)" 
+              />
+            )}
           </div>
         )}
 
@@ -869,7 +1213,7 @@ const TestCreator = ({ onCreated }) => {
             type="button"
             className="form-button secondary"
             onClick={resetForm}
-            disabled={loading}
+            disabled={loading || isProcessingWatermark}
             style={{ backgroundColor: 'var(--card-bg)', color: 'var(--main-text)', border: '1px solid var(--border-color)' }}
           >
             Очистить
@@ -877,10 +1221,10 @@ const TestCreator = ({ onCreated }) => {
           <button
             type="submit"
             className="form-button primary"
-            disabled={loading}
+            disabled={loading || isProcessingWatermark}
             style={{ backgroundColor: 'var(--success)', color: 'white' }}
           >
-            {loading ? <LoadingSpinner size="small" /> : '✅ Создать вопрос'}
+            {loading || isProcessingWatermark ? <LoadingSpinner size="small" /> : '✅ Создать вопрос'}
           </button>
         </div>
       </form>

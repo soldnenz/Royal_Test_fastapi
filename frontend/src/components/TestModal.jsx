@@ -4,7 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import api from '../utils/axios';
 import '../pages/dashboard/styles.css';
 
-const TestModal = ({ isOpen, onClose, category, subscription, translations: t, isDarkTheme }) => {
+const TestModal = ({ isOpen, onClose, category, subscription, translations: t, isDark }) => {
+  console.log('TestModal rendered with props:', { isOpen, category: category?.title, subscription: subscription?.subscription_type });
+  
   const [examMode, setExamMode] = useState(false);
   const [selectedSections, setSelectedSections] = useState([]);
   const [sectionsData, setSectionsData] = useState([]);
@@ -28,8 +30,13 @@ const TestModal = ({ isOpen, onClose, category, subscription, translations: t, i
         const response = await api.get('/lobbies/active-lobby');
         
         console.log("Active lobby check response:", response.data);
+        console.log("Response data object:", JSON.stringify(response.data.data, null, 2));
+        
         if (response.data.status === "ok") {
           const lobbyData = response.data.data;
+          console.log("Lobby data has_active_lobby:", lobbyData.has_active_lobby);
+          console.log("Full lobby data:", lobbyData);
+          
           if (lobbyData.has_active_lobby) {
             console.log("Active lobby found:", lobbyData);
             setActiveLobby(lobbyData);
@@ -201,22 +208,48 @@ const TestModal = ({ isOpen, onClose, category, subscription, translations: t, i
       }
     } catch (error) {
       console.error('Error creating test:', error);
+      console.error('Full error object:', JSON.stringify(error, null, 2));
       console.error('Error response:', error.response?.data);
+      console.error('Error response details:', JSON.stringify(error.response?.data, null, 2));
       
       // Handle special case for active lobby
-      if (error.response && error.response.status === 400 && error.response.data.details && error.response.data.details.active_lobby_id) {
-        const { active_lobby_id, remaining_seconds } = error.response.data.details;
+      if (error.response && error.response.status === 400) {
+        const errorDetail = error.response.data.detail;
         
-        console.log(`Found active lobby ${active_lobby_id} with ${remaining_seconds} seconds remaining`);
-        
-        // Store active lobby info
-        setActiveLobby({
-          has_active_lobby: true,
-          lobby_id: active_lobby_id,
-          remaining_seconds: remaining_seconds || 0
-        });
-        
-        setError(error.response.data.message || t['activeTestExists'] || 'You have an active test. Please continue it or wait for it to expire.');
+        // Check if the detail is an object with active_lobby_id (new format)
+        if (errorDetail && typeof errorDetail === 'object' && errorDetail.active_lobby_id) {
+          const { active_lobby_id, remaining_seconds, message } = errorDetail;
+          
+          console.log(`Found active lobby ${active_lobby_id} with ${remaining_seconds} seconds remaining`);
+          
+          // Store active lobby info
+          setActiveLobby({
+            has_active_lobby: true,
+            lobby_id: active_lobby_id,
+            remaining_seconds: remaining_seconds || 0
+          });
+          
+          setError(message || t['activeTestExists'] || 'You have an active test. Please continue it or wait for it to expire.');
+        } 
+        // Check if the detail is an object with details.active_lobby_id (old format)
+        else if (error.response.data.details && error.response.data.details.active_lobby_id) {
+          const { active_lobby_id, remaining_seconds } = error.response.data.details;
+          
+          console.log(`Found active lobby ${active_lobby_id} with ${remaining_seconds} seconds remaining`);
+          
+          // Store active lobby info
+          setActiveLobby({
+            has_active_lobby: true,
+            lobby_id: active_lobby_id,
+            remaining_seconds: remaining_seconds || 0
+          });
+          
+          setError(error.response.data.message || t['activeTestExists'] || 'You have an active test. Please continue it or wait for it to expire.');
+        }
+        // Handle string detail (simple error message)
+        else {
+          setError(errorDetail || error.response?.data?.message || t['failedToCreateTest'] || 'Failed to create test');
+        }
       } else {
         setError(error.response?.data?.message || t['failedToCreateTest'] || 'Failed to create test');
       }
@@ -225,11 +258,16 @@ const TestModal = ({ isOpen, onClose, category, subscription, translations: t, i
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    console.log('TestModal not rendering because isOpen is false');
+    return null;
+  }
+
+  console.log('TestModal rendering modal content');
 
   return (
     <div className="test-modal-overlay" onClick={handleOverlayClick}>
-      <div className={`test-modal ${isDarkTheme ? 'dark-theme' : ''}`}>
+      <div className={`test-modal ${isDark ? 'dark-theme' : ''}`}>
         <div className="test-modal-header">
           <h2>{t['test.startTest'] || 'Start Test'}</h2>
           <button className="close-button" onClick={onClose}>
@@ -279,7 +317,7 @@ const TestModal = ({ isOpen, onClose, category, subscription, translations: t, i
                     {category.level}
                   </div>
                   <div className="questions-count">
-                    40 {t['questions'] || 'questions'}
+                    {category.questions || 40} {t['questions'] || 'questions'}
                   </div>
                 </div>
               </div>
@@ -298,7 +336,7 @@ const TestModal = ({ isOpen, onClose, category, subscription, translations: t, i
                 {t['test.examMode'] || 'Exam Mode'} 
                 <span className="tooltip-container">
                   <span className="tooltip-text">
-                    {t['test.examModeTooltip'] || 'In exam mode, you will have 40 minutes to complete the test and will only see correct answers at the end.'}
+                    {t['test.examModeTooltip'] || `В экзаменационном режиме у вас будет ${category.questions || 40} минут на прохождение теста и вы увидите правильные ответы только в конце.`}
                   </span>
                 </span>
               </label>

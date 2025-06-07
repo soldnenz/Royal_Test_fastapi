@@ -6,16 +6,50 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../utils/axios';
 
 // Icons
-import { MdDirectionsBike, MdDirectionsCar, MdLocalShipping, MdPersonAdd, MdTimer, MdInfo, MdStar } from 'react-icons/md';
-import { FaTruck, FaTruckMoving, FaBusAlt, FaLock, FaInfoCircle, FaCrown, FaRocket, FaTrophy, FaArrowRight, FaExclamationCircle, FaTimes, FaCheck, FaPlay, FaClock, FaStar } from 'react-icons/fa';
-import './styles.css';
+import { 
+  MdDirectionsBike, 
+  MdDirectionsCar, 
+  MdLocalShipping, 
+  MdPersonAdd, 
+  MdTimer, 
+  MdInfo, 
+  MdStar,
+  MdTrendingUp,
+  MdSchool,
+  MdSpeed
+} from 'react-icons/md';
+import { 
+  FaTruck, 
+  FaTruckMoving, 
+  FaBusAlt, 
+  FaLock, 
+  FaInfoCircle, 
+  FaCrown, 
+  FaRocket, 
+  FaTrophy, 
+  FaArrowRight, 
+  FaExclamationCircle, 
+  FaTimes, 
+  FaCheck, 
+  FaPlay, 
+  FaClock, 
+  FaStar,
+  FaUsers,
+  FaGamepad,
+  FaChartLine,
+  FaGraduationCap,
+  FaFire,
+  FaShieldAlt
+} from 'react-icons/fa';
+import './test-dashboard.css';
 import TestModal from '../../components/TestModal';
 
 const TestDashboardPage = () => {
   const { language } = useLanguage();
   const t = translations[language];
-  const { isDarkTheme } = useTheme();
+  const { isDark } = useTheme();
   const navigate = useNavigate();
+  
   const [activeTab, setActiveTab] = useState('single');
   const [subscription, setSubscription] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -29,6 +63,10 @@ const TestDashboardPage = () => {
   const [activeLobby, setActiveLobby] = useState(null);
   const [remainingTime, setRemainingTime] = useState(0);
   const [isLoadingLobby, setIsLoadingLobby] = useState(false);
+
+  // Categories stats state
+  const [categoriesStats, setCategoriesStats] = useState(null);
+  const [totalQuestions, setTotalQuestions] = useState(0);
 
   // Enable entry animations after initial render
   useEffect(() => {
@@ -77,8 +115,13 @@ const TestDashboardPage = () => {
       const response = await api.get('/lobbies/active-lobby');
       
       console.log("Active lobby check response:", response.data);
+      console.log("Response data object:", JSON.stringify(response.data.data, null, 2));
+      
       if (response.data.status === "ok") {
         const lobbyData = response.data.data;
+        console.log("Lobby data has_active_lobby:", lobbyData.has_active_lobby);
+        console.log("Full lobby data:", lobbyData);
+        
         if (lobbyData.has_active_lobby) {
           console.log("Active lobby found:", lobbyData);
           setActiveLobby(lobbyData);
@@ -98,6 +141,193 @@ const TestDashboardPage = () => {
       setErrorMessage(error.response?.data?.message || t['failedToCheckActiveLobby'] || 'Failed to check for active lobbies');
     } finally {
       setIsLoadingLobby(false);
+    }
+  };
+
+  // Test categories with their permissions - now dynamic
+  const getTestCategories = () => {
+    if (!categoriesStats) {
+      // Fallback to static data while loading
+      return [
+        {
+          id: 'cat1',
+          title: 'A1, A, B1',
+          description: t['test.motorcycle_license'] || 'Motorcycle License',
+          icon: <MdDirectionsBike size={28} />,
+          allowedPlans: ['economy', 'vip', 'royal'],
+          questions: 0,
+          level: t['level.beginner'] || 'Beginner',
+          color: 'emerald',
+          difficulty: 1,
+        },
+        {
+          id: 'cat2',
+          title: 'B, BE',
+          description: t['test.car_license'] || 'Car License',
+          icon: <MdDirectionsCar size={28} />,
+          allowedPlans: ['economy', 'vip', 'royal'],
+          questions: 0,
+          level: t['level.beginner'] || 'Beginner',
+          popular: true,
+          color: 'blue',
+          difficulty: 1,
+        },
+        {
+          id: 'cat3',
+          title: 'C, C1',
+          description: t['test.truck_license'] || 'Truck License',
+          icon: <FaTruck size={28} />,
+          allowedPlans: ['vip', 'royal'],
+          questions: 0,
+          level: t['level.intermediate'] || 'Intermediate',
+          color: 'amber',
+          difficulty: 2,
+        },
+        {
+          id: 'cat4',
+          title: 'BC1',
+          description: t['test.commercial_license'] || 'Commercial License',
+          icon: <FaTruckMoving size={28} />,
+          allowedPlans: ['vip', 'royal'],
+          questions: 0,
+          level: t['level.intermediate'] || 'Intermediate',
+          color: 'orange',
+          difficulty: 2,
+        },
+        {
+          id: 'cat5',
+          title: 'D1, D, Tb',
+          description: t['test.bus_license'] || 'Bus License',
+          icon: <FaBusAlt size={28} />,
+          allowedPlans: ['vip', 'royal'],
+          questions: 0,
+          level: t['level.advanced'] || 'Advanced',
+          color: 'purple',
+          difficulty: 3,
+        },
+        {
+          id: 'cat6',
+          title: 'C1, CE, D1, DE',
+          description: t['test.heavy_vehicle_license'] || 'Heavy Vehicle License',
+          icon: <MdLocalShipping size={28} />,
+          allowedPlans: ['vip', 'royal'],
+          questions: 0,
+          level: t['level.advanced'] || 'Advanced',
+          color: 'red',
+          difficulty: 3,
+        },
+        {
+          id: 'cat7',
+          title: 'Tm',
+          description: t['test.tram_license'] || 'Tram License',
+          icon: <MdTimer size={28} />,
+          allowedPlans: ['vip', 'royal'],
+          questions: 0,
+          level: t['level.advanced'] || 'Advanced',
+          color: 'indigo',
+          difficulty: 3,
+        }
+      ];
+    }
+
+    // Map API data to UI format
+    const categoryMapping = {
+      'cat1': {
+        description: t['test.motorcycle_license'] || 'Motorcycle License',
+        icon: <MdDirectionsBike size={28} />,
+        allowedPlans: ['economy', 'vip', 'royal'],
+        level: t['level.beginner'] || 'Beginner',
+        color: 'emerald',
+        difficulty: 1,
+      },
+      'cat2': {
+        description: t['test.car_license'] || 'Car License',
+        icon: <MdDirectionsCar size={28} />,
+        allowedPlans: ['economy', 'vip', 'royal'],
+        level: t['level.beginner'] || 'Beginner',
+        popular: true,
+        color: 'blue',
+        difficulty: 1,
+      },
+      'cat3': {
+        description: t['test.truck_license'] || 'Truck License',
+        icon: <FaTruck size={28} />,
+        allowedPlans: ['vip', 'royal'],
+        level: t['level.intermediate'] || 'Intermediate',
+        color: 'amber',
+        difficulty: 2,
+      },
+      'cat4': {
+        description: t['test.commercial_license'] || 'Commercial License',
+        icon: <FaTruckMoving size={28} />,
+        allowedPlans: ['vip', 'royal'],
+        level: t['level.intermediate'] || 'Intermediate',
+        color: 'orange',
+        difficulty: 2,
+      },
+      'cat5': {
+        description: t['test.bus_license'] || 'Bus License',
+        icon: <FaBusAlt size={28} />,
+        allowedPlans: ['vip', 'royal'],
+        level: t['level.advanced'] || 'Advanced',
+        color: 'purple',
+        difficulty: 3,
+      },
+      'cat6': {
+        description: t['test.heavy_vehicle_license'] || 'Heavy Vehicle License',
+        icon: <MdLocalShipping size={28} />,
+        allowedPlans: ['vip', 'royal'],
+        level: t['level.advanced'] || 'Advanced',
+        color: 'red',
+        difficulty: 3,
+      },
+      'cat7': {
+        description: t['test.tram_license'] || 'Tram License',
+        icon: <MdTimer size={28} />,
+        allowedPlans: ['vip', 'royal'],
+        level: t['level.advanced'] || 'Advanced',
+        color: 'indigo',
+        difficulty: 3,
+      }
+    };
+
+    return categoriesStats.categories.map(categoryData => {
+      const mapping = categoryMapping[categoryData.id];
+      return {
+        id: categoryData.id,
+        title: categoryData.title,
+        categories: categoryData.categories,
+        breakdown: categoryData.breakdown,
+        description: mapping.description,
+        icon: mapping.icon,
+        allowedPlans: mapping.allowedPlans,
+        questions: categoryData.total_questions,
+        level: mapping.level,
+        popular: mapping.popular,
+        color: mapping.color,
+        difficulty: mapping.difficulty,
+      };
+    });
+  };
+
+  // Fetch categories statistics
+  const fetchCategoriesStats = async () => {
+    try {
+      console.log("Fetching categories statistics");
+      const response = await api.get('/lobbies/categories/stats');
+      
+      if (response.data.status === "ok") {
+        const statsData = response.data.data;
+        console.log("Categories stats received:", statsData);
+        setCategoriesStats(statsData);
+        setTotalQuestions(statsData.total_questions);
+      } else {
+        console.error("Error in categories stats response:", response.data);
+        setErrorMessage(response.data.message || t['failedToLoadCategories'] || 'Failed to load categories data');
+      }
+    } catch (error) {
+      console.error('Error fetching categories stats:', error);
+      setErrorMessage(error.response?.data?.message || t['failedToLoadCategories'] || 'Failed to load categories data');
     }
   };
 
@@ -127,6 +357,9 @@ const TestDashboardPage = () => {
           setErrorMessage(response.data.message || t['failedToLoadSubscription'] || 'Failed to load subscription data');
         }
         
+        // Fetch categories statistics
+        await fetchCategoriesStats();
+        
         // Check for active test lobby
         await checkActiveLobby();
         
@@ -142,72 +375,7 @@ const TestDashboardPage = () => {
   }, [t]);
 
   // Test categories with their permissions
-  const testCategories = [
-    {
-      id: 'cat1',
-      title: 'A1, A, B1',
-      description: t['test.motorcycle_license'] || 'Motorcycle License',
-      icon: <MdDirectionsBike size={24} />,
-      allowedPlans: ['economy', 'vip', 'royal'],
-      questions: 225,
-      level: t['level.beginner'] || 'Beginner',
-    },
-    {
-      id: 'cat2',
-      title: 'B, BE',
-      description: t['test.car_license'] || 'Car License',
-      icon: <MdDirectionsCar size={24} />,
-      allowedPlans: ['economy', 'vip', 'royal'],
-      questions: 350,
-      level: t['level.beginner'] || 'Beginner',
-      popular: true,
-    },
-    {
-      id: 'cat3',
-      title: 'C, C1',
-      description: t['test.truck_license'] || 'Truck License',
-      icon: <FaTruck size={24} />,
-      allowedPlans: ['vip', 'royal'],
-      questions: 280,
-      level: t['level.intermediate'] || 'Intermediate',
-    },
-    {
-      id: 'cat4',
-      title: 'BC1',
-      description: t['test.commercial_license'] || 'Commercial License',
-      icon: <FaTruckMoving size={24} />,
-      allowedPlans: ['vip', 'royal'],
-      questions: 310,
-      level: t['level.intermediate'] || 'Intermediate',
-    },
-    {
-      id: 'cat5',
-      title: 'D1, D, Tb',
-      description: t['test.bus_license'] || 'Bus License',
-      icon: <FaBusAlt size={24} />,
-      allowedPlans: ['vip', 'royal'],
-      questions: 290,
-      level: t['level.advanced'] || 'Advanced',
-    },
-    {
-      id: 'cat6',
-      title: 'C1, CE, D1, DE',
-      description: t['test.heavy_vehicle_license'] || 'Heavy Vehicle License',
-      icon: <MdLocalShipping size={24} />,
-      allowedPlans: ['vip', 'royal'],
-      questions: 320,
-      level: t['level.advanced'] || 'Advanced',
-    },
-    {
-      id: 'cat7',
-      title: 'Tm',
-      description: t['test.tram_license'] || 'Tram License',
-      icon: <MdTimer size={24} />,
-      allowedPlans: ['vip', 'royal'],
-      questions: 200,
-      level: t['level.advanced'] || 'Advanced',
-    }
-  ];
+  const testCategories = getTestCategories();
 
   // Check if category is available based on subscription
   const isCategoryAvailable = (category) => {
@@ -217,36 +385,43 @@ const TestDashboardPage = () => {
     return category.allowedPlans.includes(subscription.subscription_type.toLowerCase());
   };
 
-  // Level badge color
-  const getLevelColor = (level) => {
-    const levelKey = level.toLowerCase();
-    switch(levelKey) {
-      case 'beginner':
-      case t['level.beginner']?.toLowerCase():
-        return 'level-beginner';
-      case 'intermediate':
-      case t['level.intermediate']?.toLowerCase():
-        return 'level-intermediate';
-      case 'advanced':
-      case t['level.advanced']?.toLowerCase():
-        return 'level-advanced';
-      default: return '';
+  // Get subscription tier info
+  const getSubscriptionTier = () => {
+    if (!subscription) return { name: 'Free', icon: null, color: 'gray' };
+    
+    const type = subscription.subscription_type?.toLowerCase();
+    switch(type) {
+      case 'economy':
+        return { name: 'Economy', icon: <MdSchool />, color: 'emerald' };
+      case 'vip':
+        return { name: 'VIP', icon: <FaStar />, color: 'purple' };
+      case 'royal':
+        return { name: 'Royal', icon: <FaCrown />, color: 'amber' };
+      case 'school':
+        return { name: 'School', icon: <FaGraduationCap />, color: 'blue' };
+      default:
+        return { name: 'Free', icon: null, color: 'gray' };
     }
   };
 
   // Handler for starting a test
   const handleStartTest = (category) => {
+    console.log('handleStartTest called with category:', category);
+    
     // Check if there's an active test first
     if (activeLobby) {
+      console.log('Active lobby detected, showing alert');
       // Show message that user should continue or finish active test
       alert(t['test.hasActiveTest'] || 'You have an active test. Please continue or finish it before starting a new one.');
       return;
     }
     
+    console.log('Setting selected category and opening modal');
     setSelectedCategory(category);
     setTestModalOpen(true);
     // Prevent scrolling when modal is open
     document.body.classList.add('modal-open');
+    console.log('Modal should be open now, testModalOpen:', true);
   };
 
   // Update the modal close handling to remove the class
@@ -293,254 +468,273 @@ const TestDashboardPage = () => {
     // Implement join lobby logic
   };
 
-  // Render a tooltip
-  const renderTooltip = (text, icon = null) => (
-    <div className={`tooltip-container ${isDarkTheme ? 'dark-theme' : ''}`}>
-      {icon || <MdInfo className="tooltip-icon" />}
-      <div className="tooltip-text">{text}</div>
-    </div>
-  );
+  const subscriptionTier = getSubscriptionTier();
 
   return (
-    <div className={`test-dashboard ${isDarkTheme ? 'dark-theme' : ''} ${animateEntry ? 'animate-entry' : ''}`}>
-      <div className="dashboard-header">
-        <h1 className="dashboard-title">
-          {t['test.title'] || 'Категории тестов'}
-          {renderTooltip(t['testCategories'] || 'Choose a test category to begin practice')}
-        </h1>
-        
-        <div className="subscription-info-container">
-          {subscription ? (
-            <div className="subscription-info">
-              <div className={`subscription-badge ${subscription.subscription_type?.toLowerCase()}`}>
-                {subscription.subscription_type === 'royal' && <FaCrown className="badge-icon" />}
-                {subscription.subscription_type === 'vip' && <FaStar className="badge-icon" />}
-                <span>{subscription.subscription_type}</span>
+    <div className={`test-dashboard ${isDark ? 'dark-theme' : ''} ${animateEntry ? 'animate-entry' : ''}`}>
+      {/* Hero Section */}
+      <div className="hero-section">
+        <div className="hero-content">
+          <div className="hero-text">
+            <h1 className="hero-title">
+              <span className="title-main">{t['test.title'] || 'Категории тестов'}</span>
+              <span className="title-subtitle">{t['test.subtitle'] || 'Выберите категорию для начала обучения'}</span>
+            </h1>
+            <p className="hero-description">
+              {t['test.hero_description'] || 'Подготовьтесь к экзамену с официальными вопросами и современными методами обучения'}
+            </p>
+            {totalQuestions > 0 && (
+              <div className="total-questions-info">
+                <MdInfo className="info-icon" />
+                <span>{t['total_questions'] || 'Всего вопросов'}: <strong>{totalQuestions}</strong></span>
               </div>
-              <div className="days-left">
-                {t['daysLeft'] || 'Days left'}: <span>{subscription.days_left}</span>
+            )}
+          </div>
+          
+          <div className="subscription-card">
+            <div className="subscription-header">
+              <div className={`subscription-badge tier-${subscriptionTier.color}`}>
+                {subscriptionTier.icon}
+                <span>{subscriptionTier.name}</span>
               </div>
+              {subscription && (
+                <div className="days-remaining">
+                  <FaClock className="clock-icon" />
+                  <span>{subscription.days_left} {t['daysLeft'] || 'дней'}</span>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="no-subscription-info">
-              <FaExclamationCircle className="warning-icon" />
-              <span>{t['subscriptionBenefits'] || 'Activate a subscription to access all features'}</span>
-            </div>
-          )}
+            
+            {!subscription && (
+              <div className="upgrade-prompt">
+                <FaExclamationCircle className="warning-icon" />
+                <span>{t['subscriptionBenefits'] || 'Активируйте подписку для доступа ко всем функциям'}</span>
+                <button className="upgrade-btn">
+                  <FaRocket />
+                  {t['upgrade'] || 'Обновить'}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Active Test Notification */}
+      {/* Active Test Alert */}
       {activeLobby && (
-        <div className={`active-test-notification ${isDarkTheme ? 'dark-theme' : ''}`}>
-          <div className="notification-icon">
-            <FaExclamationCircle />
+        <div className="active-test-alert">
+          <div className="alert-icon">
+            <FaPlay />
           </div>
-          <div className="notification-content">
-            <h3>{t['test.activeTestAvailable'] || 'You have an active test'}</h3>
-            <p>
-              {t['test.activeTestMessage'] || 'You have an in-progress test. Continue where you left off or start a new test after completing this one.'}
-            </p>
-            <div className="time-remaining">
-              <FaClock /> {t['test.timeRemaining'] || 'Time remaining'}: <span>{formatTime(remainingTime)}</span>
+          <div className="alert-content">
+            <h3>{t['test.activeTestAvailable'] || 'У вас есть активный тест'}</h3>
+            <p>{t['test.activeTestMessage'] || 'Продолжите с того места, где остановились'}</p>
+            <div className="time-display">
+              <FaClock />
+              <span>{formatTime(remainingTime)}</span>
             </div>
           </div>
-          <button 
-            className={`continue-test-button ${isDarkTheme ? 'dark-theme' : ''}`} 
-            onClick={handleContinueTest} 
-          >
+          <button className="continue-btn" onClick={handleContinueTest}>
             <FaPlay />
-            <span>{t['test.continueTest'] || 'Continue Test'}</span>
+            {t['test.continueTest'] || 'Продолжить'}
           </button>
         </div>
       )}
 
-      <div className={`progress-divider ${isDarkTheme ? 'dark-theme' : ''}`}>
-        <div className="divider-line"></div>
-        <div className="divider-text">{t['chooseMode'] || 'Choose testing mode'}</div>
-        <div className="divider-line"></div>
-      </div>
-
-      {/* Mode Tabs */}
-      <div className={`mode-tabs-container ${isDarkTheme ? 'dark-theme' : ''}`}>
+      {/* Mode Selection */}
+      <div className="mode-selection">
         <div className="mode-tabs">
           <button
             className={`mode-tab ${activeTab === 'single' ? 'active' : ''}`}
             onClick={() => setActiveTab('single')}
           >
-            <span>{t['test.single_mode'] || 'Одиночный'}</span>
+            <FaGraduationCap className="tab-icon" />
+            <span>{t['test.single_mode'] || 'Одиночный режим'}</span>
+            <span className="tab-description">{t['test.single_description_short'] || 'Индивидуальная практика'}</span>
           </button>
+          
           <button
             className={`mode-tab ${activeTab === 'multiplayer' ? 'active' : ''}`}
             onClick={() => setActiveTab('multiplayer')}
           >
+            <FaUsers className="tab-icon" />
             <span>{t['test.multiplayer_mode'] || 'Мультиплеер'}</span>
+            <span className="tab-description">{t['test.multiplayer_description_short'] || 'Соревнования в реальном времени'}</span>
           </button>
-          <div 
-            className="tab-indicator" 
-            style={{ transform: `translateX(${activeTab === 'single' ? '0' : '100%'})` }}
-          />
         </div>
       </div>
 
       {isLoading ? (
-        <div className={`loading-spinner ${isDarkTheme ? 'dark-theme' : ''}`}>
-          <div className="spinner"></div>
-          <p className="loading-text">{t['loading'] || 'Loading...'}</p>
+        <div className="loading-container">
+          <div className="loading-spinner">
+            <div className="spinner"></div>
+          </div>
+          <p className="loading-text">{t['loading'] || 'Загрузка...'}</p>
         </div>
       ) : errorMessage ? (
-        <div className={`error-message ${isDarkTheme ? 'dark-theme' : ''}`}>
+        <div className="error-container">
           <FaExclamationCircle className="error-icon" />
           <span>{errorMessage}</span>
         </div>
       ) : (
-        <>
+        <div className="content-section">
           {activeTab === 'single' ? (
-            <>
-              <div className={`section-description ${isDarkTheme ? 'dark-theme' : ''}`}>
-                <p>{t['test.single_description'] || 'Practice with official exam questions for each license category'}</p>
+            <div className="single-mode-content">
+              <div className="section-header">
+                <h2>{t['test.choose_category'] || 'Выберите категорию'}</h2>
+                <p>{t['test.single_description'] || 'Практикуйтесь с официальными экзаменационными вопросами для каждой категории'}</p>
               </div>
-              <div className={`categories-grid ${isDarkTheme ? 'dark-theme' : ''}`}>
+              
+              <div className="categories-grid">
                 {testCategories.map((category, index) => (
                   <div 
                     key={category.id}
-                    className={`category-card ${!isCategoryAvailable(category) ? 'disabled' : ''} ${category.popular ? 'popular' : ''} ${isDarkTheme ? 'dark-theme' : ''}`}
+                    className={`category-card ${!isCategoryAvailable(category) ? 'locked' : ''} ${category.popular ? 'popular' : ''}`}
                     onClick={() => isCategoryAvailable(category) && handleStartTest(category)}
                     style={{animationDelay: `${index * 0.1}s`}}
                   >
                     {category.popular && (
                       <div className="popular-badge">
-                        <FaTrophy className="popular-icon" />
-                        <span>{t['popular'] || 'Popular'}</span>
+                        <FaFire />
+                        <span>{t['popular'] || 'Популярное'}</span>
                       </div>
                     )}
-                    <div className="category-icon">
+                    
+                    <div className={`category-icon color-${category.color}`}>
                       {category.icon}
                     </div>
-                    <h3 className="category-title">{category.title}</h3>
-                    <p className="category-description">{category.description}</p>
                     
-                    <div className="category-meta">
-                      <div className={`level-badge ${getLevelColor(category.level)}`}>
-                        <span>{category.level}</span>
-                      </div>
-                      <div className="questions-count">
-                        {category.questions} {t['questions'] || 'questions'}
+                    <div className="category-info">
+                      <h3 className="category-title">{category.title}</h3>
+                      <p className="category-description">{category.description}</p>
+                      
+                      <div className="category-meta">
+                        <div className={`difficulty-badge difficulty-${category.difficulty}`}>
+                          {Array.from({ length: category.difficulty }, (_, i) => (
+                            <FaStar key={i} />
+                          ))}
+                          <span>{category.level}</span>
+                        </div>
+                        
+                        <div className="questions-count">
+                          <MdSpeed />
+                          <span>{category.questions} {t['questions'] || 'вопросов'}</span>
+                        </div>
                       </div>
                     </div>
                     
                     {isCategoryAvailable(category) ? (
-                      <div className={`start-test-button ${isDarkTheme ? 'dark-theme' : ''}`}>
-                        <span>{t['startTest'] || 'Start test'}</span>
-                        <FaArrowRight className="arrow-icon" />
-                      </div>
+                      <button 
+                        className="start-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStartTest(category);
+                        }}
+                      >
+                        <span>{t['startTest'] || 'Начать тест'}</span>
+                        <FaArrowRight />
+                      </button>
                     ) : (
-                      <div className={`upgrade-overlay ${isDarkTheme ? 'dark-theme' : ''}`}>
-                        <FaLock className="lock-icon" />
-                        <p>{t['test.upgrade_required'] || 'Upgrade required to access'}</p>
-                        <button className={`upgrade-button ${isDarkTheme ? 'dark-theme' : ''}`}>
-                          <span>{t['upgrade'] || 'Upgrade'}</span>
+                      <div className="lock-overlay">
+                        <FaLock />
+                        <span>{t['test.upgrade_required'] || 'Требуется подписка'}</span>
+                        <button className="unlock-btn">
+                          {t['upgrade'] || 'Обновить'}
                         </button>
                       </div>
                     )}
                   </div>
                 ))}
               </div>
-            </>
+            </div>
           ) : (
-            <div className={`multiplayer-container ${isDarkTheme ? 'dark-theme' : ''}`}>
-              <div className={`info-message ${isDarkTheme ? 'dark-theme' : ''}`}>
-                <FaInfoCircle className="info-icon" />
-                <div>
-                  <p className="info-title">{t['multiplayerTitle'] || 'Compete in real-time!'}</p>
-                  <p className="info-description">{t['lobbyCreation'] || 'Challenge your friends or other users in real-time tests'}</p>
-                </div>
+            <div className="multiplayer-content">
+              <div className="section-header">
+                <h2>{t['test.multiplayer_title'] || 'Мультиплеер режим'}</h2>
+                <p>{t['test.multiplayer_description'] || 'Соревнуйтесь с друзьями и другими пользователями'}</p>
               </div>
               
               <div className="multiplayer-options">
-                <div className={`multiplayer-option join-option ${isDarkTheme ? 'dark-theme' : ''}`}>
-                  <h3>{t['test.join_lobby'] || 'Присоединиться к лобби'}</h3>
-                  <p className="option-description">{t['test.join_description'] || 'Enter a lobby code to join an existing test session'}</p>
+                <div className="multiplayer-card join-card">
+                  <div className="card-header">
+                    <div className="card-icon join-icon">
+                      <FaGamepad />
+                    </div>
+                    <h3>{t['test.join_lobby'] || 'Присоединиться'}</h3>
+                    <p>{t['test.join_description'] || 'Введите код лобби для участия'}</p>
+                  </div>
                   
-                  <div className="lobby-join">
-                    <div className="input-with-label">
-                      <label htmlFor="lobbyCode">{t['test.lobby_code'] || 'Lobby Code'}</label>
+                  <div className="join-form">
+                    <div className="input-group">
                       <input
-                        id="lobbyCode"
                         type="text"
                         value={lobbyCode}
                         onChange={(e) => setLobbyCode(e.target.value)}
-                        placeholder={t['test.enter_lobby_code'] || 'Введите код лобби'}
-                        className={`lobby-input ${isDarkTheme ? 'dark-theme' : ''}`}
+                        placeholder={t['test.enter_lobby_code'] || 'Код лобби'}
+                        className="lobby-input"
                       />
+                      <button 
+                        className="join-btn"
+                        onClick={handleJoinLobby}
+                        disabled={!lobbyCode.trim()}
+                      >
+                        <FaArrowRight />
+                      </button>
                     </div>
-                    <button 
-                      className={`primary-button join-button ${isDarkTheme ? 'dark-theme' : ''}`}
-                      onClick={handleJoinLobby}
-                      disabled={!lobbyCode.trim()}
-                    >
-                      <span>{t['test.join'] || 'Присоединиться'}</span>
-                      <FaArrowRight className="button-icon" />
-                    </button>
                   </div>
                 </div>
                 
-                <div className={`multiplayer-option create-option ${isDarkTheme ? 'dark-theme' : ''}`}>
-                  <div className="option-header">
-                    <h3>{t['test.create_lobby'] || 'Создать лобби'}</h3>
-                    {(!subscription || 
-                      !['royal', 'school'].includes(subscription.subscription_type?.toLowerCase())) && (
-                      <div className="premium-badge">
-                        <FaCrown className="premium-icon" />
-                        <span>Royal</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <p className="option-description">{t['test.create_description'] || 'Create your own test lobby and invite friends'}</p>
-                  
-                  <div className="create-lobby-section">
-                    <div className="feature-list">
-                      <div className="feature-item">
-                        <FaRocket className="feature-icon" />
-                        <span>{t['test.feature_custom'] || 'Custom test settings'}</span>
-                      </div>
-                      <div className="feature-item">
-                        <FaTrophy className="feature-icon" />
-                        <span>{t['test.feature_leaderboard'] || 'Real-time leaderboard'}</span>
-                      </div>
+                <div className="multiplayer-card create-card">
+                  <div className="card-header">
+                    <div className="card-icon create-icon">
+                      <FaRocket />
                     </div>
-                    
-                    <button 
-                      className={`primary-button create-button ${isDarkTheme ? 'dark-theme' : ''} ${
-                        !subscription || 
-                        !['royal', 'school'].includes(subscription.subscription_type?.toLowerCase()) 
-                          ? 'disabled' 
-                          : ''
-                      }`}
-                      onClick={handleCreateLobby}
-                      disabled={
-                        !subscription || 
-                        !['royal', 'school'].includes(subscription.subscription_type?.toLowerCase())
-                      }
-                    >
-                      <MdPersonAdd size={20} className="icon-margin" />
-                      <span>{t['test.create'] || 'Создать'}</span>
-                    </button>
+                    <div className="header-content">
+                      <h3>{t['test.create_lobby'] || 'Создать лобби'}</h3>
+                      {(!subscription || !['royal', 'school'].includes(subscription.subscription_type?.toLowerCase())) && (
+                        <div className="premium-tag">
+                          <FaCrown />
+                          <span>Royal</span>
+                        </div>
+                      )}
+                    </div>
+                    <p>{t['test.create_description'] || 'Создайте собственное лобби'}</p>
                   </div>
                   
-                  {(!subscription || 
-                    !['royal', 'school'].includes(subscription.subscription_type?.toLowerCase())) && (
-                    <div className={`permission-note ${isDarkTheme ? 'dark-theme' : ''}`}>
-                      <FaInfoCircle className="note-icon" />
-                      <p>{t['test.royal_school_only'] || 'Доступно только для подписки Royal или School'}</p>
+                  <div className="features-list">
+                    <div className="feature-item">
+                      <FaChartLine />
+                      <span>{t['test.feature_custom'] || 'Настраиваемые параметры'}</span>
+                    </div>
+                    <div className="feature-item">
+                      <FaTrophy />
+                      <span>{t['test.feature_leaderboard'] || 'Таблица лидеров'}</span>
+                    </div>
+                    <div className="feature-item">
+                      <FaShieldAlt />
+                      <span>{t['test.feature_private'] || 'Приватные комнаты'}</span>
+                    </div>
+                  </div>
+                  
+                  <button 
+                    className={`create-btn ${!subscription || !['royal', 'school'].includes(subscription.subscription_type?.toLowerCase()) ? 'disabled' : ''}`}
+                    onClick={handleCreateLobby}
+                    disabled={!subscription || !['royal', 'school'].includes(subscription.subscription_type?.toLowerCase())}
+                  >
+                    <FaRocket />
+                    <span>{t['test.create'] || 'Создать'}</span>
+                  </button>
+                  
+                  {(!subscription || !['royal', 'school'].includes(subscription.subscription_type?.toLowerCase())) && (
+                    <div className="upgrade-note">
+                      <FaInfoCircle />
+                      <span>{t['test.royal_school_only'] || 'Доступно для Royal и School подписок'}</span>
                     </div>
                   )}
                 </div>
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {testModalOpen && (
@@ -550,7 +744,7 @@ const TestDashboardPage = () => {
           category={selectedCategory}
           subscription={subscription}
           translations={t}
-          isDarkTheme={isDarkTheme}
+          isDark={isDark}
         />
       )}
     </div>
