@@ -5,7 +5,6 @@ import { toast } from 'react-toastify';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import 'react-toastify/dist/ReactToastify.css';
-import { ToastContainer } from 'react-toastify';
 
 const SubscriptionPage = () => {
   const { language } = useLanguage();
@@ -109,10 +108,10 @@ const SubscriptionPage = () => {
   // Get subscription price based on type and duration
   const getSubscriptionPrice = (type, months = selectedDuration) => {
     const basePrice = {
-      'economy': 5000,
-      'vip': 10000,
-      'royal': 15000
-    }[type] || 5000;
+      'economy': 2000,  // Новая цена (было 5000)
+      'vip': 4000,      // Новая цена (было 10000) 
+      'royal': 6000     // Новая цена (было 15000)
+    }[type] || 2000;
     
     // Apply discount based on selected duration
     let discount = 0;
@@ -120,6 +119,21 @@ const SubscriptionPage = () => {
     if (months === 6) discount = 0.10; // 10% discount for 6 months
     
     return basePrice * months * (1 - discount);
+  };
+  
+  // Get old price for strikethrough
+  const getOldPrice = (type, months = selectedDuration) => {
+    const oldBasePrice = {
+      'economy': 5000,
+      'vip': 10000,
+      'royal': 15000
+    }[type] || 5000;
+    
+    let discount = 0;
+    if (months === 3) discount = 0.05;
+    if (months === 6) discount = 0.10;
+    
+    return oldBasePrice * months * (1 - discount);
   };
   
   // Handle subscription purchase
@@ -142,7 +156,9 @@ const SubscriptionPage = () => {
       });
       
       if (response.data.status === "ok") {
-        toast.success(tLang.purchaseSuccess || "Subscription purchased successfully!");
+        toast.success(tLang.purchaseSuccess || "Subscription purchased successfully!", {
+          autoClose: 5000
+        });
         
         // Update balance from response
         if (response.data.data && typeof response.data.data.balance_after === 'number') {
@@ -247,10 +263,18 @@ const SubscriptionPage = () => {
         if (response.data.status === "ok") {
           const promoCode = response.data.data?.promo_code;
           toast.success(
-            (promoCode ? `Ваш промокод: ${promoCode}. ` : '') +
+            (promoCode ? `${tLang.yourPromoCode || "Ваш промокод"}: ${promoCode}. ` : '') +
             (response.data.message || 
             tLang.promoCodeCreated || 
-            "Промокод успешно создан. Вы можете поделиться им с кем угодно.")
+            "Промокод успешно создан. Вы можете поделиться им с кем угодно."),
+            {
+              autoClose: 8000,
+              position: "top-right",
+              hideProgressBar: false,
+              closeOnClick: true,
+              pauseOnHover: true,
+              draggable: true
+            }
           );
           
           // Update balance from response
@@ -524,66 +548,77 @@ const SubscriptionPage = () => {
   const renderSubscriptionTypes = () => {
     return (
       <div className="mb-8">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
-          {tLang.choosePlanSubtitle || "Choose a plan that suits you"}
-        </h2>
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">
+            {tLang.choosePlanSubtitle || "Выберите тариф"}
+          </h2>
+          <p className="text-lg text-gray-600 dark:text-gray-400">
+            {tLang.specialPricesPromo || "Специальные цены! Экономьте до 60% на всех тарифах"}
+          </p>
+        </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
           {/* Economy Plan */}
           <div 
-            className={`relative overflow-hidden rounded-2xl transition-all duration-300 border-2 ${
+            className={`relative overflow-hidden rounded-3xl transition-all duration-300 border-3 cursor-pointer group ${
               selectedSubscriptionType === 'economy' 
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/10 shadow-lg shadow-blue-100 dark:shadow-blue-900/5' 
-                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/10 shadow-xl shadow-blue-100 dark:shadow-blue-900/20 scale-105' 
+                : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:scale-102'
             }`}
             onClick={() => setSelectedSubscriptionType('economy')}
           >
-            <div className="p-6 flex flex-col h-full">
-              <div className="flex items-center mb-4">
-                <div className={`p-2.5 rounded-full mr-3 ${selectedSubscriptionType === 'economy' ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'} text-white`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+            {/* Popular Badge for VIP */}
+            <div className="p-8 flex flex-col h-full min-h-[500px]">
+              <div className="text-center mb-6">
+                <div className={`inline-flex p-4 rounded-full mb-4 ${selectedSubscriptionType === 'economy' ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'} text-white transition-colors`}>
+                  <span className="text-2xl">🪙</span>
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">{tLang.economyTitle || "Economy"}</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{tLang.basicPlan || "Basic plan"}</p>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{tLang.economyTitle || "Эконом"}</h3>
+                <p className="text-gray-500 dark:text-gray-400">{tLang.basicPlan || "Базовый план"}</p>
+              </div>
+              
+              {/* Pricing with old price crossed out */}
+              <div className="text-center mb-8">
+                <div className="mb-2">
+                  <span className="text-sm text-gray-500 line-through">{formatMoney(getOldPrice('economy'))}</span>
+                </div>
+                <div className="flex items-baseline justify-center">
+                  <span className="text-4xl font-extrabold text-gray-900 dark:text-white">{formatMoney(getSubscriptionPrice('economy'))}</span>
+                  <span className="text-lg ml-2 text-gray-500 dark:text-gray-400">{tLang.perMonth || "/ мес"}</span>
+                </div>
+                <div className="mt-2">
+                  <span className="inline-block bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-sm font-semibold px-3 py-1 rounded-full">
+                    {tLang.savings || "Экономия"} {Math.round(((getOldPrice('economy') - getSubscriptionPrice('economy')) / getOldPrice('economy')) * 100)}%
+                  </span>
                 </div>
               </div>
               
-              <div className="mb-4">
-                <div className="flex items-baseline">
-                  <span className="text-3xl font-extrabold text-gray-900 dark:text-white">{formatMoney(getSubscriptionPrice('economy'))}</span>
-                  <span className="text-sm ml-1 text-gray-500 dark:text-gray-400">/ {tLang.month || "month"}</span>
-                </div>
-              </div>
-              
-              <ul className="space-y-3 mb-6 flex-grow min-h-[200px]">
+              <ul className="space-y-4 mb-8 flex-grow">
                 <li className="flex items-start">
-                  <svg className="h-5 w-5 text-blue-500 mt-0.5 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <svg className="h-6 w-6 text-blue-500 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700 dark:text-gray-300">{tLang.fullTestAccess || "Access to all tests"}</span>
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">{tLang.fullTestAccess || "Доступ ко всем тестам"}</span>
                 </li>
                 <li className="flex items-start">
-                  <svg className="h-5 w-5 text-blue-500 mt-0.5 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <svg className="h-6 w-6 text-blue-500 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700 dark:text-gray-300">{tLang.basicStatistics || "Basic statistics"}</span>
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">{tLang.basicStatistics || "Базовая статистика"}</span>
                 </li>
                 <li className="flex items-start">
-                  <svg className="h-5 w-5 text-blue-500 mt-0.5 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <svg className="h-6 w-6 text-blue-500 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700 dark:text-gray-300">{tLang.emailSupport || "Email support"}</span>
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">{tLang.emailSupport || "Email поддержка"}</span>
                 </li>
               </ul>
               
               <button
                 type="button"
-                className={`w-full py-2.5 px-4 rounded-lg text-center font-medium transition-colors mt-auto ${
+                className={`w-full py-4 px-6 rounded-xl text-center font-bold text-lg transition-all duration-200 ${
                   selectedSubscriptionType === 'economy'
-                    ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                    ? 'bg-blue-500 hover:bg-blue-600 text-white shadow-lg shadow-blue-200 dark:shadow-blue-900/20'
                     : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200'
                 }`}
                 onClick={(e) => {
@@ -591,77 +626,84 @@ const SubscriptionPage = () => {
                   setSelectedSubscriptionType('economy');
                 }}
               >
-                {selectedSubscriptionType === 'economy' ? (tLang.selected || "Selected") : (tLang.select || "Select")}
+                {selectedSubscriptionType === 'economy' ? (tLang.selected || '✓ Выбрано') : (tLang.selectPlan || 'Выбрать тариф')}
               </button>
             </div>
           </div>
 
           {/* VIP Plan */}
           <div 
-            className={`relative overflow-hidden rounded-2xl transition-all duration-300 border-2 ${
+            className={`relative overflow-hidden rounded-3xl transition-all duration-300 border-3 cursor-pointer group ${
               selectedSubscriptionType === 'vip' 
-                ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/10 shadow-lg shadow-purple-100 dark:shadow-purple-900/5' 
-                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/10 shadow-xl shadow-purple-100 dark:shadow-purple-900/20 scale-105' 
+                : 'border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-600 hover:scale-102'
             }`}
             onClick={() => setSelectedSubscriptionType('vip')}
           >
-            <div className="absolute top-4 right-4">
-              <span className="bg-purple-500 text-white text-xs px-2 py-1 rounded-full font-medium">
-                {tLang.popular || "Popular"}
+            {/* Popular Badge */}
+            <div className="absolute top-6 right-6 z-10">
+              <span className="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm px-4 py-2 rounded-full font-bold shadow-lg">
+                🔥 {tLang.popular || "Популярный"}
               </span>
             </div>
-            <div className="p-6 flex flex-col h-full">
-              <div className="flex items-center mb-4">
-                <div className={`p-2.5 rounded-full mr-3 ${selectedSubscriptionType === 'vip' ? 'bg-purple-500' : 'bg-gray-200 dark:bg-gray-700'} text-white`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                  </svg>
+            
+            <div className="p-8 flex flex-col h-full min-h-[500px]">
+              <div className="text-center mb-6">
+                <div className={`inline-flex p-4 rounded-full mb-4 ${selectedSubscriptionType === 'vip' ? 'bg-purple-500' : 'bg-gray-200 dark:bg-gray-700'} text-white transition-colors`}>
+                  <span className="text-2xl">⭐</span>
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">{tLang.vipTitle || "VIP"}</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{tLang.advancedPlan || "Advanced plan"}</p>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{tLang.vipTitle || "VIP"}</h3>
+                <p className="text-gray-500 dark:text-gray-400">{tLang.advancedPlan || "Продвинутый план"}</p>
+              </div>
+              
+              {/* Pricing with old price crossed out */}
+              <div className="text-center mb-8">
+                <div className="mb-2">
+                  <span className="text-sm text-gray-500 line-through">{formatMoney(getOldPrice('vip'))}</span>
+                </div>
+                <div className="flex items-baseline justify-center">
+                  <span className="text-4xl font-extrabold text-gray-900 dark:text-white">{formatMoney(getSubscriptionPrice('vip'))}</span>
+                  <span className="text-lg ml-2 text-gray-500 dark:text-gray-400">{tLang.perMonth || "/ мес"}</span>
+                </div>
+                <div className="mt-2">
+                  <span className="inline-block bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-sm font-semibold px-3 py-1 rounded-full">
+                    {tLang.savings || "Экономия"} {Math.round(((getOldPrice('vip') - getSubscriptionPrice('vip')) / getOldPrice('vip')) * 100)}%
+                  </span>
                 </div>
               </div>
               
-              <div className="mb-4">
-                <div className="flex items-baseline">
-                  <span className="text-3xl font-extrabold text-gray-900 dark:text-white">{formatMoney(getSubscriptionPrice('vip'))}</span>
-                  <span className="text-sm ml-1 text-gray-500 dark:text-gray-400">/ {tLang.month || "month"}</span>
-                </div>
-              </div>
-              
-              <ul className="space-y-3 mb-6 flex-grow min-h-[200px]">
+              <ul className="space-y-4 mb-8 flex-grow">
                 <li className="flex items-start">
-                  <svg className="h-5 w-5 text-purple-500 mt-0.5 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <svg className="h-6 w-6 text-purple-500 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700 dark:text-gray-300">{tLang.allEconomyFeatures || "All Economy features"}</span>
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">{tLang.allEconomyFeatures || "Все функции Эконом"}</span>
                 </li>
                 <li className="flex items-start">
-                  <svg className="h-5 w-5 text-purple-500 mt-0.5 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <svg className="h-6 w-6 text-purple-500 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700 dark:text-gray-300">{tLang.detailedStats || "Detailed statistics"}</span>
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">{tLang.detailedStats || "Детальная статистика"}</span>
                 </li>
                 <li className="flex items-start">
-                  <svg className="h-5 w-5 text-purple-500 mt-0.5 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <svg className="h-6 w-6 text-purple-500 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700 dark:text-gray-300">{tLang.createReferrals || "Create referral links"}</span>
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">{tLang.createReferrals || "Реферальные ссылки"}</span>
                 </li>
                 <li className="flex items-start">
-                  <svg className="h-5 w-5 text-purple-500 mt-0.5 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <svg className="h-6 w-6 text-purple-500 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700 dark:text-gray-300">{tLang.prioritySupport || "Priority support"}</span>
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">{tLang.prioritySupport || "Приоритетная поддержка"}</span>
                 </li>
               </ul>
               
               <button
                 type="button"
-                className={`w-full py-2.5 px-4 rounded-lg text-center font-medium transition-colors mt-auto ${
+                className={`w-full py-4 px-6 rounded-xl text-center font-bold text-lg transition-all duration-200 ${
                   selectedSubscriptionType === 'vip'
-                    ? 'bg-purple-500 hover:bg-purple-600 text-white'
+                    ? 'bg-purple-500 hover:bg-purple-600 text-white shadow-lg shadow-purple-200 dark:shadow-purple-900/20'
                     : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200'
                 }`}
                 onClick={(e) => {
@@ -669,72 +711,77 @@ const SubscriptionPage = () => {
                   setSelectedSubscriptionType('vip');
                 }}
               >
-                {selectedSubscriptionType === 'vip' ? (tLang.selected || "Selected") : (tLang.select || "Select")}
+                {selectedSubscriptionType === 'vip' ? (tLang.selected || '✓ Выбрано') : (tLang.selectPlan || 'Выбрать тариф')}
               </button>
             </div>
           </div>
 
           {/* Royal Plan */}
           <div 
-            className={`relative overflow-hidden rounded-2xl transition-all duration-300 border-2 ${
+            className={`relative overflow-hidden rounded-3xl transition-all duration-300 border-3 cursor-pointer group ${
               selectedSubscriptionType === 'royal' 
-                ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/10 shadow-lg shadow-amber-100 dark:shadow-amber-900/5' 
-                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/10 shadow-xl shadow-amber-100 dark:shadow-amber-900/20 scale-105' 
+                : 'border-gray-200 dark:border-gray-700 hover:border-amber-300 dark:hover:border-amber-600 hover:scale-102'
             }`}
             onClick={() => setSelectedSubscriptionType('royal')}
           >
-            <div className="p-6 flex flex-col h-full">
-              <div className="flex items-center mb-4">
-                <div className={`p-2.5 rounded-full mr-3 ${selectedSubscriptionType === 'royal' ? 'bg-amber-500' : 'bg-gray-200 dark:bg-gray-700'} text-white`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
+            <div className="p-8 flex flex-col h-full min-h-[500px]">
+              <div className="text-center mb-6">
+                <div className={`inline-flex p-4 rounded-full mb-4 ${selectedSubscriptionType === 'royal' ? 'bg-amber-500' : 'bg-gray-200 dark:bg-gray-700'} text-white transition-colors`}>
+                  <span className="text-2xl">👑</span>
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">{tLang.royalTitle || "Royal"}</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{tLang.premiumPlan || "Premium plan"}</p>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{tLang.royalTitle || "Роял"}</h3>
+                <p className="text-gray-500 dark:text-gray-400">{tLang.premiumPlan || "Премиум план"}</p>
+              </div>
+              
+              {/* Pricing with old price crossed out */}
+              <div className="text-center mb-8">
+                <div className="mb-2">
+                  <span className="text-sm text-gray-500 line-through">{formatMoney(getOldPrice('royal'))}</span>
+                </div>
+                <div className="flex items-baseline justify-center">
+                  <span className="text-4xl font-extrabold text-gray-900 dark:text-white">{formatMoney(getSubscriptionPrice('royal'))}</span>
+                  <span className="text-lg ml-2 text-gray-500 dark:text-gray-400">{tLang.perMonth || "/ мес"}</span>
+                </div>
+                <div className="mt-2">
+                  <span className="inline-block bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-sm font-semibold px-3 py-1 rounded-full">
+                    {tLang.savings || "Экономия"} {Math.round(((getOldPrice('royal') - getSubscriptionPrice('royal')) / getOldPrice('royal')) * 100)}%
+                  </span>
                 </div>
               </div>
               
-              <div className="mb-4">
-                <div className="flex items-baseline">
-                  <span className="text-3xl font-extrabold text-gray-900 dark:text-white">{formatMoney(getSubscriptionPrice('royal'))}</span>
-                  <span className="text-sm ml-1 text-gray-500 dark:text-gray-400">/ {tLang.month || "month"}</span>
-                </div>
-              </div>
-              
-              <ul className="space-y-3 mb-6 flex-grow min-h-[200px]">
+              <ul className="space-y-4 mb-8 flex-grow">
                 <li className="flex items-start">
-                  <svg className="h-5 w-5 text-amber-500 mt-0.5 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <svg className="h-6 w-6 text-amber-500 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700 dark:text-gray-300">{tLang.allVIPFeatures || "All VIP features"}</span>
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">{tLang.allVIPFeatures || "Все функции VIP"}</span>
                 </li>
                 <li className="flex items-start">
-                  <svg className="h-5 w-5 text-amber-500 mt-0.5 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <svg className="h-6 w-6 text-amber-500 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700 dark:text-gray-300">{tLang.exclusiveContent || "Exclusive content"}</span>
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">{tLang.exclusiveContent || "Эксклюзивный контент"}</span>
                 </li>
                 <li className="flex items-start">
-                  <svg className="h-5 w-5 text-amber-500 mt-0.5 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <svg className="h-6 w-6 text-amber-500 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700 dark:text-gray-300">{tLang.premiumSupport || "Premium 24/7 support"}</span>
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">{tLang.premiumSupport || "24/7 поддержка"}</span>
                 </li>
                 <li className="flex items-start">
-                  <svg className="h-5 w-5 text-amber-500 mt-0.5 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <svg className="h-6 w-6 text-amber-500 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700 dark:text-gray-300">{tLang.specialDiscounts || "Special discounts on additional services"}</span>
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">{tLang.specialDiscounts || "Скидки на доп. услуги"}</span>
                 </li>
               </ul>
               
               <button
                 type="button"
-                className={`w-full py-2.5 px-4 rounded-lg text-center font-medium transition-colors mt-auto ${
+                className={`w-full py-4 px-6 rounded-xl text-center font-bold text-lg transition-all duration-200 ${
                   selectedSubscriptionType === 'royal'
-                    ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                    ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-200 dark:shadow-amber-900/20'
                     : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200'
                 }`}
                 onClick={(e) => {
@@ -742,7 +789,7 @@ const SubscriptionPage = () => {
                   setSelectedSubscriptionType('royal');
                 }}
               >
-                {selectedSubscriptionType === 'royal' ? (tLang.selected || "Selected") : (tLang.select || "Select")}
+                {selectedSubscriptionType === 'royal' ? (tLang.selected || '✓ Выбрано') : (tLang.selectPlan || 'Выбрать тариф')}
               </button>
             </div>
           </div>
@@ -954,138 +1001,152 @@ const SubscriptionPage = () => {
   const renderDurationSelection = () => {
     return (
       <div className="mb-8">
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-          {tLang.chooseSubscriptionDuration || "Choose subscription duration"}
+        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">
+          {tLang.chooseSubscriptionDuration || "Выберите срок подписки"}
         </h3>
         
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-4xl mx-auto">
           {/* 1 Month */}
           <div 
-            className={`relative py-4 px-5 rounded-xl transition-all duration-200 border-2 ${
+            className={`relative py-6 px-8 rounded-2xl transition-all duration-300 border-2 cursor-pointer group ${
               selectedDuration === 1 
                 ? selectedSubscriptionType === 'economy' 
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/5' 
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/5 shadow-lg' 
                   : selectedSubscriptionType === 'vip' 
-                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/5' 
-                    : 'border-amber-500 bg-amber-50 dark:bg-amber-900/5'
-                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/5 shadow-lg' 
+                    : 'border-amber-500 bg-amber-50 dark:bg-amber-900/5 shadow-lg'
+                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md'
             }`}
             onClick={() => setSelectedDuration(1)}
           >
-            <div className="flex justify-between items-center">
-              <div>
-                <span className="block text-gray-900 dark:text-white font-medium">{tLang.month1 || "1 month"}</span>
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {tLang.standardPriceLabel || "Standard price"}
-                </span>
-              </div>
-              <div className="flex items-center">
-                <span className={`inline-block h-5 w-5 rounded-full ${
+            <div className="text-center">
+              <div className="flex justify-center mb-3">
+                <span className={`inline-block h-6 w-6 rounded-full border-2 ${
                   selectedDuration === 1 
                     ? selectedSubscriptionType === 'economy' 
-                      ? 'bg-blue-500' 
+                      ? 'bg-blue-500 border-blue-500' 
                       : selectedSubscriptionType === 'vip' 
-                        ? 'bg-purple-500' 
-                        : 'bg-amber-500'
-                    : 'bg-gray-200 dark:bg-gray-700'
+                        ? 'bg-purple-500 border-purple-500' 
+                        : 'bg-amber-500 border-amber-500'
+                    : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600'
                 } flex items-center justify-center`}>
                   {selectedDuration === 1 && (
-                    <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="h-4 w-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                   )}
                 </span>
+              </div>
+              <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{tLang.month1 || "1 месяц"}</h4>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                {tLang.standardPriceLabel || "Стандартная цена"}
+              </p>
+              <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                {formatMoney(getSubscriptionPrice(selectedSubscriptionType, 1))}
               </div>
             </div>
           </div>
           
           {/* 3 Months */}
           <div 
-            className={`relative py-4 px-5 rounded-xl transition-all duration-200 border-2 ${
+            className={`relative py-6 px-8 rounded-2xl transition-all duration-300 border-2 cursor-pointer group ${
               selectedDuration === 3 
                 ? selectedSubscriptionType === 'economy' 
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/5' 
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/5 shadow-lg' 
                   : selectedSubscriptionType === 'vip' 
-                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/5' 
-                    : 'border-amber-500 bg-amber-50 dark:bg-amber-900/5'
-                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/5 shadow-lg' 
+                    : 'border-amber-500 bg-amber-50 dark:bg-amber-900/5 shadow-lg'
+                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md'
             }`}
             onClick={() => setSelectedDuration(3)}
           >
-            <div className="flex justify-between items-center">
-              <div>
-                <span className="block text-gray-900 dark:text-white font-medium">{tLang.months3 || "3 months"}</span>
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {tLang.save || "Save"} 5%
-                </span>
-              </div>
-              <div className="flex items-center">
-                <span className={`inline-block h-5 w-5 rounded-full ${
+            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+              <span className="bg-green-500 text-white text-xs px-3 py-1 rounded-full font-bold">
+                {tLang.save || "Экономия"} 5%
+              </span>
+            </div>
+            <div className="text-center">
+              <div className="flex justify-center mb-3">
+                <span className={`inline-block h-6 w-6 rounded-full border-2 ${
                   selectedDuration === 3 
                     ? selectedSubscriptionType === 'economy' 
-                      ? 'bg-blue-500' 
+                      ? 'bg-blue-500 border-blue-500' 
                       : selectedSubscriptionType === 'vip' 
-                        ? 'bg-purple-500' 
-                        : 'bg-amber-500'
-                    : 'bg-gray-200 dark:bg-gray-700'
+                        ? 'bg-purple-500 border-purple-500' 
+                        : 'bg-amber-500 border-amber-500'
+                    : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600'
                 } flex items-center justify-center`}>
                   {selectedDuration === 3 && (
-                    <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="h-4 w-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                   )}
                 </span>
+              </div>
+              <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{tLang.months3 || "3 месяца"}</h4>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                {tLang.savings || "Экономия"} {formatMoney(getSubscriptionPrice(selectedSubscriptionType, 1) * 3 - getSubscriptionPrice(selectedSubscriptionType, 3))}
+              </p>
+              <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                {formatMoney(getSubscriptionPrice(selectedSubscriptionType, 3))}
+              </div>
+              <div className="text-sm text-gray-500 line-through">
+                {formatMoney(getSubscriptionPrice(selectedSubscriptionType, 1) * 3)}
               </div>
             </div>
           </div>
           
           {/* 6 Months */}
           <div 
-            className={`relative py-4 px-5 rounded-xl transition-all duration-200 border-2 ${
+            className={`relative py-6 px-8 rounded-2xl transition-all duration-300 border-2 cursor-pointer group ${
               selectedDuration === 6 
                 ? selectedSubscriptionType === 'economy' 
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/5' 
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/5 shadow-lg' 
                   : selectedSubscriptionType === 'vip' 
-                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/5' 
-                    : 'border-amber-500 bg-amber-50 dark:bg-amber-900/5'
-                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/5 shadow-lg' 
+                    : 'border-amber-500 bg-amber-50 dark:bg-amber-900/5 shadow-lg'
+                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md'
             }`}
             onClick={() => setSelectedDuration(6)}
           >
-            <div className="absolute -top-3 -right-2">
-              <span className={`inline-block px-2 py-1 text-xs font-medium text-white rounded-full ${
+            <div className="absolute -top-5 left-1/2 transform -translate-x-1/2 z-10">
+              <span className={`inline-block text-white text-sm px-4 py-2 rounded-full font-bold shadow-lg whitespace-nowrap ${
                 selectedSubscriptionType === 'economy' 
                   ? 'bg-blue-500' 
                   : selectedSubscriptionType === 'vip' 
                     ? 'bg-purple-500' 
                     : 'bg-amber-500'
               }`}>
-                {tLang.bestValue || "Best value"}
+                🏆 {tLang.bestValue || "Выгодно"}
               </span>
             </div>
-            <div className="flex justify-between items-center">
-              <div>
-                <span className="block text-gray-900 dark:text-white font-medium">{tLang.months6 || "6 months"}</span>
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {tLang.save || "Save"} 10%
-                </span>
-              </div>
-              <div className="flex items-center">
-                <span className={`inline-block h-5 w-5 rounded-full ${
+            <div className="text-center">
+              <div className="flex justify-center mb-3">
+                <span className={`inline-block h-6 w-6 rounded-full border-2 ${
                   selectedDuration === 6 
                     ? selectedSubscriptionType === 'economy' 
-                      ? 'bg-blue-500' 
+                      ? 'bg-blue-500 border-blue-500' 
                       : selectedSubscriptionType === 'vip' 
-                        ? 'bg-purple-500' 
-                        : 'bg-amber-500'
-                    : 'bg-gray-200 dark:bg-gray-700'
+                        ? 'bg-purple-500 border-purple-500' 
+                        : 'bg-amber-500 border-amber-500'
+                    : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600'
                 } flex items-center justify-center`}>
                   {selectedDuration === 6 && (
-                    <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="h-4 w-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                   )}
                 </span>
+              </div>
+              <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{tLang.months6 || "6 месяцев"}</h4>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                {tLang.savings || "Экономия"} {formatMoney(getSubscriptionPrice(selectedSubscriptionType, 1) * 6 - getSubscriptionPrice(selectedSubscriptionType, 6))}
+              </p>
+              <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                {formatMoney(getSubscriptionPrice(selectedSubscriptionType, 6))}
+              </div>
+              <div className="text-sm text-gray-500 line-through">
+                {formatMoney(getSubscriptionPrice(selectedSubscriptionType, 1) * 6)}
               </div>
             </div>
           </div>
@@ -1096,25 +1157,41 @@ const SubscriptionPage = () => {
 
   // Render purchase options
   const renderPurchaseOptions = () => {
+    const currentPrice = getSubscriptionPrice(selectedSubscriptionType, selectedDuration);
+    const oldPrice = getOldPrice(selectedSubscriptionType, selectedDuration);
+    const savings = oldPrice - currentPrice;
+    const savingsPercent = Math.round((savings / oldPrice) * 100);
+    
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-        <div className="mb-6 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-            {tLang.buySubscription || "Buy Subscription"}
-          </h2>
-          <button
-            type="button"
-            onClick={() => setIsGiftMode(!isGiftMode)}
-            className={`px-4 py-2 rounded-lg transition ${
-              isGiftMode
-                ? 'bg-primary-100 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-            }`}
-          >
-            {isGiftMode ? (tLang.purchaseForSelf || "Purchase for Self") : (tLang.buyAsGift || "Buy as Gift")}
-          </button>
+      <div className="max-w-4xl mx-auto">
+        {/* Gift Mode Toggle */}
+        <div className="mb-8 text-center">
+          <div className="inline-flex bg-gray-100 dark:bg-gray-800 rounded-2xl p-2">
+            <button
+              type="button"
+              onClick={() => setIsGiftMode(false)}
+              className={`px-6 py-3 rounded-xl font-semibold transition-all ${
+                !isGiftMode
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-md'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              🛒 {tLang.forMyself || "Для себя"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsGiftMode(true)}
+              className={`px-6 py-3 rounded-xl font-semibold transition-all ${
+                isGiftMode
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-md'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              🎁 {tLang.asGift || "В подарок"}
+            </button>
+          </div>
         </div>
-        
+
         {/* Subscription Types */}
         {renderSubscriptionTypes()}
         
@@ -1124,52 +1201,153 @@ const SubscriptionPage = () => {
         {/* Duration Selection */}
         {renderDurationSelection()}
         
-        {/* User Balance */}
-        <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/10 rounded-lg">
-          <div className="flex justify-between items-center">
-            <span className="text-lg font-medium text-gray-900 dark:text-white">{tLang.yourBalance || "Ваш баланс"}:</span>
-            <span className="text-lg font-bold text-gray-900 dark:text-white">{formatMoney(balance)}</span>
+        {/* Purchase Summary - Large and Clear */}
+        <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-3xl shadow-xl border border-gray-200 dark:border-gray-700 p-8 mb-8">
+          <div className="text-center mb-8">
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+              📋 {tLang.orderDetails || "Детали заказа"}
+            </h3>
+            
+            {/* Selected Plan Info */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 mb-6 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-center mb-4">
+                <div className={`p-3 rounded-full mr-4 ${
+                  selectedSubscriptionType === 'economy' ? 'bg-blue-500' :
+                  selectedSubscriptionType === 'vip' ? 'bg-purple-500' : 'bg-amber-500'
+                } text-white`}>
+                  {selectedSubscriptionType === 'economy' ? '🪙' :
+                   selectedSubscriptionType === 'vip' ? '⭐' : '👑'}
+                </div>
+                <div>
+                  <h4 className="text-xl font-bold text-gray-900 dark:text-white">
+                    {selectedSubscriptionType === 'economy' ? (tLang.planEconomy || 'Тариф Эконом') :
+                     selectedSubscriptionType === 'vip' ? (tLang.planVIP || 'Тариф VIP') : (tLang.planRoyal || 'Тариф Роял')}
+                  </h4>
+                  <p className="text-gray-500 dark:text-gray-400">
+                    {selectedDuration === 1 ? (tLang.duration1Month || '1 месяц') : 
+                     selectedDuration === 3 ? (tLang.duration3Months || '3 месяца') : (tLang.duration6Months || '6 месяцев')}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Price Breakdown */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center text-lg">
+                  <span className="text-gray-600 dark:text-gray-400">{tLang.originalPrice || "Обычная цена"}:</span>
+                  <span className="text-gray-500 line-through">{formatMoney(oldPrice)}</span>
+                </div>
+                <div className="flex justify-between items-center text-lg">
+                  <span className="text-gray-600 dark:text-gray-400">{tLang.yourDiscount || "Ваша скидка"}:</span>
+                  <span className="text-green-600 font-semibold">-{formatMoney(savings)} ({savingsPercent}%)</span>
+                </div>
+                <hr className="border-gray-200 dark:border-gray-700" />
+                <div className="flex justify-between items-center text-2xl font-bold">
+                  <span className="text-gray-900 dark:text-white">{tLang.totalToPay || "К оплате"}:</span>
+                  <span className={`${
+                    selectedSubscriptionType === 'economy' ? 'text-blue-600' :
+                    selectedSubscriptionType === 'vip' ? 'text-purple-600' : 'text-amber-600'
+                  }`}>
+                    {formatMoney(currentPrice)}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-        
-        {/* Total Price */}
-        <div className="mb-8 p-6 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-          <div className="flex justify-between items-center">
-            <span className="text-lg font-medium text-gray-900 dark:text-white">
-              {tLang.totalPrice || "Total Price"}:
-            </span>
-            <span className="text-2xl font-bold text-gray-900 dark:text-white">
-              {formatMoney(getSubscriptionPrice(selectedSubscriptionType, selectedDuration))}
-            </span>
+          
+          {/* User Balance */}
+          <div className="bg-blue-50 dark:bg-blue-900/10 rounded-2xl p-6 mb-6 border border-blue-200 dark:border-blue-800">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center">
+                <div className="bg-blue-500 p-2 rounded-full mr-3">
+                  <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">{tLang.yourBalance || "Ваш баланс"}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{tLang.willBeDeducted || "Будет списано с баланса"}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatMoney(balance)}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {tLang.afterPurchase || "После покупки"}: {formatMoney(balance - currentPrice)}
+                </p>
+              </div>
+            </div>
+            
+            {/* Insufficient Balance Warning */}
+            {balance < currentPrice && (
+              <div className="mt-4 p-4 bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                <div className="flex items-center">
+                  <svg className="h-6 w-6 text-red-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.081 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                  <div>
+                    <p className="font-semibold text-red-800 dark:text-red-200">{tLang.insufficientFunds || "Недостаточно средств"}</p>
+                    <p className="text-sm text-red-600 dark:text-red-300">
+                      {tLang.needToTopUp || "Нужно пополнить баланс на"} {formatMoney(currentPrice - balance)}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActiveTab('balance')}
+                  className="mt-3 w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                >
+                  💳 {tLang.topUpBalance || "Пополнить баланс"}
+                </button>
+              </div>
+            )}
           </div>
-        </div>
-        
-        {/* Purchase Button */}
-        <div className="flex justify-end">
+          
+          {/* Purchase Button - Large and Prominent */}
           <button
             type="button"
             onClick={isGiftMode ? handlePurchaseGift : handlePurchaseSubscription}
-            disabled={purchaseLoading}
-            className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-              selectedSubscriptionType === 'economy'
-                ? 'bg-blue-500 hover:bg-blue-600 text-white'
-                : selectedSubscriptionType === 'vip'
-                  ? 'bg-purple-500 hover:bg-purple-600 text-white'
-                  : 'bg-amber-500 hover:bg-amber-600 text-white'
+            disabled={purchaseLoading || balance < currentPrice}
+            className={`w-full py-6 px-8 rounded-2xl font-bold text-xl transition-all duration-200 shadow-lg ${
+              balance < currentPrice
+                ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                : selectedSubscriptionType === 'economy'
+                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-blue-200 dark:shadow-blue-900/20 hover:shadow-xl'
+                  : selectedSubscriptionType === 'vip'
+                    ? 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-purple-200 dark:shadow-purple-900/20 hover:shadow-xl'
+                    : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-amber-200 dark:shadow-amber-900/20 hover:shadow-xl'
             }`}
           >
             {purchaseLoading ? (
-              <span className="flex items-center">
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <div className="flex items-center justify-center">
+                <svg className="animate-spin -ml-1 mr-3 h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                {tLang.processing || "Processing..."}
-              </span>
+                {tLang.processingPayment || "Обработка платежа..."}
+              </div>
+            ) : balance < currentPrice ? (
+              `❌ ${tLang.insufficientFunds || "Недостаточно средств"}`
             ) : (
-              isGiftMode ? (tLang.purchaseGift || "Purchase Gift") : (tLang.buySubscription || "Buy Subscription")
+              <div className="flex items-center justify-center">
+                <span className="mr-3">
+                  {isGiftMode ? '🎁' : '🛒'}
+                </span>
+                {isGiftMode ? `${tLang.giftFor || "Подарить за"} ${formatMoney(currentPrice)}` : `${tLang.buyFor || "Купить за"} ${formatMoney(currentPrice)}`}
+                <span className="ml-3">
+                  {selectedSubscriptionType === 'economy' ? '🪙' :
+                   selectedSubscriptionType === 'vip' ? '⭐' : '👑'}
+                </span>
+              </div>
             )}
           </button>
+          
+          {/* Security Info */}
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center justify-center">
+              <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              🔒 {tLang.securityInfo || "Безопасная оплата • Мгновенная активация • Гарантия возврата"}
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -1366,20 +1544,6 @@ const SubscriptionPage = () => {
       {activeTab === 'subscription' && renderCurrentSubscription()}
       {activeTab === 'buy' && renderPurchaseOptions()}
       {activeTab === 'balance' && renderBalanceAndPromo()}
-      
-      {/* Toast container for notifications */}
-      <ToastContainer
-        position="top-right"
-        autoClose={5000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="colored"
-      />
     </div>
   );
 };

@@ -30,10 +30,10 @@
   --border-secondary: #f1f5f9;
   --border-accent: #d4af37;
   
-  /* Modern Gradients - Blue to Gold */
-  --gradient-primary: linear-gradient(135deg, #3B82F6 0%, #60A5FA 100%);
+  /* Modern Gradients - Golden */
+  --gradient-primary: linear-gradient(135deg, #d4af37 0%, #ffd700 100%);
   --gradient-accent: linear-gradient(135deg, #d4af37 0%, #ffd700 100%);
-  --gradient-header: linear-gradient(135deg, #3B82F6 0%, #d4af37 100%);
+  --gradient-header: linear-gradient(135deg, #d4af37 0%, #ffd700 100%);
   --gradient-bg: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
   
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -151,6 +151,16 @@
   background: var(--bg-card);
   color: var(--text-primary);
   border-color: var(--border-primary);
+}
+
+.dark-theme .answer-option.selected-exam {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.2) 0%, rgba(255, 215, 0, 0.15) 100%);
+  border-color: var(--accent);
+}
+
+.dark-theme .question-nav-item.answered-exam {
+  background: linear-gradient(135deg, var(--accent) 0%, #ffd700 100%);
+  color: var(--text-inverse);
 }
 
 /* Reset */
@@ -471,6 +481,13 @@ body {
   border-color: var(--success);
 }
 
+.question-nav-item.answered-exam {
+  background: linear-gradient(135deg, var(--accent) 0%, #ffd700 100%);
+  color: var(--text-inverse);
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.3);
+}
+
 .question-nav-item.incorrect {
   background: linear-gradient(135deg, var(--error) 0%, #dc2626 100%);
   color: var(--text-inverse);
@@ -656,6 +673,24 @@ body {
   box-shadow: var(--shadow-glass);
 }
 
+.answer-option.selected-exam {
+  border-color: var(--accent);
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.15) 0%, rgba(255, 215, 0, 0.1) 100%);
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.2);
+  position: relative;
+}
+
+.answer-option.selected-exam::after {
+  content: '✓';
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-4);
+  color: var(--accent);
+  font-size: var(--font-xl);
+  font-weight: bold;
+  animation: checkBounce 0.5s ease-out;
+}
+
 .answer-option.correct {
   border-color: var(--success);
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.05) 100%);
@@ -728,6 +763,12 @@ body {
 
 .answer-option.incorrect .answer-label {
   background: linear-gradient(135deg, var(--error) 0%, #dc2626 100%);
+}
+
+.answer-option.selected-exam .answer-label {
+  background: linear-gradient(135deg, var(--accent) 0%, #ffd700 100%);
+  transform: scale(1.05);
+  box-shadow: var(--shadow-md);
 }
 
 .answer-text {

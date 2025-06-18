@@ -8,7 +8,6 @@ const TestModal = ({ isOpen, onClose, category, subscription, translations: t, i
   console.log('TestModal rendered with props:', { isOpen, category: category?.title, subscription: subscription?.subscription_type });
   
   const [examMode, setExamMode] = useState(false);
-  const [selectedSections, setSelectedSections] = useState([]);
   const [sectionsData, setSectionsData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -20,6 +19,45 @@ const TestModal = ({ isOpen, onClose, category, subscription, translations: t, i
   // Section selection available only for VIP, Royal, or School subscriptions
   const canSelectSections = subscription && 
     ['vip', 'royal', 'school'].includes(subscription.subscription_type?.toLowerCase());
+  
+  // PDD sections
+  const PDD_SECTIONS = [
+    {"uid":"polozheniya","title":t['testModal.sections.polozheniya'] || "Общие положения"},
+    {"uid":"voditeli","title":t['testModal.sections.voditeli'] || "Общие обязанности водителей"},
+    {"uid":"peshehody","title":t['testModal.sections.peshehody'] || "Обязанности пешеходов"},
+    {"uid":"passazhiry","title":t['testModal.sections.passazhiry'] || "Обязанности пассажиров"},
+    {"uid":"svetofor","title":t['testModal.sections.svetofor'] || "Сигналы светофора и регулировщика"},
+    {"uid":"specsignaly","title":t['testModal.sections.specsignaly'] || "Применение специальных сигналов"},
+    {"uid":"avarijka","title":t['testModal.sections.avarijka'] || "Применение аварийной сигнализации и знака аварийной остановки"},
+    {"uid":"manevrirovanie","title":t['testModal.sections.manevrirovanie'] || "Маневрирование"},
+    {"uid":"raspolozhenie","title":t['testModal.sections.raspolozhenie'] || "Расположение транспортных средств на проезжей части дороги"},
+    {"uid":"speed","title":t['testModal.sections.speed'] || "Скорость движения"},
+    {"uid":"obgon","title":t['testModal.sections.obgon'] || "Обгон, встречный разъезд"},
+    {"uid":"ostanovka","title":t['testModal.sections.ostanovka'] || "Остановка и стоянка"},
+    {"uid":"perekrestki","title":t['testModal.sections.perekrestki'] || "Проезд перекрёстков"},
+    {"uid":"perehody","title":t['testModal.sections.perehody'] || "Пешеходные переходы и остановки маршрутных транспортных средств"},
+    {"uid":"zhd","title":t['testModal.sections.zhd'] || "Движение через железнодорожные пути"},
+    {"uid":"magistral","title":t['testModal.sections.magistral'] || "Движение по автомагистралям"},
+    {"uid":"zhilaya-zona","title":t['testModal.sections.zhilaya-zona'] || "Движение в жилых зонах"},
+    {"uid":"prioritet","title":t['testModal.sections.prioritet'] || "Приоритет маршрутных транспортных средств"},
+    {"uid":"svetovye-pribory","title":t['testModal.sections.svetovye-pribory'] || "Пользование внешними световыми приборами и звуковыми сигналами"},
+    {"uid":"buksirovka","title":t['testModal.sections.buksirovka'] || "Буксировка механических транспортных средств"},
+    {"uid":"uchebnaya-ezda","title":t['testModal.sections.uchebnaya-ezda'] || "Учебная езда"},
+    {"uid":"perevozka-passazhirov","title":t['testModal.sections.perevozka-passazhirov'] || "Перевозка пассажиров"},
+    {"uid":"perevozka-gruzov","title":t['testModal.sections.perevozka-gruzov'] || "Перевозка грузов"},
+    {"uid":"velosipedy-i-zhivotnye","title":t['testModal.sections.velosipedy-i-zhivotnye'] || "Дополнительные требования к движению велосипедов, мопедов, гужевых повозок, а так же животных"},
+    {"uid":"invalidy","title":t['testModal.sections.invalidy'] || "Обеспечение движения людей с нарушениями опорно-двигательного аппарата"},
+    {"uid":"znaki","title":t['testModal.sections.znaki'] || "Дорожные знаки"},
+    {"uid":"razmetka","title":t['testModal.sections.razmetka'] || "Дорожная разметка и её характеристики"},
+    {"uid":"dopusk","title":t['testModal.sections.dopusk'] || "Основные положения по допуску транспортных средств к эксплуатации"},
+    {"uid":"obdzh","title":t['testModal.sections.obdzh'] || "ОБДЖ (Обеспечение безопасности дорожного движения)"},
+    {"uid":"administrativka","title":t['testModal.sections.administrativka'] || "Административка"},
+    {"uid":"medicina","title":t['testModal.sections.medicina'] || "Медицина"},
+    {"uid":"dtp","title":t['testModal.sections.dtp'] || "ДТП"},
+    {"uid":"osnovy-upravleniya","title":t['testModal.sections.osnovy-upravleniya'] || "Основы управления транспортным средством и безопасность движения"}
+  ];
+
+  const [selectedSections, setSelectedSections] = useState(PDD_SECTIONS.map(section => section.uid));
   
   // Check for active lobby on component mount
   useEffect(() => {
@@ -71,32 +109,13 @@ const TestModal = ({ isOpen, onClose, category, subscription, translations: t, i
   // Prevent background scrolling when modal is open
   useEffect(() => {
     if (isOpen) {
-      document.body.classList.add('modal-open');
+      document.body.style.overflow = 'hidden';
     }
     
     return () => {
-      document.body.classList.remove('modal-open');
+      document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
-    
-  // PDD sections
-  const PDD_SECTIONS = [
-    {"uid":"polozheniya","title":"Общие положения","order":10},
-    {"uid":"voditeli","title":"Общие обязанности водителей","order":20},
-    {"uid":"peshehody","title":"Обязанности пешеходов","order":30},
-    {"uid":"cyclists","title":"Обязанности велосипедистов","order":40},
-    {"uid":"signs","title":"Дорожные знаки","order":50},
-    {"uid":"razmetka","title":"Дорожная разметка","order":60},
-    {"uid":"svetofor","title":"Сигналы светофора","order":70},
-    {"uid":"regulirovka","title":"Регулирование дорожного движения","order":80},
-    {"uid":"skorost","title":"Скорость движения","order":90},
-    {"uid":"obgon","title":"Обгон, опережение, встречный разъезд","order":100},
-    {"uid":"ostanovka","title":"Остановка и стоянка","order":110},
-    {"uid":"crossing","title":"Проезд перекрестков","order":120},
-    {"uid":"perehod","title":"Пешеходные переходы","order":130},
-    {"uid":"bezopasnost","title":"Безопасность движения","order":140},
-    {"uid":"first-aid","title":"Первая помощь","order":150}
-  ];
     
   // Handle overlay click (close modal only if clicking outside content)
   const handleOverlayClick = (e) => {
@@ -132,10 +151,31 @@ const TestModal = ({ isOpen, onClose, category, subscription, translations: t, i
   };
 
   // Redirect to active test
-  const continueActiveTest = () => {
+  const continueActiveTest = async () => {
     if (activeLobby && activeLobby.lobby_id) {
-      console.log(`Redirecting to active test: /test/${activeLobby.lobby_id}`);
-      navigate(`/test/${activeLobby.lobby_id}`);
+      try {
+        // Get lobby info to determine if it's multiplayer
+        const response = await api.get(`/lobbies/lobbies/${activeLobby.lobby_id}`);
+        
+        if (response.data.status === "ok") {
+          const lobbyData = response.data.data;
+          
+          if (lobbyData.mode === 'multiplayer') {
+            console.log(`Redirecting to multiplayer test: /multiplayer/test/${activeLobby.lobby_id}`);
+            navigate(`/multiplayer/test/${activeLobby.lobby_id}`);
+          } else {
+            console.log(`Redirecting to solo test: /test/${activeLobby.lobby_id}`);
+            navigate(`/test/${activeLobby.lobby_id}`);
+          }
+        } else {
+          console.log(`Fallback: Redirecting to test: /test/${activeLobby.lobby_id}`);
+          navigate(`/test/${activeLobby.lobby_id}`);
+        }
+      } catch (error) {
+        console.error('Error fetching lobby info, using fallback:', error);
+        console.log(`Fallback: Redirecting to test: /test/${activeLobby.lobby_id}`);
+        navigate(`/test/${activeLobby.lobby_id}`);
+      }
       
       onClose();
     } else {
@@ -393,7 +433,7 @@ const TestModal = ({ isOpen, onClose, category, subscription, translations: t, i
           
           {activeLobby && activeLobby.has_active_lobby ? (
             <button 
-              className="start-button" 
+              className="start-button continue-button" 
               onClick={continueActiveTest}
             >
               {t['test.continueTest'] || 'Continue Test'}

@@ -31,24 +31,38 @@ logger = logging.getLogger(__name__)
 @router.get("/me")
 async def get_current_profile(actor = Depends(get_current_actor)):
     """
-    actor["type"]  →  'user' | 'admin'
-    actor["role"]  →  'user' | 'admin' | 'moder'
+    actor["type"]  →  'user' | 'admin' | 'guest'
+    actor["role"]  →  'user' | 'admin' | 'moder' | 'guest'
     """
     if actor["type"] == "user":
         profile = {
+            "id": str(actor["id"]),
             "full_name": actor["full_name"],
             "email": actor["email"],
             "phone": actor["phone"],
             "iin": actor["iin"],
             "money": actor["money"],
-            "created_at": actor["created_at"].isoformat()
+            "created_at": actor["created_at"].isoformat() if actor.get("created_at") else None,
+            "is_guest": False
+        }
+
+    elif actor["type"] == "guest":
+        profile = {
+            "id": actor["id"],
+            "full_name": actor.get("full_name", "Guest User"),
+            "email": actor.get("email"),
+            "lobby_id": actor.get("lobby_id"),
+            "created_at": actor["created_at"].isoformat() if actor.get("created_at") else None,
+            "is_guest": True
         }
 
     elif actor["type"] == "admin":           # включает и модераторов
         profile = {
+            "id": str(actor["id"]),
             "role": actor["role"],           # 'admin' ИЛИ 'moder'
             "full_name": actor["full_name"],
             "iin": actor["iin"],
+            "is_guest": False
         }
 
     else:
@@ -58,6 +72,70 @@ async def get_current_profile(actor = Depends(get_current_actor)):
         )
 
     return success(data=profile, message="Профиль получен")
+
+
+@router.get("/{user_id}")
+async def get_user_profile(
+    user_id: str,
+    current_user: dict = Depends(get_current_actor),
+    db = Depends(get_database)
+):
+    """
+    Получить профиль пользователя или гостя по ID
+    """
+    if current_user["role"] not in {"user", "guest"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"message": "Доступ запрещён"}
+        )
+    
+    # Проверяем, является ли это гостем (ID начинается с "guest_")
+    if user_id.startswith("guest_"):
+        # Ищем в коллекции гостей
+        guest = await db.guests.find_one({"_id": user_id})
+        
+        if not guest:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"message": "Гость не найден"}
+            )
+        
+        # Возвращаем информацию о госте
+        profile = {
+            "id": guest["_id"],
+            "full_name": guest.get("full_name", "Guest User"),
+            "created_at": guest.get("created_at").isoformat() if guest.get("created_at") else None,
+            "is_guest": True
+        }
+        
+        return success(data=profile, message="Профиль гостя получен")
+    
+    else:
+        # Проверяем валидность ObjectId для обычных пользователей
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"message": "Неверный формат ID пользователя"}
+            )
+        
+        # Ищем в коллекции пользователей
+        user = await db.users.find_one({"_id": ObjectId(user_id)})
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"message": "Пользователь не найден"}
+            )
+        
+        # Возвращаем только публичную информацию
+        profile = {
+            "id": str(user["_id"]),
+            "full_name": user.get("full_name", "Unknown User"),
+            "created_at": user.get("created_at").isoformat() if user.get("created_at") else None,
+            "is_guest": False
+        }
+        
+        return success(data=profile, message="Профиль пользователя получен")
 
 
 
@@ -714,11 +792,11 @@ def calculate_subscription_price(
       - 5% скидка за 90–95 дней (~3 месяца)
       - 10% скидка за 180–185 дней (~6 месяцев)
     """
-    # Базовая цена за месяц
+    # Базовая цена за месяц (НОВЫЕ ЦЕНЫ)
     base_prices = {
-        SubscriptionType.economy: 5000,
-        SubscriptionType.vip:    10000,
-        SubscriptionType.royal:  15000,
+        SubscriptionType.economy: 2000,  # было 5000
+        SubscriptionType.vip:     4000,  # было 10000
+        SubscriptionType.royal:   6000,  # было 15000
     }
 
     # Получаем базовую ценУ и считаем цену за 1 день

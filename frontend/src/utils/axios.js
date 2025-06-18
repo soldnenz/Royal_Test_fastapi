@@ -42,7 +42,12 @@ api.interceptors.response.use(
       if (error.response.status === 401) {
         console.warn('User not authenticated, consider redirecting to login');
         localStorage.removeItem('token');
-        window.location.href = '/login';
+        
+        // НЕ редиректим на страницах присоединения к лобби (для School lobbies)
+        const currentPath = window.location.pathname;
+        if (!currentPath.startsWith('/multiplayer/join/')) {
+          window.location.href = '/login';
+        }
       }
     } else if (error.request) {
       // Request made but no response received (network error)

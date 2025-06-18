@@ -110,4 +110,4 @@ class QuestionEdit(BaseModel):
 
 class QuestionDelete(BaseModel):
     question_id: str
-    deleted_by: str  # ФИО или идентификатор пользователя, удалившего вопрос
+    deleted_by: Optional[str] = None  # ФИО или идентификатор пользователя, удалившего вопрос (необязательный, берется из current_user)

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-async def create_ws_token(user_id: str, hours: float = 0.1):
+async def create_ws_token(user_id: str, hours: float = 1.0):
     try:
         expire = datetime.utcnow() + timedelta(hours=hours)
         to_encode = {
@@ -21,6 +21,15 @@ async def create_ws_token(user_id: str, hours: float = 0.1):
         }
 
         token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+        # Очищаем старые токены пользователя
+        await db.ws_tokens.delete_many({
+            "user_id": user_id,
+            "$or": [
+                {"expires_at": {"$lt": datetime.utcnow()}},
+                {"used": True}
+            ]
+        })
 
         await db.ws_tokens.insert_one({
             "token": token,

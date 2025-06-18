@@ -396,11 +396,17 @@ async def delete_question(
       - Производит проверку корректности идентификатора.
       - Удаляет связанные медиафайлы из GridFS.
     """
+    # Используем данные текущего пользователя для deleted_by
+    deleted_by = current_user.get("full_name", "Неизвестный пользователь")
+    logger.info(f"Delete request received for question: {payload.question_id} by {deleted_by}")
+    
     if not current_user or current_user.get("role") not in ["admin", "tests_creator"]:
+        logger.warning(f"Access denied for user role: {current_user.get('role')}")
         raise HTTPException(status_code=403, detail="Доступ запрещён. Требуется роль администратора или создателя тестов.")
 
     # Проверка наличия обязательных полей у пользователя
     if "full_name" not in current_user or "iin" not in current_user:
+        logger.warning(f"Incomplete user data for deletion request")
         raise HTTPException(status_code=400, detail="Данные пользователя неполные.")
 
     # Сначала ищем вопрос по uid (предпочтительный формат)
@@ -411,15 +417,22 @@ async def delete_question(
         try:
             question_obj_id = ObjectId(payload.question_id)
             existing_question = await db.questions.find_one({"_id": question_obj_id})
+            logger.info(f"Found question by ObjectId: {question_obj_id}")
         except Exception as e:
+            logger.error(f"Invalid question ID format: {payload.question_id}, error: {e}")
             raise HTTPException(status_code=400, detail=f"Неверный формат идентификатора: {e}")
+    else:
+        logger.info(f"Found question by UID: {payload.question_id}")
     
     if not existing_question:
+        logger.warning(f"Question not found: {payload.question_id}")
         raise HTTPException(status_code=404, detail="Вопрос не найден")
     
     # Получаем информацию о наличии медиафайлов
     has_main_media = bool(existing_question.get("media_file_id"))
     has_additional_media = bool(existing_question.get("after_answer_media_file_id"))
+    
+    logger.info(f"Question {payload.question_id} has main media: {has_main_media}, additional media: {has_additional_media}")
     
     # Удаляем медиа-файлы из GridFS
     deleted_main_media = False
@@ -429,20 +442,22 @@ async def delete_question(
         try:
             await delete_media_file(existing_question["media_file_id"], db)
             deleted_main_media = True
+            logger.info(f"Successfully deleted main media file: {existing_question['media_file_id']}")
         except Exception as e:
-            print(f"Ошибка при удалении основного медиа: {e}")
+            logger.error(f"Error deleting main media: {e}")
     
     if has_additional_media:
         try:
             await delete_media_file(existing_question["after_answer_media_file_id"], db)
             deleted_additional_media = True
+            logger.info(f"Successfully deleted additional media file: {existing_question['after_answer_media_file_id']}")
         except Exception as e:
-            print(f"Ошибка при удалении дополнительного медиа: {e}")
+            logger.error(f"Error deleting additional media: {e}")
 
     # Обновляем флаги удаления в документе
     update_fields = {
         "deleted": True,
-        "deleted_by": payload.deleted_by,
+        "deleted_by": deleted_by,
         "deleted_at": datetime.utcnow()
     }
     
@@ -459,7 +474,10 @@ async def delete_question(
         )
     
     if result.modified_count == 0:
+        logger.error(f"Failed to update question deletion status: {payload.question_id}")
         raise HTTPException(status_code=400, detail="Ошибка при удалении вопроса")
+    
+    logger.info(f"Successfully marked question as deleted: {payload.question_id}")
     
     # Формируем детальный ответ
     response_data = {

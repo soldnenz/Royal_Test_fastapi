@@ -33,6 +33,7 @@ const TestPage = () => {
   const [correctAnswer, setCorrectAnswer] = useState(null);
   const [explanation, setExplanation] = useState(null);
   const [afterAnswerMedia, setAfterAnswerMedia] = useState(null);
+  const [afterAnswerMediaType, setAfterAnswerMediaType] = useState('image'); // 'image' или 'video'
   const [lobbyInfo, setLobbyInfo] = useState(null);
   const [timeLeft, setTimeLeft] = useState(40 * 60);
   const [mediaLoading, setMediaLoading] = useState(false);
@@ -49,6 +50,8 @@ const TestPage = () => {
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [videoProgress, setVideoProgress] = useState(0);
   const [videoLoading, setVideoLoading] = useState(false);
+  const [afterVideoProgress, setAfterVideoProgress] = useState(0);
+  const [afterVideoLoading, setAfterVideoLoading] = useState(false);
   
   const intervalRef = useRef(null);
   const videoRef = useRef(null);
@@ -109,7 +112,7 @@ const TestPage = () => {
   useEffect(() => {
     const fetchProfileData = async () => {
       try {
-        const response = await api.get('/auth/profile');
+        const response = await api.get('/users/me');
         if (response.data.status === "ok") {
           setProfileData(response.data.data);
         }
@@ -135,6 +138,13 @@ const TestPage = () => {
     if (!video || video.duration === 0) return;
     const progress = (video.currentTime / video.duration) * 100;
     setVideoProgress(progress);
+  }, []);
+
+  // After video progress tracking
+  const updateAfterVideoProgress = useCallback((video) => {
+    if (!video || video.duration === 0) return;
+    const progress = (video.currentTime / video.duration) * 100;
+    setAfterVideoProgress(progress);
   }, []);
 
   // Advanced video management with auto-loop and progress tracking
@@ -217,6 +227,80 @@ const TestPage = () => {
     };
   }, [updateVideoProgress]);
 
+  // After video autoplay setup
+  const setupAfterVideoAutoplay = useCallback((video) => {
+    if (!video) return;
+
+    if (videoIntervalRef.current) {
+      clearInterval(videoIntervalRef.current);
+    }
+    if (videoProgressRef.current) {
+      clearInterval(videoProgressRef.current);
+    }
+
+    video.muted = true;
+    video.loop = false;
+    video.currentTime = 1;
+    setAfterVideoLoading(true);
+
+    // Loading animation interval
+    const loadInterval = setInterval(() => {
+      if (video.readyState >= 3) {
+        clearInterval(loadInterval);
+      }
+    }, 100);
+
+    // Start playing after 1 second delay
+    setTimeout(() => {
+      video.play().then(() => {
+        setAfterVideoLoading(false);
+        clearInterval(loadInterval);
+        
+        // Запустить повтор через 10 секунд после окончания видео
+        const handleVideoEnd = () => {
+          setTimeout(() => {
+            if (video && !video.paused && video.readyState >= 3) {
+              video.currentTime = 1;
+              video.play().catch(console.log);
+            }
+          }, 10000); // 10 секунд после окончания
+        };
+        
+        video.addEventListener('ended', handleVideoEnd);
+        
+        // Cleanup для ended listener
+        return () => {
+          video.removeEventListener('ended', handleVideoEnd);
+        };
+      }).catch(console.log);
+    }, 1000);
+
+    // Track video progress
+    videoProgressRef.current = setInterval(() => {
+      updateAfterVideoProgress(video);
+    }, 100);
+
+    // Handle click to restart
+    const handleVideoClick = () => {
+      video.currentTime = 1;
+      video.play().catch(console.log);
+    };
+
+    video.addEventListener('click', handleVideoClick);
+
+    // Cleanup function
+    return () => {
+      video.removeEventListener('click', handleVideoClick);
+      if (videoIntervalRef.current) {
+        clearInterval(videoIntervalRef.current);
+      }
+      if (videoProgressRef.current) {
+        clearInterval(videoProgressRef.current);
+      }
+      clearInterval(loadInterval);
+    };
+  }, [updateAfterVideoProgress]);
+
   // Setup video when media loads
   useEffect(() => {
     if (videoRef.current && currentQuestion?.has_media && currentQuestion?.media_type === 'video') {
@@ -226,10 +310,10 @@ const TestPage = () => {
 
   // Setup after-answer video
   useEffect(() => {
-    if (afterVideoRef.current && afterAnswerMedia) {
-      return setupVideoAutoplay(afterVideoRef.current);
+    if (afterVideoRef.current && afterAnswerMedia && afterAnswerMediaType === 'video') {
+      return setupAfterVideoAutoplay(afterVideoRef.current);
     }
-  }, [afterAnswerMedia, setupVideoAutoplay]);
+  }, [afterAnswerMedia, afterAnswerMediaType, setupAfterVideoAutoplay]);
 
   // Cleanup intervals on unmount
   useEffect(() => {
@@ -297,6 +381,13 @@ const TestPage = () => {
           
           setIsExamMode(response.data.data.exam_mode === true);
           
+          // Initialize exam timer if in exam mode
+          if (response.data.data.exam_mode && response.data.data.exam_timer) {
+            const serverTimeLeft = response.data.data.exam_timer.time_left;
+            setTimeLeft(serverTimeLeft);
+            localStorage.setItem(`exam_timer_${lobbyId}`, serverTimeLeft.toString());
+          }
+          
           if (response.data.data.question_ids && response.data.data.question_ids.length > 0) {
             setQuestions(response.data.data.question_ids);
             
@@ -359,9 +450,13 @@ const TestPage = () => {
       if (response.data.status === "ok") {
         const questionData = response.data.data;
         
-        if (questionData.has_media) {
+        // Обработка основного медиа файла
+        if (questionData.has_media && questionData.media_file_id) {
           const mediaUrl = `/api/lobbies/files/media/${questionId}?t=${Date.now()}`;
           questionData.media_url = mediaUrl;
+        } else if (questionData.has_media) {
+          // Нет медиа file ID - показываем заглушку
+          questionData.media_url = null;
         }
         
         setCurrentQuestion(questionData);
@@ -370,12 +465,18 @@ const TestPage = () => {
         setCorrectAnswer(null);
         setExplanation(null);
         setAfterAnswerMedia(null);
+        setAfterAnswerMediaType('image'); // Reset to image first
+        setAfterVideoProgress(0); // Reset after video progress
+        setAfterVideoLoading(false); // Reset after video loading
         
         if (userAnswers[questionId] !== undefined) {
           setSelectedAnswer(userAnswers[questionId]);
           setAnswerSubmitted(true);
           
-          if (!isExamMode) {
+          // В экзаменационном режиме правильные ответы не показываются до завершения теста
+          const shouldShowAnswer = !isExamMode;
+          
+          if (shouldShowAnswer) {
             fetchCorrectAnswer(questionId);
           }
         }
@@ -399,14 +500,31 @@ const TestPage = () => {
     }
   }, [userAnswers, lobbyId]);
 
-  // Timer for exam mode
+  // Timer for exam mode with server synchronization
   useEffect(() => {
     if (isExamMode && !testCompleted) {
-      const savedTimeLeft = localStorage.getItem(`exam_timer_${lobbyId}`);
-      if (savedTimeLeft) {
-        setTimeLeft(parseInt(savedTimeLeft, 10));
-      }
+      // Fetch initial timer state from server
+      const fetchTimerState = async () => {
+        try {
+          const response = await api.get(`/lobbies/lobbies/${lobbyId}/exam-timer`);
+          if (response.data.status === "ok") {
+            const serverTimeLeft = response.data.data.time_left;
+            setTimeLeft(serverTimeLeft);
+            localStorage.setItem(`exam_timer_${lobbyId}`, serverTimeLeft.toString());
+          }
+        } catch (err) {
+          console.error('Error fetching timer state:', err);
+          // Fallback to local storage
+          const savedTimeLeft = localStorage.getItem(`exam_timer_${lobbyId}`);
+          if (savedTimeLeft) {
+            setTimeLeft(parseInt(savedTimeLeft, 10));
+          }
+        }
+      };
 
+      fetchTimerState();
+
+      // Start countdown timer
       intervalRef.current = setInterval(() => {
         setTimeLeft(prevTime => {
           const newTime = prevTime <= 1 ? 0 : prevTime - 1;
@@ -420,6 +538,25 @@ const TestPage = () => {
           return newTime;
         });
       }, 1000);
+
+      // Sync with server every 30 seconds
+      const syncInterval = setInterval(async () => {
+        try {
+          const currentTimeLeft = parseInt(localStorage.getItem(`exam_timer_${lobbyId}`) || '0', 10);
+          await api.post(`/lobbies/lobbies/${lobbyId}/exam-timer`, {
+            time_left: currentTimeLeft
+          });
+        } catch (err) {
+          console.error('Error syncing timer with server:', err);
+        }
+      }, 30000);
+
+      return () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
+        clearInterval(syncInterval);
+      };
     }
 
     return () => {
@@ -436,11 +573,34 @@ const TestPage = () => {
       });
       
       if (response.data.status === "ok") {
-        setCorrectAnswer(response.data.data.correct_index);
-        setExplanation(response.data.data.explanation);
+        const correctData = response.data.data;
+        console.log('Received correct answer data:', correctData);
         
-        if (response.data.data.has_after_media) {
+        setCorrectAnswer({
+          index: correctData.correct_answer_index,
+          hasAfterAnswerMedia: correctData.has_after_answer_media
+        });
+        
+        // Устанавливаем объяснение из ответа сервера
+        if (correctData.explanation && Object.keys(correctData.explanation).length > 0) {
+          console.log('Setting explanation from server:', correctData.explanation);
+          setExplanation(correctData.explanation);
+        } else if (currentQuestion && currentQuestion.explanation) {
+          // Если нет объяснения в ответе, пытаемся взять из самого вопроса
+          console.log('Setting explanation from current question:', currentQuestion.explanation);
+          setExplanation(currentQuestion.explanation);
+        } else {
+          console.log('No explanation available from server or current question');
+          // Устанавливаем null, чтобы очистить предыдущее объяснение
+          setExplanation(null);
+        }
+        
+        // Получаем медиа после ответа если есть
+        if (correctData.has_after_answer_media) {
+          console.log('Fetching after answer media for question:', questionId);
           fetchAfterAnswerMedia(questionId);
+        } else {
+          console.log('No after answer media available');
         }
       }
     } catch (err) {
@@ -451,11 +611,15 @@ const TestPage = () => {
   const fetchAfterAnswerMedia = async (questionId) => {
     try {
       setMediaLoading(true);
-      const mediaUrl = `/api/lobbies/files/after-answer-media/${questionId}?t=${Date.now()}`;
+      
+      // Используем правильный эндпоинт для получения медиа после ответа
+      const mediaUrl = `/api/lobbies/files/after-answer-media/${questionId}?lobby_id=${lobbyId}&t=${Date.now()}`;
       setAfterAnswerMedia(mediaUrl);
+      
       setMediaLoading(false);
     } catch (err) {
       console.error('Error fetching after-answer media:', err);
+      setAfterAnswerMedia(null);
       setMediaLoading(false);
     }
   };
@@ -480,7 +644,10 @@ const TestPage = () => {
       });
       
       if (response.data.status === "ok") {
-        if (!isExamMode) {
+        // В экзаменационном режиме правильные ответы не показываются до завершения теста
+        const shouldShowAnswer = !isExamMode;
+        
+        if (shouldShowAnswer) {
           try {
             await fetchCorrectAnswer(questionId);
           } catch (err) {
@@ -545,7 +712,8 @@ const TestPage = () => {
       setVideoProgress(0);
       
       // Fetch answer data for previous question
-      if (!isExamMode) {
+      const shouldShowAnswer = !isExamMode;
+      if (shouldShowAnswer) {
         fetchCorrectAnswer(questions[newIndex]);
       }
     }
@@ -554,6 +722,18 @@ const TestPage = () => {
   const finishTest = async () => {
     try {
       setSyncing(true);
+      
+      // Sync final timer state if in exam mode
+      if (isExamMode) {
+        try {
+          const currentTimeLeft = parseInt(localStorage.getItem(`exam_timer_${lobbyId}`) || '0', 10);
+          await api.post(`/lobbies/lobbies/${lobbyId}/exam-timer`, {
+            time_left: currentTimeLeft
+          });
+        } catch (err) {
+          console.error('Error syncing final timer state:', err);
+        }
+      }
       
       try {
         const response = await api.post(`/lobbies/lobbies/${lobbyId}/finish`, {});
@@ -703,8 +883,8 @@ const TestPage = () => {
     const isPassed = testResults.user_result.passed || percentage >= 70;
     
     // Calculate additional metrics
-    const totalTimeSpent = 40 * 60 - timeLeft; // in seconds
-    const averageTimePerQuestion = Math.round(totalTimeSpent / totalQuestions);
+    const totalTimeSpent = isExamMode ? (40 * 60 - timeLeft) : (testResults.user_result.duration_seconds || 0);
+    const averageTimePerQuestion = totalQuestions > 0 ? Math.round(totalTimeSpent / totalQuestions) : 0;
     const efficiency = Math.round((correctCount / totalQuestions) * 100);
     
     // Determine skill level
@@ -1066,13 +1246,13 @@ const TestPage = () => {
                 {questions.map((questionId, index) => {
                   const isAnswered = userAnswers[questionId] !== undefined;
                   const isCurrent = index === currentQuestionIndex;
-                  const isCorrect = !isExamMode && correctAnswer !== null && userAnswers[questionId] === correctAnswer;
+                  const isCorrect = !isExamMode && correctAnswer !== null && userAnswers[questionId] === correctAnswer?.index;
                   
                   let className = 'question-nav-item';
                   if (isCurrent) className += ' active';
                   if (isAnswered) {
                     if (isExamMode) {
-                      className += ' answered';
+                      className += ' answered-exam';
                     } else {
                       className += isCorrect ? ' answered' : ' incorrect';
                     }
@@ -1124,40 +1304,53 @@ const TestPage = () => {
                     <div className="question-media">
                       {/* Show after-answer media if available and answered */}
                       {answerSubmitted && !isExamMode && afterAnswerMedia ? (
-                        currentQuestion.after_answer_media_type === 'video' ? (
+                        afterAnswerMediaType === 'video' ? (
                           <div className="media-container">
                             <div className="video-container">
                               <video 
                                 ref={afterVideoRef}
                                 className="question-video"
                                 src={afterAnswerMedia}
-                                onError={() => setVideoError(true)}
+                                onError={() => {
+                                  console.error('After answer video failed to load:', afterAnswerMedia);
+                                  setAfterAnswerMedia(null);
+                                }}
                                 preload="metadata"
                                 playsInline
                                 muted
                                 loop
                               />
                               {/* Video Progress Bar */}
-                              <div className={`video-progress-container ${videoLoading ? 'loading' : ''}`}>
+                              <div className={`video-progress-container ${afterVideoLoading ? 'loading' : ''}`}>
                                 <div className="video-progress-bar">
                                   <div 
-                                    className={videoLoading ? "video-loading-bar" : "video-progress"}
-                                    style={{ width: `${videoProgress}%` }}
+                                    className={afterVideoLoading ? "video-loading-bar" : "video-progress"}
+                                    style={{ width: `${afterVideoProgress}%` }}
                                   ></div>
                                 </div>
                               </div>
                             </div>
                           </div>
                         ) : (
-                          <img 
-                            src={afterAnswerMedia}
-                            alt="Explanation"
-                            className="question-image"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                            }}
-                          />
+                          <div className="media-container">
+                            <img 
+                              src={afterAnswerMedia}
+                              alt="After Answer Media"
+                              className="question-image"
+                              onError={(e) => {
+                                console.error('After answer media failed to load as image, trying video:', afterAnswerMedia);
+                                setAfterAnswerMediaType('video');
+                              }}
+                              onLoad={() => {
+                                console.log('After answer image loaded successfully:', afterAnswerMedia);
+                              }}
+                            />
+                          </div>
                         )
+                      ) : answerSubmitted && !isExamMode && correctAnswer?.hasAfterAnswerMedia ? (
+                        <div className="no-media-placeholder">
+                          📷 Медиа после ответа недоступно
+                        </div>
                       ) : (
                         // Show main media
                         currentQuestion.has_media && currentQuestion.media_url ? (
@@ -1198,10 +1391,14 @@ const TestPage = () => {
                               alt="Question"
                               className="question-image"
                               onError={(e) => {
-                                e.target.style.display = 'none';
+                                e.target.parentNode.innerHTML = '<div class="no-media-placeholder">📷 NO IMAGE</div>';
                               }}
                             />
                           )
+                        ) : currentQuestion.has_media ? (
+                          <div className="no-media-placeholder">
+                            📷 NO IMAGE
+                          </div>
                         ) : (
                           <div className="no-media-placeholder">
                             <FaQuestionCircle style={{ marginRight: 'var(--space-sm)' }} />
@@ -1219,12 +1416,20 @@ const TestPage = () => {
                       
                       let answerClass = "answer-option";
                       if (answerSubmitted) {
-                        if (index === selectedAnswer && (!isExamMode && index === correctAnswer)) {
-                          answerClass += " correct";
-                        } else if (index === selectedAnswer && (!isExamMode && index !== correctAnswer)) {
-                          answerClass += " incorrect";
-                        } else if (!isExamMode && index === correctAnswer) {
-                          answerClass += " correct";
+                        if (isExamMode) {
+                          // В экзаменационном режиме показываем только выбранный ответ без правильности
+                          if (index === selectedAnswer) {
+                            answerClass += " selected-exam";
+                          }
+                        } else {
+                          // В обычном режиме показываем правильность ответов
+                          if (index === selectedAnswer && index === correctAnswer?.index) {
+                            answerClass += " correct";
+                          } else if (index === selectedAnswer && index !== correctAnswer?.index) {
+                            answerClass += " incorrect";
+                          } else if (index === correctAnswer?.index) {
+                            answerClass += " correct";
+                          }
                         }
                       } else if (index === selectedAnswer) {
                         answerClass += " selected";

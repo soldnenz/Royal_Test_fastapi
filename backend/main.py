@@ -22,13 +22,14 @@ import json
 
 from app.core.logging_config import setup_logging
 from app.core.response import error
-from app.routers import auth, user, reset_password, admin_router, test_router, subscription_router, referrals_router, transaction_router, admin_router
+from app.routers import authentication, user, reset_password, admin_router, test_router, subscription_router, referrals_router, transaction_router, admin_router
 from app.admin.telegram_2fa import bot, router as telegram_routers
 from app.routers import lobby_router
 from app.routers.lobby_router import start_background_tasks
 from app.routers import files_router
 from app.routers import websocket_router
 from app.websocket.lobby_ws import lobby_ws_endpoint, ws_manager
+from app.websocket.ping_task import ping_task
 from app.db.database import db
 
 # Инициализация логирования
@@ -59,7 +60,7 @@ app.add_middleware(
 )
 
 # Подключаем роутеры
-app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(authentication.router, prefix="/auth", tags=["authentication"])
 app.include_router(user.router, prefix="/users", tags=["users"])
 app.include_router(reset_password.router, prefix="/reset", tags=["reset-password"])
 app.include_router(test_router.router, prefix="/tests", tags=["tests"])
@@ -182,16 +183,38 @@ async def check_stalled_lobbies():
                 
                 # Отмечаем лобби как завершенное
                 await db.lobbies.update_one(
-                    {"_id": lobby_id}, 
-                    {"$set": {"status": "finished", "finished_at": datetime.utcnow(), "auto_finished": True}}
+                    {"_id": lobby_id},
+                    {"$set": {
+                        "status": "finished",
+                        "finished_at": datetime.utcnow(),
+                        "auto_finished": True
+                    }}
                 )
-                
-                # Оповещаем участников, если это многопользовательское лобби
-                if lobby.get("mode") == "multi":
-                    try:
-                        await ws_manager.send_message(lobby_id, f"AUTO_FINISHED:{json.dumps(results)}")
-                    except:
-                        pass  # Игнорируем ошибки отправки сообщений
+
+                # Формируем JSON-сообщение о завершении
+                finish_payload = {
+                    "type": "test_finished",
+                    "data": {
+                        "results": results,
+                        "auto_finished": True,
+                        "reason": "stalled_lobby_timeout"
+                    }
+                }
+
+                # Рассылаем JSON всем участникам (любой режим)
+                try:
+                    await ws_manager.broadcast_to_lobby(lobby_id, finish_payload)
+                except Exception as ws_err:
+                    logger.error(f"WS broadcast error for stalled lobby {lobby_id}: {ws_err}")
+
+                # Закрываем все WS-соединения для этого лобби
+                if lobby_id in ws_manager.connections:
+                    for conn in list(ws_manager.connections[lobby_id]):
+                        try:
+                            await conn["websocket"].close(code=1000, reason="Lobby auto-finished")
+                        except Exception:
+                            pass
+                    ws_manager.connections.pop(lobby_id, None)
 
         except Exception as e:
             logger.error(f"Ошибка при проверке зависших лобби: {e}")
@@ -204,3 +227,8 @@ async def startup_event():
     asyncio.create_task(start_bot())
     asyncio.create_task(check_stalled_lobbies())  # Запускаем проверку зависших лобби
     asyncio.create_task(start_background_tasks())  # Запускаем задачи фоновой обработки
+    await ping_task.start()  # Запускаем задачу пинга WebSocket соединений
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await ping_task.stop()  # Останавливаем задачу пинга при завершении

@@ -76,6 +76,21 @@ const TestDashboardPage = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // Update theme class on body element for better compatibility
+  useEffect(() => {
+    if (isDark) {
+      document.body.classList.add('dark');
+      document.body.classList.remove('light');
+    } else {
+      document.body.classList.add('light');
+      document.body.classList.remove('dark');
+    }
+    
+    return () => {
+      document.body.classList.remove('dark', 'light');
+    };
+  }, [isDark]);
+
   // Timer effect for active lobby countdown
   useEffect(() => {
     let interval = null;
@@ -154,7 +169,7 @@ const TestDashboardPage = () => {
           title: 'A1, A, B1',
           description: t['test.motorcycle_license'] || 'Motorcycle License',
           icon: <MdDirectionsBike size={28} />,
-          allowedPlans: ['economy', 'vip', 'royal'],
+          allowedPlans: ['economy', 'vip', 'royal', 'school'],
           questions: 0,
           level: t['level.beginner'] || 'Beginner',
           color: 'emerald',
@@ -165,11 +180,11 @@ const TestDashboardPage = () => {
           title: 'B, BE',
           description: t['test.car_license'] || 'Car License',
           icon: <MdDirectionsCar size={28} />,
-          allowedPlans: ['economy', 'vip', 'royal'],
+          allowedPlans: ['economy', 'vip', 'royal', 'school'],
           questions: 0,
           level: t['level.beginner'] || 'Beginner',
           popular: true,
-          color: 'blue',
+          color: 'golden',
           difficulty: 1,
         },
         {
@@ -177,7 +192,7 @@ const TestDashboardPage = () => {
           title: 'C, C1',
           description: t['test.truck_license'] || 'Truck License',
           icon: <FaTruck size={28} />,
-          allowedPlans: ['vip', 'royal'],
+          allowedPlans: ['vip', 'royal', 'school'],
           questions: 0,
           level: t['level.intermediate'] || 'Intermediate',
           color: 'amber',
@@ -188,7 +203,7 @@ const TestDashboardPage = () => {
           title: 'BC1',
           description: t['test.commercial_license'] || 'Commercial License',
           icon: <FaTruckMoving size={28} />,
-          allowedPlans: ['vip', 'royal'],
+          allowedPlans: ['vip', 'royal', 'school'],
           questions: 0,
           level: t['level.intermediate'] || 'Intermediate',
           color: 'orange',
@@ -199,10 +214,10 @@ const TestDashboardPage = () => {
           title: 'D1, D, Tb',
           description: t['test.bus_license'] || 'Bus License',
           icon: <FaBusAlt size={28} />,
-          allowedPlans: ['vip', 'royal'],
+          allowedPlans: ['vip', 'royal', 'school'],
           questions: 0,
           level: t['level.advanced'] || 'Advanced',
-          color: 'purple',
+          color: 'amber',
           difficulty: 3,
         },
         {
@@ -210,7 +225,7 @@ const TestDashboardPage = () => {
           title: 'C1, CE, D1, DE',
           description: t['test.heavy_vehicle_license'] || 'Heavy Vehicle License',
           icon: <MdLocalShipping size={28} />,
-          allowedPlans: ['vip', 'royal'],
+          allowedPlans: ['vip', 'royal', 'school'],
           questions: 0,
           level: t['level.advanced'] || 'Advanced',
           color: 'red',
@@ -221,10 +236,10 @@ const TestDashboardPage = () => {
           title: 'Tm',
           description: t['test.tram_license'] || 'Tram License',
           icon: <MdTimer size={28} />,
-          allowedPlans: ['vip', 'royal'],
+          allowedPlans: ['vip', 'royal', 'school'],
           questions: 0,
           level: t['level.advanced'] || 'Advanced',
-          color: 'indigo',
+          color: 'orange',
           difficulty: 3,
         }
       ];
@@ -235,7 +250,7 @@ const TestDashboardPage = () => {
       'cat1': {
         description: t['test.motorcycle_license'] || 'Motorcycle License',
         icon: <MdDirectionsBike size={28} />,
-        allowedPlans: ['economy', 'vip', 'royal'],
+        allowedPlans: ['economy', 'vip', 'royal', 'school'],
         level: t['level.beginner'] || 'Beginner',
         color: 'emerald',
         difficulty: 1,
@@ -243,16 +258,16 @@ const TestDashboardPage = () => {
       'cat2': {
         description: t['test.car_license'] || 'Car License',
         icon: <MdDirectionsCar size={28} />,
-        allowedPlans: ['economy', 'vip', 'royal'],
+        allowedPlans: ['economy', 'vip', 'royal', 'school'],
         level: t['level.beginner'] || 'Beginner',
         popular: true,
-        color: 'blue',
+        color: 'golden',
         difficulty: 1,
       },
       'cat3': {
         description: t['test.truck_license'] || 'Truck License',
         icon: <FaTruck size={28} />,
-        allowedPlans: ['vip', 'royal'],
+        allowedPlans: ['vip', 'royal', 'school'],
         level: t['level.intermediate'] || 'Intermediate',
         color: 'amber',
         difficulty: 2,
@@ -260,7 +275,7 @@ const TestDashboardPage = () => {
       'cat4': {
         description: t['test.commercial_license'] || 'Commercial License',
         icon: <FaTruckMoving size={28} />,
-        allowedPlans: ['vip', 'royal'],
+        allowedPlans: ['vip', 'royal', 'school'],
         level: t['level.intermediate'] || 'Intermediate',
         color: 'orange',
         difficulty: 2,
@@ -268,15 +283,15 @@ const TestDashboardPage = () => {
       'cat5': {
         description: t['test.bus_license'] || 'Bus License',
         icon: <FaBusAlt size={28} />,
-        allowedPlans: ['vip', 'royal'],
+        allowedPlans: ['vip', 'royal', 'school'],
         level: t['level.advanced'] || 'Advanced',
-        color: 'purple',
+        color: 'amber',
         difficulty: 3,
       },
       'cat6': {
         description: t['test.heavy_vehicle_license'] || 'Heavy Vehicle License',
         icon: <MdLocalShipping size={28} />,
-        allowedPlans: ['vip', 'royal'],
+        allowedPlans: ['vip', 'royal', 'school'],
         level: t['level.advanced'] || 'Advanced',
         color: 'red',
         difficulty: 3,
@@ -284,9 +299,9 @@ const TestDashboardPage = () => {
       'cat7': {
         description: t['test.tram_license'] || 'Tram License',
         icon: <MdTimer size={28} />,
-        allowedPlans: ['vip', 'royal'],
+        allowedPlans: ['vip', 'royal', 'school'],
         level: t['level.advanced'] || 'Advanced',
-        color: 'indigo',
+        color: 'orange',
         difficulty: 3,
       }
     };
@@ -398,7 +413,7 @@ const TestDashboardPage = () => {
       case 'royal':
         return { name: 'Royal', icon: <FaCrown />, color: 'amber' };
       case 'school':
-        return { name: 'School', icon: <FaGraduationCap />, color: 'blue' };
+        return { name: 'School', icon: <FaGraduationCap />, color: 'golden' };
       default:
         return { name: 'Free', icon: null, color: 'gray' };
     }
@@ -433,9 +448,15 @@ const TestDashboardPage = () => {
   // Handler for continuing an active test
   const handleContinueTest = () => {
     if (activeLobby && activeLobby.lobby_id) {
-      // Navigate to the test page with the active lobby ID
-      console.log(`Continuing test in lobby: ${activeLobby.lobby_id}, redirecting to /test/${activeLobby.lobby_id}`);
-      navigate(`/test/${activeLobby.lobby_id}`);
+      // Check if it's a multiplayer lobby
+      if (activeLobby.mode === 'multiplayer') {
+        console.log(`Continuing multiplayer test in lobby: ${activeLobby.lobby_id}, redirecting to /multiplayer/test/${activeLobby.lobby_id}`);
+        navigate(`/multiplayer/test/${activeLobby.lobby_id}`);
+      } else {
+        // Solo mode
+        console.log(`Continuing solo test in lobby: ${activeLobby.lobby_id}, redirecting to /test/${activeLobby.lobby_id}`);
+        navigate(`/test/${activeLobby.lobby_id}`);
+      }
     } else {
       console.error('No active lobby to continue');
       setErrorMessage(t['noActiveLobby'] || "No active test found");
@@ -444,34 +465,62 @@ const TestDashboardPage = () => {
 
   // Handler for creating a lobby
   const handleCreateLobby = () => {
+    console.log('handleCreateLobby called');
+    console.log('activeLobby:', activeLobby);
+    console.log('subscription:', subscription);
+    
     // Check if there's an active test first
     if (activeLobby) {
+      console.log('Active lobby detected, showing alert');
       // Show message that user should continue or finish active test
       alert(t['test.hasActiveTest'] || 'You have an active test. Please continue or finish it before starting a new one.');
       return;
     }
     
-    console.log('Creating a lobby');
-    // Implement create lobby logic
+    // Check if user has Royal or School subscription
+    if (!subscription || !['royal', 'school'].includes(subscription.subscription_type?.toLowerCase())) {
+      console.log('Subscription check failed:', subscription?.subscription_type);
+      alert(t['test.needRoyalOrSchoolForMultiplayer'] || 'You need Royal or School subscription to create multiplayer lobbies.');
+      return;
+    }
+    
+    console.log('All checks passed, navigating to create lobby page');
+    navigate('/multiplayer/create');
   };
 
   // Handler for joining a lobby
   const handleJoinLobby = () => {
+    console.log('handleJoinLobby called');
+    console.log('activeLobby:', activeLobby);
+    console.log('lobbyCode:', lobbyCode);
+    
     // Check if there's an active test first
     if (activeLobby) {
+      console.log('Active lobby detected, showing alert');
       // Show message that user should continue or finish active test
       alert(t['test.hasActiveTest'] || 'You have an active test. Please continue or finish it before starting a new one.');
       return;
     }
     
-    console.log('Joining lobby with code:', lobbyCode);
-    // Implement join lobby logic
+    if (!lobbyCode.trim()) {
+      console.log('Lobby code is empty');
+      alert(t['test.enterLobbyCode'] || 'Please enter a lobby code');
+      return;
+    }
+    
+    console.log('All checks passed, joining lobby with code:', lobbyCode);
+    navigate(`/multiplayer/join/${lobbyCode.trim()}`);
   };
 
   const subscriptionTier = getSubscriptionTier();
 
+  // Debug logging
+  console.log('TestDashboardPage render - subscription:', subscription);
+  console.log('TestDashboardPage render - subscriptionTier:', subscriptionTier);
+  console.log('TestDashboardPage render - activeTab:', activeTab);
+
   return (
-    <div className={`test-dashboard ${isDark ? 'dark-theme' : ''} ${animateEntry ? 'animate-entry' : ''}`}>
+    <div className={`test-dashboard ${animateEntry ? 'animate-entry' : ''} ${isDark ? 'dark-theme' : ''}`}>
       {/* Hero Section */}
       <div className="hero-section">
         <div className="hero-content">

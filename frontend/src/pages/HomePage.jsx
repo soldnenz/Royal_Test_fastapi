@@ -1,13 +1,32 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { translations } from '../translations/translations';
-import { FaWhatsapp, FaUserGraduate, FaBuilding, FaLayerGroup, FaHandHoldingHeart } from 'react-icons/fa';
+import { FaWhatsapp, FaUserGraduate, FaBuilding, FaLayerGroup, FaHandHoldingHeart, FaArrowUp } from 'react-icons/fa';
 
 const HomePage = () => {
   const [openFaq, setOpenFaq] = useState(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const { language } = useLanguage();
   const t = translations[language];
+
+  // Handle scroll to show/hide scroll-to-top button
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 300);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Scroll to top function
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
 
   const toggleFaq = (index) => {
     setOpenFaq(openFaq === index ? null : index);
@@ -495,52 +514,56 @@ const HomePage = () => {
             <div className="rounded-2xl overflow-hidden bg-white dark:bg-dark-800 shadow-xl hover:shadow-2xl transition-all duration-300 border border-gray-100 dark:border-dark-700 relative flex flex-col h-full transform hover:-translate-y-1">
               <div className="h-3 bg-gray-200 dark:bg-gray-700"></div>
               <div className="p-8 flex-grow">
-                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {t.economyTitle}
-                </h3>
-                <div className="flex items-end mb-6 mt-4">
-                  <span className="text-4xl font-bold text-gray-800 dark:text-white">{t.economyPrice}</span>
-                  <span className="text-lg text-gray-600 dark:text-gray-400 ml-1">{t.perMonth}</span>
+                <div className="text-center mb-6">
+                  <div className="inline-flex p-4 rounded-full mb-4 bg-blue-500 text-white">
+                    <span className="text-2xl">🪙</span>
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 flex items-center justify-center">
+                    {t.economyTitle}
+                  </h3>
+                  <p className="text-gray-500 dark:text-gray-400">{language === 'ru' ? 'Базовый план' : language === 'kz' ? 'Негізгі жоспар' : 'Basic plan'}</p>
                 </div>
+                
+                {/* Pricing with old price crossed out */}
+                <div className="text-center mb-8">
+                  <div className="mb-2">
+                    <span className="text-sm text-gray-500 line-through">5,000 ₸</span>
+                  </div>
+                  <div className="flex items-end mb-6 mt-4">
+                    <span className="text-4xl font-bold text-gray-800 dark:text-white">2,000</span>
+                    <span className="text-lg text-gray-600 dark:text-gray-400 ml-1">{t.perMonth}</span>
+                  </div>
+                  <div className="mt-2">
+                    <span className="inline-block bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-sm font-semibold px-3 py-1 rounded-full">
+                      {language === 'ru' ? 'Экономия' : language === 'kz' ? 'Үнемдеу' : 'Savings'} 60%
+                    </span>
+                  </div>
+                </div>
+                
                 <div className="bg-gray-50 dark:bg-dark-700/50 p-4 rounded-lg mb-6">
                   <ul className="space-y-4">
                     <li className="flex items-start">
                       <svg className="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                       </svg>
-                      <span className="text-gray-700 dark:text-gray-300">{t.accessToCategories}</span>
+                      <span className="text-gray-700 dark:text-gray-300">{language === 'ru' ? 'Доступ ко всем тестам' : language === 'kz' ? 'Барлық тесттерге қол жетімділік' : 'Access to all tests'}</span>
                     </li>
                     <li className="flex items-start">
                       <svg className="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                       </svg>
-                      <span className="text-gray-700 dark:text-gray-300">{t.fullQuestionDatabase}</span>
+                      <span className="text-gray-700 dark:text-gray-300">{language === 'ru' ? 'Базовая статистика' : language === 'kz' ? 'Негізгі статистика' : 'Basic statistics'}</span>
                     </li>
                     <li className="flex items-start">
                       <svg className="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                       </svg>
-                      <span className="text-gray-700 dark:text-gray-300">{t.accessBasicStats}</span>
-                    </li>
-                    <li className="flex items-start text-gray-400">
-                      <svg className="w-5 h-5 text-gray-300 dark:text-gray-600 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-                      </svg>
-                      <span className="text-gray-400 dark:text-gray-500">{t.referralProgram}</span>
-                    </li>
-                    <li className="flex items-start text-gray-400">
-                      <svg className="w-5 h-5 text-gray-300 dark:text-gray-600 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-                      </svg>
-                      <span className="text-gray-400 dark:text-gray-500">{t.lobbyCreation}</span>
+                      <span className="text-gray-700 dark:text-gray-300">{language === 'ru' ? 'Email поддержка' : language === 'kz' ? 'Email қолдау' : 'Email support'}</span>
                     </li>
                   </ul>
                 </div>
                 <div className="mt-auto">
-                  <Link to="/registration" className="w-full py-3 px-6 text-center rounded-lg border-2 border-gray-400 text-gray-600 font-bold hover:bg-gray-50 dark:hover:bg-dark-700 transition-colors duration-200 inline-block">
+                  <Link to="/registration" className="w-full py-3 px-6 text-center rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 text-white font-bold hover:from-blue-600 hover:to-blue-700 transition-all duration-200 inline-block shadow-md hover:shadow-lg">
                     {language === 'ru' ? 'Выбрать' : language === 'kz' ? 'Таңдау' : 'Choose'}
                   </Link>
                 </div>
@@ -551,52 +574,62 @@ const HomePage = () => {
             <div className="rounded-2xl overflow-hidden bg-white dark:bg-dark-800 shadow-2xl transition-all duration-300 border-2 border-primary-500 dark:border-primary-500 relative flex flex-col h-full transform hover:-translate-y-1 z-10 scale-105">
               <div className="absolute top-0 right-0">
                 <div className="bg-primary-500 text-white text-xs font-bold px-4 py-1 rounded-bl-lg">
-                  {t.popular}
+                  🔥 {language === 'ru' ? 'Популярный' : language === 'kz' ? 'Танымал' : 'Popular'}
                 </div>
               </div>
               <div className="h-3 bg-gradient-to-r from-primary-400 to-primary-600"></div>
               <div className="p-8 flex-grow">
-                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 mr-2 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                  {t.vipTitle}
-                </h3>
-                <div className="flex items-end mb-6 mt-4">
-                  <span className="text-4xl font-bold text-primary-600">{t.vipPrice}</span>
-                  <span className="text-lg text-gray-600 dark:text-gray-400 ml-1">{t.perMonth}</span>
+                <div className="text-center mb-6">
+                  <div className="inline-flex p-4 rounded-full mb-4 bg-purple-500 text-white">
+                    <span className="text-2xl">⭐</span>
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 flex items-center justify-center">
+                    {t.vipTitle}
+                  </h3>
+                  <p className="text-gray-500 dark:text-gray-400">{language === 'ru' ? 'Расширенный план' : language === 'kz' ? 'Кеңейтілген жоспар' : 'Advanced plan'}</p>
                 </div>
+                
+                {/* Pricing with old price crossed out */}
+                <div className="text-center mb-8">
+                  <div className="mb-2">
+                    <span className="text-sm text-gray-500 line-through">10,000 ₸</span>
+                  </div>
+                  <div className="flex items-end mb-6 mt-4">
+                    <span className="text-4xl font-bold text-primary-600">4,000</span>
+                    <span className="text-lg text-gray-600 dark:text-gray-400 ml-1">{t.perMonth}</span>
+                  </div>
+                  <div className="mt-2">
+                    <span className="inline-block bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-sm font-semibold px-3 py-1 rounded-full">
+                      {language === 'ru' ? 'Экономия' : language === 'kz' ? 'Үнемдеу' : 'Savings'} 60%
+                    </span>
+                  </div>
+                </div>
+                
                 <div className="bg-gradient-to-br from-primary-50 to-white dark:from-primary-900/20 dark:to-dark-800/70 p-4 rounded-lg mb-6 border border-primary-100 dark:border-primary-800/30">
                   <ul className="space-y-4">
                     <li className="flex items-start">
                       <svg className="w-5 h-5 text-primary-600 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                       </svg>
-                      <span className="text-gray-800 dark:text-gray-200 font-medium">{t.accessAllCats}</span>
+                      <span className="text-gray-800 dark:text-gray-200 font-medium">{language === 'ru' ? 'Все функции Эконом' : language === 'kz' ? 'Барлық Эконом функциялары' : 'All Economy features'}</span>
                     </li>
                     <li className="flex items-start">
                       <svg className="w-5 h-5 text-primary-600 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                       </svg>
-                      <span className="text-gray-800 dark:text-gray-200">{t.createRefLink}</span>
+                      <span className="text-gray-800 dark:text-gray-200">{language === 'ru' ? 'Детальная статистика' : language === 'kz' ? 'Толық статистика' : 'Detailed statistics'}</span>
                     </li>
                     <li className="flex items-start">
                       <svg className="w-5 h-5 text-primary-600 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                       </svg>
-                      <span className="text-gray-800 dark:text-gray-200">{t.accessFullStats}</span>
+                      <span className="text-gray-800 dark:text-gray-200">{language === 'ru' ? 'Реферальные ссылки' : language === 'kz' ? 'Референдық сілтемелер' : 'Referral links'}</span>
                     </li>
                     <li className="flex items-start">
                       <svg className="w-5 h-5 text-primary-600 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                       </svg>
-                      <span className="text-gray-800 dark:text-gray-200">{t.giftTestsToFriends}</span>
-                    </li>
-                    <li className="flex items-start text-gray-400">
-                      <svg className="w-5 h-5 text-gray-300 dark:text-gray-600 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-                      </svg>
-                      <span className="text-gray-400 dark:text-gray-500">{t.createLobby}</span>
+                      <span className="text-gray-800 dark:text-gray-200">{language === 'ru' ? 'Приоритетная поддержка' : language === 'kz' ? 'Приоритетті қолдау' : 'Priority support'}</span>
                     </li>
                   </ul>
                 </div>
@@ -612,55 +645,57 @@ const HomePage = () => {
             <div className="rounded-2xl overflow-hidden bg-white dark:bg-dark-800 shadow-xl hover:shadow-2xl transition-all duration-300 border-2 border-orange-400 dark:border-orange-500/50 relative flex flex-col h-full transform hover:-translate-y-1">
               <div className="h-3 bg-gradient-to-r from-orange-400 via-amber-500 to-yellow-400"></div>
               <div className="p-8 flex-grow">
-                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-7 w-7 mr-2 text-yellow-500">
-                    <path d="M11.584 2.376a.75.75 0 01.832 0l9 6a.75.75 0 11-.832 1.248L12 3.901 3.416 9.624a.75.75 0 01-.832-1.248l9-6z" />
-                    <path fillRule="evenodd" d="M20.25 10.332v9.918H21a.75.75 0 010 1.5H3a.75.75 0 010-1.5h.75v-9.918a.75.75 0 01.634-.74A49.109 49.109 0 0112 9c2.59 0 5.134.175 7.616.514a.75.75 0 01.634.738zm-7.5 2.418a.75.75 0 00-1.5 0v6.75a.75.75 0 001.5 0v-6.75zm3-.75a.75.75 0 01.75.75v6.75a.75.75 0 01-1.5 0v-6.75a.75.75 0 01.75-.75zM9 12.75a.75.75 0 00-1.5 0v6.75a.75.75 0 001.5 0v-6.75z" clipRule="evenodd" />
-                    <path d="M12 7.875a1.125 1.125 0 100-2.25 1.125 1.125 0 000 2.25z" />
-                  </svg>
-                  {t.royalTitle}
-                </h3>
-                <div className="flex items-end mb-6 mt-4">
-                  <span className="text-4xl font-bold text-orange-600 dark:text-orange-500">{t.royalPrice}</span>
-                  <span className="text-lg text-gray-600 dark:text-gray-400 ml-1">{t.perMonth}</span>
+                <div className="text-center mb-6">
+                  <div className="inline-flex p-4 rounded-full mb-4 bg-amber-500 text-white">
+                    <span className="text-2xl">👑</span>
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 flex items-center justify-center">
+                    {t.royalTitle}
+                  </h3>
+                  <p className="text-gray-500 dark:text-gray-400">{language === 'ru' ? 'Премиум план' : language === 'kz' ? 'Премиум жоспар' : 'Premium plan'}</p>
                 </div>
+                
+                {/* Pricing with old price crossed out */}
+                <div className="text-center mb-8">
+                  <div className="mb-2">
+                    <span className="text-sm text-gray-500 line-through">15,000 ₸</span>
+                  </div>
+                  <div className="flex items-end mb-6 mt-4">
+                    <span className="text-4xl font-bold text-orange-600 dark:text-orange-500">6,000</span>
+                    <span className="text-lg text-gray-600 dark:text-gray-400 ml-1">{t.perMonth}</span>
+                  </div>
+                  <div className="mt-2">
+                    <span className="inline-block bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-sm font-semibold px-3 py-1 rounded-full">
+                      {language === 'ru' ? 'Экономия' : language === 'kz' ? 'Үнемдеу' : 'Savings'} 60%
+                    </span>
+                  </div>
+                </div>
+                
                 <div className="bg-gradient-to-br from-orange-50 via-amber-50 to-white dark:from-orange-900/20 dark:via-amber-900/10 dark:to-dark-800/70 p-4 rounded-lg mb-6 border border-orange-200 dark:border-orange-800/30">
                   <ul className="space-y-4">
                     <li className="flex items-start">
                       <svg className="w-5 h-5 text-orange-600 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                       </svg>
-                      <span className="text-gray-800 dark:text-gray-200 font-medium">{t.accessAllCats}</span>
+                      <span className="text-gray-800 dark:text-gray-200 font-medium">{language === 'ru' ? 'Все функции VIP' : language === 'kz' ? 'Барлық VIP функциялары' : 'All VIP features'}</span>
                     </li>
                     <li className="flex items-start">
                       <svg className="w-5 h-5 text-orange-600 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                       </svg>
-                      <span className="text-gray-800 dark:text-gray-200">{t.createRefLink}</span>
+                      <span className="text-gray-800 dark:text-gray-200">{language === 'ru' ? 'Эксклюзивный контент' : language === 'kz' ? 'Эксклюзивті мазмұн' : 'Exclusive content'}</span>
                     </li>
                     <li className="flex items-start">
                       <svg className="w-5 h-5 text-orange-600 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                       </svg>
-                      <span className="text-gray-800 dark:text-gray-200">{t.accessFullStats}</span>
+                      <span className="text-gray-800 dark:text-gray-200">{language === 'ru' ? 'Круглосуточная поддержка 24/7' : language === 'kz' ? 'Тәулік бойы қолдау 24/7' : '24/7 support'}</span>
                     </li>
                     <li className="flex items-start">
                       <svg className="w-5 h-5 text-orange-600 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                       </svg>
-                      <span className="text-gray-800 dark:text-gray-200">{t.createLobby}</span>
-                    </li>
-                    <li className="flex items-start">
-                      <svg className="w-5 h-5 text-orange-600 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                      </svg>
-                      <span className="text-gray-800 dark:text-gray-200">{t.giftTestsGroupCodes}</span>
-                    </li>
-                    <li className="flex items-start">
-                      <svg className="w-5 h-5 text-orange-600 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                      </svg>
-                      <span className="text-gray-800 dark:text-gray-200">{t.discount15}</span>
+                      <span className="text-gray-800 dark:text-gray-200">{language === 'ru' ? 'Специальные скидки на дополнительные услуги' : language === 'kz' ? 'Қосымша қызметтерге арнайы жеңілдіктер' : 'Special discounts on additional services'}</span>
                     </li>
                   </ul>
                 </div>
@@ -917,6 +952,17 @@ const HomePage = () => {
           </div>
         </div>
       </section>
+
+      {/* Scroll to Top Button */}
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white p-3 rounded-full shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 z-50 group"
+          aria-label={language === 'ru' ? 'Вернуться наверх' : language === 'kz' ? 'Жоғарыға оралу' : 'Go to top'}
+        >
+          <FaArrowUp className="h-5 w-5 group-hover:animate-bounce" />
+        </button>
+      )}
     </div>
   );
 };

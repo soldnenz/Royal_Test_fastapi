@@ -3193,61 +3193,74 @@
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.5);
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
   z-index: 1000;
-  backdrop-filter: blur(4px);
-  animation: fadeIn 0.3s ease-out;
 }
 
 /* Modal container */
 .test-modal {
-  background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
-  max-width: 600px;
+  background: white;
+  border-radius: 12px;
   width: 90%;
+  max-width: 600px;
   max-height: 90vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  animation: slideIn 0.3s ease-out;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.test-modal.dark-theme {
+  background: #1a1a1a;
+  color: #fff;
 }
 
 /* Modal header */
 .test-modal-header {
-  padding: 24px 24px 0 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #e2e8f0;
-  margin-bottom: 24px;
+  padding: 20px;
+  border-bottom: 1px solid #eee;
+  position: sticky;
+  top: 0;
+  background: inherit;
+  z-index: 1;
+}
+
+.test-modal.dark-theme .test-modal-header {
+  border-bottom-color: #333;
 }
 
 .test-modal-header h2 {
   margin: 0;
   font-size: 1.5rem;
-  font-weight: 700;
-  color: #1e293b;
+  font-weight: 600;
 }
 
 .close-button {
   background: none;
   border: none;
-  font-size: 1.5rem;
-  color: #64748b;
+  font-size: 1.2rem;
   cursor: pointer;
   padding: 8px;
-  border-radius: 8px;
-  transition: all 0.3s ease;
   display: flex;
   align-items: center;
   justify-content: center;
+  color: #666;
+  transition: color 0.2s;
+}
+
+.test-modal.dark-theme .close-button {
+  color: #999;
 }
 
 .close-button:hover {
-  background: #f1f5f9;
-  color: #1e293b;
+  color: #333;
+}
+
+.test-modal.dark-theme .close-button:hover {
+  color: #fff;
 }
 
 /* Modal body */
@@ -3284,29 +3297,73 @@
   color: #475569;
 }
 
+.test-modal.dark-theme .cancel-button {
+  background: #333;
+  border-color: #444;
+  color: #fff;
+}
+
+.cancel-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-medium);
+}
+
+.cancel-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .start-button {
-  background: linear-gradient(135deg, #FF9000, #FFB144);
-  color: #ffffff;
+  background: linear-gradient(135deg, #4CAF50, #45a049);
+  color: white;
   border: none;
+  padding: 12px 24px;
   border-radius: 8px;
-  padding: 12px 20px;
+  font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  min-width: 140px;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 120px;
 }
 
 .start-button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(255, 144, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
 }
 
-.start-button:disabled {
-  opacity: 0.5;
+.start-button:active {
+  transform: translateY(0);
+}
+
+.start-button.loading {
+  background: #ccc;
   cursor: not-allowed;
+}
+
+.continue-button {
+  background: linear-gradient(135deg, #2196F3, #1976D2);
+}
+
+.continue-button:hover {
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+}
+
+.button-spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Selected category section */

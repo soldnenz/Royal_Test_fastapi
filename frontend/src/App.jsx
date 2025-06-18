@@ -3,8 +3,8 @@ import React, { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
-import { ToastContainer } from 'react-toastify';
 import { initTheme } from './utils/themeUtil';
+import NotificationSystem from './components/notifications/NotificationSystem';
 import './App.css';
 
 const MainLayout      = lazy(() => import('./layouts/MainLayout'));
@@ -22,6 +22,10 @@ const PromoCodesPage     = lazy(() => import('./pages/dashboard/PromoCodesPage')
 const ProfilePage        = lazy(() => import('./pages/dashboard/ProfilePage'));
 const TestDashboardPage  = lazy(() => import('./pages/dashboard/TestDashboardPage'));
 const TestPage           = lazy(() => import('./pages/TestPage'));
+const CreateLobbyPage    = lazy(() => import('./pages/multiplayer/CreateLobbyPage'));
+const LobbyWaitingPage   = lazy(() => import('./pages/multiplayer/LobbyWaitingPage'));
+const JoinLobbyPage      = lazy(() => import('./pages/multiplayer/JoinLobbyPage'));
+const MultiplayerTestPage = lazy(() => import('./pages/multiplayer/MultiplayerTestPage'));
 
 const Placeholder = ({ title }) => (
   <div className="p-4 bg-white dark:bg-gray-800 rounded-lg">
@@ -53,6 +57,10 @@ function App() {
       import('./pages/dashboard/PromoCodesPage');
       import('./pages/dashboard/TestDashboardPage');
       import('./pages/TestPage');
+      import('./pages/multiplayer/CreateLobbyPage');
+      import('./pages/multiplayer/LobbyWaitingPage');
+      import('./pages/multiplayer/JoinLobbyPage');
+      import('./pages/multiplayer/MultiplayerTestPage');
     };
 
     if ('requestIdleCallback' in window) {
@@ -90,6 +98,12 @@ function App() {
               
               {/* Test route */}
               <Route path="test/:lobbyId" element={<TestPage />} />
+              
+              {/* Multiplayer routes */}
+              <Route path="multiplayer/create" element={<CreateLobbyPage />} />
+              <Route path="multiplayer/lobby/:lobbyId" element={<LobbyWaitingPage />} />
+              <Route path="multiplayer/join/:lobbyId" element={<JoinLobbyPage />} />
+              <Route path="multiplayer/test/:lobbyId" element={<MultiplayerTestPage />} />
 
               <Route path="/" element={<MainLayout />}>
                 <Route index element={<HomePage />} />
@@ -99,17 +113,7 @@ function App() {
             </Routes>
           </Suspense>
 
-          <ToastContainer
-            position="top-right"
-            autoClose={5000}
-            hideProgressBar={false}
-            newestOnTop
-            closeOnClick
-            rtl={false}
-            pauseOnFocusLoss
-            draggable
-            pauseOnHover
-          />
+          <NotificationSystem />
         </Router>
       </LanguageProvider>
     </ThemeProvider>

@@ -8,23 +8,178 @@ from app.core.security import get_current_actor
 from app.core.response import success
 from app.websocket.lobby_ws import ws_manager
 from bson import ObjectId
+from bson.errors import InvalidId
 import json
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 import logging
 import asyncio
 from app.core.gridfs_utils import get_media_file
 import base64
+import re
+from collections import defaultdict
 from typing import Optional, List, Dict, Any, Union
 
 # Настройка логгера
 logger = logging.getLogger(__name__)
 
-# Maximum time a lobby can be active (6 hours in seconds)
-MAX_LOBBY_LIFETIME = 6 * 60 * 60
+# Maximum time a lobby can be active (4 hours in seconds)
+MAX_LOBBY_LIFETIME = 4 * 60 * 60
+
+# Exam mode timer (40 minutes in seconds)
+EXAM_TIMER_DURATION = 40 * 60
+
+# Cache для горячих лобби и пользователей
+class LobbyCache:
+    def __init__(self):
+        self.lobbies: Dict[str, dict] = {}  # Кэш лобби
+        self.user_subscriptions: Dict[str, dict] = {}  # Кэш подписок
+        self.lobby_access_cache: Dict[str, dict] = {}  # Кэш доступа к лобби
+        logger.info("LobbyCache initialized")
+    
+    async def get_lobby(self, lobby_id: str, force_refresh: bool = False):
+        """Получить лобби с кэшированием"""
+        if not force_refresh and lobby_id in self.lobbies:
+            cached_lobby = self.lobbies[lobby_id]
+            # Проверяем свежесть кэша (30 секунд для активных лобби)
+            if (datetime.utcnow() - cached_lobby.get("cached_at", datetime.min)).total_seconds() < 30:
+                return cached_lobby["data"]
+        
+        # Загружаем из MongoDB
+        lobby = await db.lobbies.find_one({"_id": lobby_id})
+        if lobby:
+            self.lobbies[lobby_id] = {
+                "data": lobby,
+                "cached_at": datetime.utcnow()
+            }
+        return lobby
+    
+    async def get_user_subscription(self, user_id: str):
+        """Получить подписку пользователя с кэшированием"""
+        if user_id in self.user_subscriptions:
+            cached_sub = self.user_subscriptions[user_id]
+            # Кэш подписки на 5 минут
+            if (datetime.utcnow() - cached_sub.get("cached_at", datetime.min)).total_seconds() < 300:
+                return cached_sub["data"]
+        
+        # Для гостей подписки нет
+        if isinstance(user_id, str) and user_id.startswith("guest_"):
+            self.user_subscriptions[user_id] = {
+                "data": None,
+                "cached_at": datetime.utcnow()
+            }
+            return None
+        
+        # Загружаем из MongoDB для обычных пользователей
+        subscription = await db.subscriptions.find_one({
+            "user_id": ObjectId(user_id),
+            "is_active": True,
+            "expires_at": {"$gt": datetime.utcnow()}
+        })
+        
+        self.user_subscriptions[user_id] = {
+            "data": subscription,
+            "cached_at": datetime.utcnow()
+        }
+        return subscription
+    
+    def invalidate_lobby(self, lobby_id: str):
+        """Очистить кэш лобби"""
+        if lobby_id in self.lobbies:
+            del self.lobbies[lobby_id]
+    
+    def cleanup_old_cache(self):
+        """Очистка старого кэша (вызывается периодически)"""
+        current_time = datetime.utcnow()
+        # Удаляем лобби старше 5 минут
+        old_lobbies = [
+            lobby_id for lobby_id, data in self.lobbies.items()
+            if (current_time - data.get("cached_at", datetime.min)).total_seconds() > 300
+        ]
+        for lobby_id in old_lobbies:
+            del self.lobbies[lobby_id]
+        
+        # Удаляем подписки старше 10 минут
+        old_subs = [
+            user_id for user_id, data in self.user_subscriptions.items()
+            if (current_time - data.get("cached_at", datetime.min)).total_seconds() > 600
+        ]
+        for user_id in old_subs:
+            del self.user_subscriptions[user_id]
+
+# Глобальный кэш
+lobby_cache = LobbyCache()
+
+# Простой Rate Limiter
+class SimpleRateLimiter:
+    def __init__(self, max_requests: int = 60, time_window: int = 60):
+        self.max_requests = max_requests
+        self.time_window = time_window
+        self.requests = defaultdict(list)
+        
+    def check_rate_limit(self, user_id: str) -> bool:
+        from datetime import datetime, timedelta
+        now = datetime.utcnow()
+        user_requests = self.requests[user_id]
+        
+        # Удаляем старые запросы
+        user_requests[:] = [req_time for req_time in user_requests 
+                           if now - req_time < timedelta(seconds=self.time_window)]
+        
+        if len(user_requests) >= self.max_requests:
+            return False
+            
+        user_requests.append(now)
+        return True
+
+rate_limiter = SimpleRateLimiter()
+
+async def validate_lobby_access(lobby_id: str, user_id: str, required_status: str = None, is_guest: bool = False):
+    """
+    Централизованная проверка доступа к лобби
+    Возвращает (lobby, is_host, subscription_type) или выбрасывает HTTPException
+    """
+    cache_key = f"{lobby_id}:{user_id}"
+    
+    # Получаем лобби из кэша
+    lobby = await lobby_cache.get_lobby(lobby_id)
+    if not lobby:
+        raise HTTPException(status_code=404, detail="Лобби не найдено")
+    
+    # Проверяем статус лобби
+    if required_status and lobby["status"] != required_status:
+        # Попробуем обновить кеш и проверить еще раз
+        lobby = await lobby_cache.get_lobby(lobby_id, force_refresh=True)
+        if lobby and lobby["status"] != required_status:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Неверный статус лобби. Требуется: {required_status}, текущий: {lobby['status']}"
+            )
+    
+    # Проверяем участие пользователя
+    if user_id not in lobby["participants"]:
+        raise HTTPException(status_code=403, detail="Вы не являетесь участником этого лобби")
+    
+    is_host = user_id == lobby.get("host_id")
+    
+    # Для гостей получаем тип подписки хоста
+    if is_guest:
+        host_subscription = await lobby_cache.get_user_subscription(lobby.get("host_id"))
+        subscription_type = host_subscription["subscription_type"] if host_subscription else "Demo"
+    else:
+        # Получаем тип подписки из кэша для обычных пользователей
+        subscription = await lobby_cache.get_user_subscription(user_id)
+        subscription_type = subscription["subscription_type"] if subscription else "Demo"
+    
+    return lobby, is_host, subscription_type
 
 class AnswerSubmit(BaseModel):
     question_id: str
     answer_index: int
+
+class MultiplayerAnswerSubmit(BaseModel):
+    question_id: str
+    answer_index: int
+    question_index: int
 
 class LobbyCreate(BaseModel):
     mode: str = "solo"  # По умолчанию solo
@@ -32,23 +187,92 @@ class LobbyCreate(BaseModel):
     pdd_section_uids: Optional[List[str]] = None
     questions_count: int = 40
     exam_mode: bool = False  # По умолчанию выключен режим экзамена
+    max_participants: int = 8  # Максимальное количество участников
+
+class ExamTimerUpdate(BaseModel):
+    time_left: int  # Оставшееся время в секундах
+
+class KickParticipantRequest(BaseModel):
+    target_user_id: str
+    
+    @validator('target_user_id')
+    def validate_user_id(cls, v):
+        if not v or len(v) < 3:
+            raise ValueError('Invalid user ID')
+        # Проверка на инъекции и другие атаки
+        if re.search(r'[<>"\';]', v):
+            raise ValueError('Invalid characters in user ID')
+        return v
 
 router = APIRouter()
+
+def validate_object_id(id_string: str) -> bool:
+    """Проверка валидности ObjectId"""
+    try:
+        ObjectId(id_string)
+        return True
+    except (InvalidId, TypeError):
+        return False
+
+async def validate_answer_integrity(lobby_id: str, question_id: str, answer_index: int) -> bool:
+    """Проверка целостности данных ответа"""
+    try:
+        # Получаем лобби
+        lobby = await db.lobbies.find_one({"_id": lobby_id})
+        if not lobby or question_id not in lobby.get("question_ids", []):
+            logger.error(f"Question {question_id} not in lobby {lobby_id}")
+            return False
+        
+        # Получаем вопрос напрямую из базы данных
+        question = await db.questions.find_one({"_id": ObjectId(question_id)})
+        if not question:
+            logger.error(f"Question {question_id} not found in database")
+            return False
+        
+        # Проверяем, что индекс ответа валиден
+        options_count = 0
+        if "options" in question:
+            options_count = len(question["options"])
+        elif "answers" in question:
+            options_count = len(question["answers"])
+        else:
+            logger.error(f"Question {question_id} has no options or answers")
+            return False
+            
+        if answer_index < 0 or answer_index >= options_count:
+            logger.error(f"Invalid answer index {answer_index} for question {question_id}. Available options: {options_count}")
+            return False
+            
+        logger.info(f"Answer validation passed for question {question_id}, index {answer_index}, options available: {options_count}")
+        return True
+    except Exception as e:
+        logger.error(f"Error validating answer integrity: {str(e)}")
+        return False
 
 def get_user_id(current_user):
     """
     Извлекает ID пользователя из объекта, возвращаемого get_current_actor
+    Поддерживает как обычных пользователей, так и гостей
     """
-    return str(current_user["id"])
+    user_id = current_user["id"]
+    # Для гостей ID уже строка, для обычных пользователей - ObjectId
+    if isinstance(user_id, str):
+        return user_id
+    return str(user_id)
 
 async def auto_finish_expired_lobbies():
     """
-    Background task to check and finish lobbies that have been active for more than 6 hours
+    Background task to check and finish lobbies that have been active for more than 4 hours
+    Also checks exam mode timers and finishes tests when time runs out
+    Also performs cache cleanup every 5 minutes
     """
+    cleanup_counter = 0
     while True:
         try:
-            # Find lobbies that are older than 6 hours and still active
-            expiration_time = datetime.utcnow() - timedelta(seconds=MAX_LOBBY_LIFETIME)
+            current_time = datetime.utcnow()
+            
+            # Find lobbies that are older than 4 hours and still active
+            expiration_time = current_time - timedelta(seconds=MAX_LOBBY_LIFETIME)
             expired_lobbies = await db.lobbies.find({
                 "status": "in_progress",
                 "created_at": {"$lt": expiration_time}
@@ -62,19 +286,93 @@ async def auto_finish_expired_lobbies():
                     {"_id": lobby["_id"]},
                     {"$set": {
                         "status": "finished",
-                        "finished_at": datetime.utcnow(),
-                        "auto_finished": True
+                        "finished_at": current_time,
+                        "auto_finished": True,
+                        "finish_reason": "time_limit_exceeded"
                     }}
                 )
                 
+                # Инвалидируем кэш для истекшего лобби
+                lobby_cache.invalidate_lobby(lobby["_id"])
+                
                 # Notify all participants via WebSocket
                 try:
-                    await ws_manager.send_json(lobby["_id"], {
+                    await ws_manager.send_json_parallel(lobby["_id"], {
                         "type": "test_finished",
-                        "data": {"auto_finished": True, "reason": "Time limit exceeded (6 hours)"}
+                        "data": {"auto_finished": True, "reason": "Time limit exceeded (4 hours)"}
                     })
                 except Exception as e:
                     logger.error(f"Error sending WebSocket notification: {str(e)}")
+            
+            # Check exam mode timers
+            exam_lobbies = await db.lobbies.find({
+                "status": "in_progress",
+                "exam_mode": True,
+                "exam_timer_expires_at": {"$lt": current_time}
+            }).to_list(None)
+            
+            for lobby in exam_lobbies:
+                logger.info(f"Auto-finishing exam lobby {lobby['_id']} due to timer expiration")
+                
+                # Calculate duration
+                duration = (current_time - lobby.get("created_at", current_time)).total_seconds()
+                
+                # Set the lobby as finished
+                await db.lobbies.update_one(
+                    {"_id": lobby["_id"]},
+                    {"$set": {
+                        "status": "finished",
+                        "finished_at": current_time,
+                        "auto_finished": True,
+                        "finish_reason": "exam_timer_expired",
+                        "duration_seconds": duration
+                    }}
+                )
+                
+                # Инвалидируем кэш для истекшего лобби
+                lobby_cache.invalidate_lobby(lobby["_id"])
+                
+                # Save history for all participants
+                for participant_id, answers in lobby.get("participants_answers", {}).items():
+                    correct_count = sum(1 for is_corr in answers.values() if is_corr)
+                    total_questions = len(lobby.get("question_ids", []))
+                    
+                    history_record = {
+                        "user_id": participant_id,
+                        "lobby_id": lobby["_id"],
+                        "date": current_time,
+                        "score": correct_count,
+                        "total": total_questions,
+                        "categories": lobby.get("categories", []),
+                        "sections": lobby.get("sections", []),
+                        "mode": lobby.get("mode", "solo"),
+                        "pass_percentage": (correct_count / total_questions * 100) if total_questions > 0 else 0,
+                        "duration_seconds": duration,
+                        "is_passed": correct_count >= int(total_questions * 0.8),
+                        "auto_finished": True,
+                        "finish_reason": "exam_timer_expired"
+                    }
+                    await db.history.insert_one(history_record)
+                
+                # Notify all participants via WebSocket
+                try:
+                    await ws_manager.send_json_parallel(lobby["_id"], {
+                        "type": "test_finished",
+                        "data": {
+                            "auto_finished": True, 
+                            "reason": "Exam timer expired",
+                            "duration_seconds": duration
+                        }
+                    })
+                except Exception as e:
+                    logger.error(f"Error sending WebSocket notification: {str(e)}")
+            
+            # Очистка кэша каждые 5 минут (300 секунд / 60 = 5 итераций)
+            cleanup_counter += 1
+            if cleanup_counter >= 5:
+                lobby_cache.cleanup_old_cache()
+                cleanup_counter = 0
+                logger.info("Cache cleanup performed")
             
             # Check every minute
             await asyncio.sleep(60)
@@ -104,14 +402,19 @@ async def create_lobby(
     logger.info(f"Запрос на создание лобби от пользователя: {user_id}, режим: {lobby_data.mode}")
     
     try:
-        # Принудительно установим количество вопросов в 40
-        questions_count = 40
+        # Используем количество вопросов из запроса
+        questions_count = lobby_data.questions_count
         
-        # Проверка активных тестов пользователя
-        active_lobby = await db.lobbies.find_one({
+        # Проверка активных тестов пользователя и получение подписки параллельно
+        active_lobby_task = db.lobbies.find_one({
             "participants": user_id,
             "status": {"$ne": "finished"}
         })
+        subscription_task = lobby_cache.get_user_subscription(user_id)
+        
+        # Выполняем оба запроса параллельно
+        active_lobby, subscription = await asyncio.gather(active_lobby_task, subscription_task)
+        
         if active_lobby:
             # Check if the lobby is more than 6 hours old - if so, automatically finish it
             if active_lobby.get("created_at"):
@@ -149,13 +452,6 @@ async def create_lobby(
                         "active_lobby_id": active_lobby["_id"]
                     }
                 )
-        
-        # Получаем информацию о подписке пользователя
-        subscription = await db.subscriptions.find_one({
-            "user_id": ObjectId(user_id),
-            "is_active": True,
-            "expires_at": {"$gt": datetime.utcnow()}
-        })
         
         if not subscription:
             # Демо-режим или бесплатный доступ
@@ -226,6 +522,7 @@ async def create_lobby(
         
         # Ограничим количество запрашиваемых вопросов количеством доступных
         questions_count = min(questions_count, total_questions)
+        
         # Убедимся, что не больше 40 вопросов
         questions_count = min(questions_count, 40)
         
@@ -277,10 +574,12 @@ async def create_lobby(
         lobby_id = await generate_unique_lobby_id()
         logger.info(f"Сгенерирован ID лобби: {lobby_id}")
         
-        # Определяем начальный статус - для solo сразу in_progress, для multi - waiting
-        initial_status = "waiting" if lobby_data.mode == "multi" else "in_progress"
+        # Определяем начальный статус - для solo сразу in_progress, для multi/multiplayer - waiting
+        initial_status = "waiting" if lobby_data.mode in ["multi", "multiplayer"] else "in_progress"
         logger.info(f"Установлен начальный статус лобби: {initial_status}")
         
+        # Подготавливаем данные лобби
+        current_time = datetime.utcnow()
         lobby_doc = {
             "_id": lobby_id,
             "host_id": user_id,
@@ -291,20 +590,29 @@ async def create_lobby(
             "participants": [user_id],
             "participants_answers": {user_id: {}},
             "current_index": 0,
-            "created_at": datetime.utcnow(),
+            "created_at": current_time,
             "sections": lobby_data.pdd_section_uids or [],
             "categories": lobby_data.categories or [],
             "mode": lobby_data.mode,
             "subscription_type": subscription_type,
-            "exam_mode": lobby_data.exam_mode
+            "exam_mode": lobby_data.exam_mode,
+            "max_participants": lobby_data.max_participants,  # Максимальное количество участников
+            "questions_count": questions_count  # Сохраняем количество вопросов
         }
+        
+        # Добавляем таймер экзамена, если включен режим экзамена
+        if lobby_data.exam_mode:
+            lobby_doc["exam_timer_duration"] = EXAM_TIMER_DURATION
+            lobby_doc["exam_timer_expires_at"] = current_time + timedelta(seconds=EXAM_TIMER_DURATION)
+            lobby_doc["exam_timer_started_at"] = current_time
+            logger.info(f"Установлен таймер экзамена на {EXAM_TIMER_DURATION} секунд для лобби {lobby_id}")
         
         try:
             await db.lobbies.insert_one(lobby_doc)
             logger.info(f"Лобби {lobby_id} успешно создано в базе данных")
             
             # Если solo режим, отправляем WebSocket сообщение о начале теста
-            if lobby_data.mode == "solo":
+            if lobby_data.mode not in ["multi", "multiplayer"]:
                 first_question_id = question_ids[0] if question_ids else None
                 if first_question_id:
                     try:
@@ -318,15 +626,22 @@ async def create_lobby(
                     except Exception as e:
                         logger.error(f"Ошибка при отправке WebSocket сообщения: {str(e)}")
             
-            return success(data={
+            response_data = {
                 "lobby_id": lobby_id, 
                 "status": initial_status, 
                 "questions_count": questions_count,
                 "categories": lobby_data.categories,
                 "sections": lobby_data.pdd_section_uids,
-                "auto_started": lobby_data.mode == "solo",
+                "auto_started": lobby_data.mode not in ["multi", "multiplayer"],
                 "exam_mode": lobby_data.exam_mode
-            })
+            }
+            
+            # Добавляем информацию о таймере экзамена
+            if lobby_data.exam_mode:
+                response_data["exam_timer_duration"] = EXAM_TIMER_DURATION
+                response_data["exam_timer_expires_at"] = lobby_doc["exam_timer_expires_at"].isoformat()
+            
+            return success(data=response_data)
         except Exception as e:
             # Логируем ошибку
             logger.error(f"Ошибка при создании лобби: {str(e)}")
@@ -339,111 +654,237 @@ async def create_lobby(
         logger.error(f"Непредвиденная ошибка при создании лобби: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
 
+@router.post("/lobbies/{lobby_id}/exam-timer", summary="Обновить таймер экзамена")
+async def update_exam_timer(
+    lobby_id: str,
+    timer_data: ExamTimerUpdate,
+    current_user: dict = Depends(get_current_actor)
+):
+    """
+    Синхронизирует таймер экзамена между клиентом и сервером.
+    Обновляет время истечения таймера в базе данных.
+    """
+    user_id = get_user_id(current_user)
+    logger.info(f"Обновление таймера экзамена для лобби {lobby_id} от пользователя {user_id}, осталось: {timer_data.time_left}с")
+    
+    try:
+        # Получаем лобби
+        lobby = await db.lobbies.find_one({"_id": lobby_id})
+        if not lobby:
+            raise HTTPException(status_code=404, detail="Лобби не найдено")
+        
+        # Проверяем, что пользователь участник лобби
+        if user_id not in lobby["participants"]:
+            raise HTTPException(status_code=403, detail="Вы не являетесь участником этого лобби")
+        
+        # Проверяем, что лобби в режиме экзамена
+        if not lobby.get("exam_mode", False):
+            raise HTTPException(status_code=400, detail="Лобби не в режиме экзамена")
+        
+        # Проверяем, что лобби активно
+        if lobby["status"] != "in_progress":
+            raise HTTPException(status_code=400, detail="Лобби не активно")
+        
+        # Проверяем валидность времени
+        if timer_data.time_left < 0:
+            timer_data.time_left = 0
+        elif timer_data.time_left > EXAM_TIMER_DURATION:
+            timer_data.time_left = EXAM_TIMER_DURATION
+        
+        # Обновляем время истечения таймера
+        current_time = datetime.utcnow()
+        new_expires_at = current_time + timedelta(seconds=timer_data.time_left)
+        
+        await db.lobbies.update_one(
+            {"_id": lobby_id},
+            {"$set": {
+                "exam_timer_expires_at": new_expires_at,
+                "exam_timer_last_sync": current_time
+            }}
+        )
+        
+        # Инвалидируем кэш
+        lobby_cache.invalidate_lobby(lobby_id)
+        
+        logger.info(f"Таймер экзамена обновлен для лобби {lobby_id}, новое время истечения: {new_expires_at}")
+        
+        return success(data={
+            "time_left": timer_data.time_left,
+            "expires_at": new_expires_at.isoformat(),
+            "server_time": current_time.isoformat()
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении таймера экзамена: {str(e)}")
+        raise HTTPException(status_code=500, detail="Ошибка при обновлении таймера")
+
+@router.get("/lobbies/{lobby_id}/exam-timer", summary="Получить состояние таймера экзамена")
+async def get_exam_timer(
+    lobby_id: str,
+    current_user: dict = Depends(get_current_actor)
+):
+    """
+    Получает текущее состояние таймера экзамена с сервера.
+    """
+    user_id = get_user_id(current_user)
+    
+    try:
+        # Получаем лобби
+        lobby = await db.lobbies.find_one({"_id": lobby_id})
+        if not lobby:
+            raise HTTPException(status_code=404, detail="Лобби не найдено")
+        
+        # Проверяем, что пользователь участник лобби
+        if user_id not in lobby["participants"]:
+            raise HTTPException(status_code=403, detail="Вы не являетесь участником этого лобби")
+        
+        # Проверяем, что лобби в режиме экзамена
+        if not lobby.get("exam_mode", False):
+            raise HTTPException(status_code=400, detail="Лобби не в режиме экзамена")
+        
+        current_time = datetime.utcnow()
+        expires_at = lobby.get("exam_timer_expires_at")
+        
+        if not expires_at:
+            # Если таймер не установлен, устанавливаем его
+            expires_at = current_time + timedelta(seconds=EXAM_TIMER_DURATION)
+            await db.lobbies.update_one(
+                {"_id": lobby_id},
+                {"$set": {
+                    "exam_timer_expires_at": expires_at,
+                    "exam_timer_started_at": current_time,
+                    "exam_timer_duration": EXAM_TIMER_DURATION
+                }}
+            )
+            time_left = EXAM_TIMER_DURATION
+        else:
+            # Вычисляем оставшееся время
+            time_left = max(0, int((expires_at - current_time).total_seconds()))
+        
+        return success(data={
+            "time_left": time_left,
+            "expires_at": expires_at.isoformat(),
+            "server_time": current_time.isoformat(),
+            "duration": EXAM_TIMER_DURATION
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при получении таймера экзамена: {str(e)}")
+        raise HTTPException(status_code=500, detail="Ошибка при получении таймера")
+
 @router.post("/lobbies/{lobby_id}/join", summary="Присоединиться к лобби")
 async def join_lobby(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
     """
-    Присоединяет указанного пользователя к лобби с учетом его подписки.
-    - Проверяет нет ли у пользователя других активных лобби
-    - Проверяет доступ к категориям и разделам на основе подписки
+    Присоединение к существующему лобби.
+    Проверяет, что лобби существует, не заполнено и пользователь не в черном списке.
     """
     user_id = get_user_id(current_user)
     logger.info(f"Пользователь {user_id} пытается присоединиться к лобби {lobby_id}")
     
     try:
-        # Проверка на наличие активных лобби у пользователя
-        active_lobby = await db.lobbies.find_one({
-            "participants": user_id,
-            "_id": {"$ne": lobby_id},  # Исключаем текущее лобби
-            "status": {"$ne": "finished"}
-        })
-        
-        if active_lobby:
-            logger.warning(f"Пользователь {user_id} уже в активном лобби {active_lobby['_id']}")
-            raise HTTPException(
-                status_code=400, 
-                detail="У вас уже есть активное лобби. Завершите его перед присоединением к новому."
-            )
-        
+        # Получаем информацию о лобби
         lobby = await db.lobbies.find_one({"_id": lobby_id})
         if not lobby:
-            logger.error(f"Лобби {lobby_id} не найдено")
+            logger.warning(f"Лобби {lobby_id} не найдено")
             raise HTTPException(status_code=404, detail="Лобби не найдено")
         
-        if lobby["status"] != "waiting":
-            logger.warning(f"Пользователь {user_id} пытается присоединиться к лобби {lobby_id} со статусом {lobby['status']}")
-            raise HTTPException(status_code=400, detail="Нельзя присоединиться: тест уже начат или завершен")
+        # Проверяем, что пользователь не в черном списке
+        blacklisted_users = lobby.get("blacklisted_users", [])
+        if user_id in blacklisted_users:
+            logger.warning(f"Пользователь {user_id} в черном списке лобби {lobby_id}")
+            raise HTTPException(status_code=403, detail="Вы были исключены из этого лобби и не можете присоединиться снова")
         
-        if user_id in lobby["participants"]:
-            # Если пользователь уже в лобби, просто возвращаем успех
-            logger.info(f"Пользователь {user_id} уже в лобби {lobby_id}")
-            return success(data={"message": f"Вы уже присоединены к лобби {lobby_id}"})
+        # Проверяем статус лобби
+        if lobby["status"] == "finished":
+            logger.warning(f"Лобби {lobby_id} уже завершено")
+            raise HTTPException(status_code=400, detail="Лобби уже завершено")
         
-        if len(lobby["participants"]) >= 35:
-            raise HTTPException(status_code=400, detail="Лобби заполнено (максимум 35 участников)")
-        
-        # Для режима solo можно присоединиться только создателю
-        if lobby["mode"] == "solo" and lobby["host_id"] != user_id:
-            raise HTTPException(status_code=403, detail="Это одиночный тест, нельзя присоединиться")
-        
-        # Проверка подписки пользователя
-        subscription = await db.subscriptions.find_one({
-            "user_id": ObjectId(user_id),
-            "is_active": True,
-            "expires_at": {"$gt": datetime.utcnow()}
-        })
-        
-        if not subscription:
-            # Демо-режим или бесплатный доступ
-            user_subscription_type = "Demo"
-        else:
-            user_subscription_type = subscription["subscription_type"]
-        
-        # Проверка доступа к категориям (только для Royal-лобби)
-        if lobby.get("subscription_type") == "Royal" and user_id != lobby["host_id"]:
-            lobby_categories = lobby.get("categories", [])
-            
-            # Определяем доступные категории пользователя
-            if user_subscription_type == "Economy":
-                allowed_categories = ["A1", "A", "B1", "B", "BE"]
-            elif user_subscription_type in ["Vip", "Royal", "School"]:
-                # Полный доступ ко всем категориям
-                allowed_categories = None
+        # Если лобби уже запущено, перенаправляем на страницу теста
+        if lobby["status"] == "in_progress":
+            if user_id in lobby.get("participants", []):
+                logger.info(f"Пользователь {user_id} пытается присоединиться к уже запущенному лобби {lobby_id}, в котором участвует")
+                return success(data={
+                    "message": "Перенаправление на активный тест",
+                    "redirect": f"/multiplayer/test/{lobby_id}",
+                    "lobby_status": "in_progress"
+                })
             else:
-                # Демо-режим - ограниченный набор
-                allowed_categories = ["B"]
-            
-            # Проверяем доступ
-            if allowed_categories and lobby_categories:
-                if not any(cat in allowed_categories for cat in lobby_categories):
-                    raise HTTPException(
-                        status_code=403, 
-                        detail="Ваша подписка не позволяет присоединиться к лобби с данными категориями"
-                    )
+                raise HTTPException(status_code=400, detail="Тест уже начался, присоединение невозможно")
         
-        # Обновляем документ лобби: добавляем участника
-        await db.lobbies.update_one({"_id": lobby_id}, {
-            "$push": {"participants": user_id},
-            "$set": {f"participants_answers.{user_id}": {}}  # создаем запись ответов для нового участника
-        })
+        # Проверяем, что пользователь еще не участник
+        if user_id in lobby.get("participants", []):
+            logger.info(f"Пользователь {user_id} уже участник лобби {lobby_id}")
+            return success(data={
+                "message": "Вы уже участник этого лобби",
+                "lobby_id": lobby_id,
+                "already_member": True
+            })
         
-        # Оповещаем других участников о новом пользователе через WebSocket
+        # Проверяем максимальное количество участников
+        current_participants = len(lobby.get("participants", []))
+        max_participants = lobby.get("max_participants", 8)
+        
+        if current_participants >= max_participants:
+            logger.warning(f"Лобби {lobby_id} заполнено ({current_participants}/{max_participants})")
+            raise HTTPException(status_code=400, detail=f"Лобби заполнено ({current_participants}/{max_participants})")
+        
+        # Получаем информацию о пользователе для WebSocket уведомления
+        user_name = "Unknown User"
+        is_guest = user_id.startswith("guest_")
+        
+        if is_guest:
+            user_name = f"Гость {user_id[-8:]}"
+        else:
+            # Получаем имя пользователя из базы данных
+            try:
+                user_data = await db.users.find_one({"_id": ObjectId(user_id)})
+                if user_data:
+                    user_name = user_data.get("full_name", "Unknown User")
+            except Exception as e:
+                logger.warning(f"Could not fetch user data for {user_id}: {str(e)}")
+        
+        # Добавляем пользователя к участникам лобби
+        await db.lobbies.update_one(
+            {"_id": lobby_id},
+            {"$addToSet": {"participants": user_id}}
+        )
+        
+        # Инвалидируем кэш лобби
+        lobby_cache.invalidate_lobby(lobby_id)
+        
+        logger.info(f"Пользователь {user_id} ({user_name}) успешно присоединился к лобби {lobby_id}")
+        
+        # Отправляем WebSocket уведомление о присоединении пользователя
         try:
-            await ws_manager.send_json(lobby_id, {
+            await ws_manager.send_json_parallel(lobby_id, {
                 "type": "user_joined",
-                "data": {"user_id": user_id}
+                "data": {
+                    "user_id": user_id,
+                    "user_name": user_name,
+                    "is_host": False,
+                    "is_guest": is_guest
+                }
             })
         except Exception as e:
-            print(f"Error sending WebSocket notification: {str(e)}")
-            # Не прерываем выполнение, если не удалось отправить WebSocket сообщение
+            logger.error(f"Ошибка при отправке WebSocket уведомления: {str(e)}")
         
-        return success(data={"message": f"Пользователь присоединился к лобби {lobby_id}"})
+        return success(data={
+            "message": "Успешно присоединились к лобби",
+            "lobby_id": lobby_id,
+            "user_name": user_name,
+            "participants_count": current_participants + 1,
+            "max_participants": max_participants
+        })
+        
     except HTTPException:
-        # Пропускаем HTTP исключения дальше
         raise
     except Exception as e:
-        # Логируем неожиданные ошибки
-        print(f"Unexpected error joining lobby {lobby_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при присоединении к лобби")
+        logger.error(f"Ошибка при присоединении к лобби: {str(e)}")
+        raise HTTPException(status_code=500, detail="Ошибка при присоединении к лобби")
 
 @router.post("/lobbies/{lobby_id}/start", summary="Начать тест")
 async def start_test(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
@@ -476,6 +917,9 @@ async def start_test(lobby_id: str, request: Request = None, current_user: dict 
             {"_id": lobby_id},
             {"$set": {"status": "in_progress"}}
         )
+        
+        # Инвалидируем кэш лобби после изменения статуса
+        lobby_cache.invalidate_lobby(lobby_id)
         
         logger.info(f"Тест в лобби {lobby_id} успешно начат")
         
@@ -551,21 +995,8 @@ async def get_question(lobby_id: str, question_id: str, request: Request = None,
     logger.info(f"Пользователь {user_id} запрашивает вопрос {question_id} в лобби {lobby_id}")
     
     try:
-        # Получаем данные о лобби
-        lobby = await db.lobbies.find_one({"_id": lobby_id})
-        if not lobby:
-            logger.warning(f"Лобби {lobby_id} не найдено")
-            raise HTTPException(status_code=404, detail="Лобби не найдено")
-        
-        # Проверяем, что пользователь участник лобби
-        if user_id not in lobby["participants"]:
-            logger.warning(f"Пользователь {user_id} не является участником лобби {lobby_id}")
-            raise HTTPException(status_code=403, detail="Вы не являетесь участником этого лобби")
-        
-        # Проверяем статус лобби - должен быть "in_progress"
-        if lobby["status"] != "in_progress":
-            logger.warning(f"Лобби {lobby_id} не в статусе 'in_progress', текущий статус: {lobby['status']}")
-            raise HTTPException(status_code=400, detail="Тест не активен. Статус лобби должен быть 'in_progress'")
+        # Используем централизованную валидацию с кэшированием
+        lobby, is_host, subscription_type = await validate_lobby_access(lobby_id, user_id, "in_progress")
         
         # Проверяем, что запрашиваемый вопрос входит в список вопросов лобби
         if question_id not in lobby["question_ids"]:
@@ -580,31 +1011,16 @@ async def get_question(lobby_id: str, question_id: str, request: Request = None,
             raise HTTPException(status_code=500, detail="Некорректный индекс текущего вопроса")
             
         current_question_id = lobby["question_ids"][current_index]
-        
         user_answers = lobby.get("participants_answers", {}).get(user_id, {})
         question_index = lobby["question_ids"].index(question_id)
         
-        # Хост лобби может получить любой вопрос
-        is_host = user_id == lobby.get("host_id")
-        
-        # Проверка, что все предыдущие вопросы отвечены
-        all_previous_answered = True
-        for i in range(question_index):
-            prev_question_id = lobby["question_ids"][i]
-            if prev_question_id not in user_answers:
-                all_previous_answered = False
-                break
-        
-        # Пользователь должен либо быть хостом, либо:
-        # 1. Этот вопрос должен быть текущим и все предыдущие должны быть отвечены, или
-        # 2. Пользователь уже ответил на этот вопрос
-        if not is_host and question_id != current_question_id and question_id not in user_answers:
-            logger.warning(f"Пользователь {user_id} пытается получить вопрос {question_id}, который не является текущим и на который пользователь не ответил")
-            raise HTTPException(status_code=403, detail="Вам необходимо сначала ответить на все предыдущие вопросы")
-        
-        if not is_host and question_id == current_question_id and not all_previous_answered:
-            logger.warning(f"Пользователь {user_id} пытается получить текущий вопрос {question_id} без ответа на предыдущие вопросы")
-            raise HTTPException(status_code=403, detail="Вам необходимо сначала ответить на все предыдущие вопросы")
+        # Проверка доступа к вопросу (упрощенная для мультиплеера)
+        if not is_host:
+            # В мультиплеере разрешаем доступ к текущему и предыдущим вопросам
+            # Запрещаем только доступ к будущим вопросам
+            if question_index > current_index:
+                logger.warning(f"Пользователь {user_id} пытается получить доступ к будущему вопросу {question_id} (индекс {question_index}, текущий индекс {current_index})")
+                raise HTTPException(status_code=403, detail="Доступ к этому вопросу пока не разрешен")
 
         # Запрашиваем вопрос из коллекции вопросов
         question = await db.questions.find_one({"_id": ObjectId(question_id)})
@@ -613,8 +1029,7 @@ async def get_question(lobby_id: str, question_id: str, request: Request = None,
             raise HTTPException(status_code=404, detail="Вопрос не найден")
         
         # Проверяем, отвечал ли уже пользователь на этот вопрос
-        answer = lobby.get("participants_answers", {}).get(user_id, {}).get(question_id)
-        has_answered = answer is not None
+        has_answered = question_id in user_answers
         
         # Получаем информацию о медиа-файлах для вопроса
         question_data = lobby.get("questions_data", {}).get(question_id, {})
@@ -628,8 +1043,10 @@ async def get_question(lobby_id: str, question_id: str, request: Request = None,
             "answers": [option["text"] for option in question.get("options", [])],
             "has_media": has_media,
             "media_type": media_type,
+            "media_file_id": str(question.get("media_file_id")) if question.get("media_file_id") else None,
             "has_after_answer_media": question_data.get("has_after_answer_media", False) and has_answered,
-            "after_answer_media_type": question_data.get("after_answer_media_type", "image") if has_answered else None
+            "after_answer_media_type": question_data.get("after_answer_media_type", "image") if has_answered else None,
+            "after_answer_media_file_id": str(question.get("after_answer_media_file_id") or question.get("after_answer_media_id")) if (question.get("after_answer_media_file_id") or question.get("after_answer_media_id")) and has_answered else None
         }
         
         # Если пользователь уже ответил и это не экзаменационный режим, добавляем объяснение
@@ -744,6 +1161,26 @@ async def get_question_media(
             else:
                 content_type = file_info.get("contentType", "application/octet-stream")
                 filename = file_info.get("filename", "media_file")
+                
+                # Improve content type detection based on filename if contentType is generic
+                if content_type == "application/octet-stream" and filename:
+                    lower_filename = filename.lower()
+                    if lower_filename.endswith(('.jpg', '.jpeg')):
+                        content_type = "image/jpeg"
+                    elif lower_filename.endswith('.png'):
+                        content_type = "image/png"
+                    elif lower_filename.endswith('.gif'):
+                        content_type = "image/gif"
+                    elif lower_filename.endswith('.webp'):
+                        content_type = "image/webp"
+                    elif lower_filename.endswith('.svg'):
+                        content_type = "image/svg+xml"
+                    elif lower_filename.endswith('.mp4'):
+                        content_type = "video/mp4"
+                    elif lower_filename.endswith('.avi'):
+                        content_type = "video/avi"
+                    elif lower_filename.endswith('.mov'):
+                        content_type = "video/quicktime"
             
             logger.info(f"Тип содержимого медиа-файла: {content_type}")
             
@@ -865,6 +1302,8 @@ async def get_after_answer_media(
             participant_answers = lobby.get("participants_answers", {}).get(user_id, {})
             has_answered = question_id in participant_answers
             
+
+            
         else:
             # Проверяем все активные лобби пользователя
             active_lobbies = await db.lobbies.find({
@@ -886,6 +1325,17 @@ async def get_after_answer_media(
                 headers={'Content-Disposition': 'inline; filename=answer_first.svg'}
             )
         
+        # Дополнительная проверка для экзаменационного режима
+        if lobby_id:
+            lobby = await db.lobbies.find_one({"_id": lobby_id})
+            if lobby and lobby.get("exam_mode", False) and lobby["status"] != "finished":
+                logger.warning(f"Пользователь {user_id} пытается получить медиа после ответа в экзаменационном режиме до завершения теста")
+                return StreamingResponse(
+                    iter([b'']),
+                    media_type='image/svg+xml',
+                    headers={'Content-Disposition': 'inline; filename=exam_mode_blocked.svg'}
+                )
+        
         # Получаем медиа-файл из GridFS
         try:
             media_data = await get_media_file(str(after_answer_media_id), db)
@@ -904,6 +1354,28 @@ async def get_after_answer_media(
             else:
                 content_type = file_info.get("contentType", "application/octet-stream")
                 filename = file_info.get("filename", "after_answer_media")
+                
+                # Improve content type detection based on filename if contentType is generic
+                if content_type == "application/octet-stream" and filename:
+                    lower_filename = filename.lower()
+                    if lower_filename.endswith(('.jpg', '.jpeg')):
+                        content_type = "image/jpeg"
+                    elif lower_filename.endswith('.png'):
+                        content_type = "image/png"
+                    elif lower_filename.endswith('.gif'):
+                        content_type = "image/gif"
+                    elif lower_filename.endswith('.webp'):
+                        content_type = "image/webp"
+                    elif lower_filename.endswith('.svg'):
+                        content_type = "image/svg+xml"
+                    elif lower_filename.endswith('.mp4'):
+                        content_type = "video/mp4"
+                    elif lower_filename.endswith('.avi'):
+                        content_type = "video/avi"
+                    elif lower_filename.endswith('.mov'):
+                        content_type = "video/quicktime"
+            
+            logger.info(f"Тип содержимого после-ответного медиа-файла: {content_type}")
             
             # Return streaming response for after-answer media
             return StreamingResponse(
@@ -1018,110 +1490,88 @@ async def get_correct_answer(
     current_user: dict = Depends(get_current_actor)
 ):
     """
-    Получает индекс правильного ответа и объяснение для вопроса.
-    
-    Безопасность:
-    - Доступно только после того, как пользователь ответил на вопрос
-    - В экзаменационном режиме не доступно до окончания теста
-    - Правильные ответы на предыдущие вопросы доступны всегда
-    - Хост может получить правильный ответ для любого вопроса
+    Возвращает индекс правильного ответа на вопрос.
+    Доступно только участникам лобби после того, как они ответили на вопрос.
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Пользователь {user_id} запрашивает правильный ответ для вопроса {question_id} в лобби {lobby_id}")
-
+    logger.info(f"Запрос правильного ответа на вопрос {question_id} от пользователя {user_id} в лобби {lobby_id}")
+    
     try:
+        # Проверяем доступ к лобби
+        await validate_lobby_access(lobby_id, user_id)
+        
         # Получаем информацию о лобби
         lobby = await db.lobbies.find_one({"_id": lobby_id})
         if not lobby:
-            logger.warning(f"Лобби {lobby_id} не найдено")
             raise HTTPException(status_code=404, detail="Лобби не найдено")
-
-        # Проверяем статус лобби
-        if lobby["status"] != "in_progress" and lobby["status"] != "finished":
-            logger.warning(f"Некорректный статус лобби {lobby_id}: {lobby['status']}")
-            raise HTTPException(status_code=400, detail="Тест неактивен или завершен")
-
-        # Проверяем, является ли пользователь участником лобби
-        if user_id not in lobby["participants"]:
-            logger.warning(f"Пользователь {user_id} не является участником лобби {lobby_id}")
-            raise HTTPException(status_code=403, detail="Вы не участник этого лобби")
-
-        # Проверяем, относится ли вопрос к этому лобби
-        if question_id not in lobby.get("question_ids", []):
-            logger.warning(f"Вопрос {question_id} не относится к лобби {lobby_id}")
-            raise HTTPException(status_code=403, detail="Вопрос не относится к этому лобби")
-
-        # Проверяем, является ли пользователь хостом
-        is_host = user_id == lobby["host_id"]
         
-        # Проверяем ответы пользователя
+        # Проверяем, что вопрос принадлежит лобби
+        if question_id not in lobby.get("question_ids", []):
+            raise HTTPException(status_code=404, detail="Вопрос не найден в данном лобби")
+        
+        # Получаем правильный ответ из лобби
+        correct_answers = lobby.get("correct_answers", {})
+        if question_id not in correct_answers:
+            logger.error(f"Correct answer for question {question_id} not found in lobby {lobby_id}")
+            raise HTTPException(status_code=404, detail="Правильный ответ не найден")
+        
+        correct_answer_index = correct_answers[question_id]
+        
+        # Проверяем, ответил ли пользователь на этот вопрос (или является хостом)
+        is_host = user_id == lobby.get("host_id")
         user_answers = lobby.get("participants_answers", {}).get(user_id, {})
         has_answered = question_id in user_answers
         
-        # Получаем индекс вопроса в списке вопросов
-        question_index = lobby["question_ids"].index(question_id)
-        current_index = lobby.get("current_index", 0)
-        
-        # Правила доступа к правильному ответу:
-        # 1. Хост всегда имеет доступ
-        # 2. В экзаменационном режиме ответы доступны только после завершения теста
-        # 3. Пользователь должен ответить на вопрос, чтобы увидеть правильный ответ
-        # 4. Правильные ответы на предыдущие вопросы доступны всегда
-        is_past_question = question_index < current_index
-        
-        if not is_host:
-            # Проверяем экзаменационный режим
-            if lobby.get("exam_mode", False) and lobby["status"] != "finished":
-                logger.warning(f"Пользователь {user_id} пытается получить правильный ответ в экзаменационном режиме до завершения теста")
+        # В экзаменационном режиме правильные ответы показываются только после завершения теста
+        if lobby.get("exam_mode", False) and lobby.get("status") != "finished":
+            if not is_host:
                 raise HTTPException(status_code=403, detail="В экзаменационном режиме правильные ответы доступны только после завершения теста")
-            
-            # Проверяем, ответил ли пользователь на этот вопрос
-            if not has_answered and not is_past_question:
-                logger.warning(f"Пользователь {user_id} запрашивает правильный ответ для вопроса {question_id}, на который еще не ответил")
-                raise HTTPException(status_code=403, detail="Вы должны сначала ответить на вопрос")
-
-        # Получаем индекс правильного ответа
-        correct_index = lobby.get("correct_answers", {}).get(question_id)
-        if correct_index is None:
-            logger.error(f"Правильный ответ для вопроса {question_id} не найден в лобби {lobby_id}")
-            raise HTTPException(status_code=404, detail="Правильный ответ не найден")
-
-        # Получаем дополнительную информацию о вопросе
-        question = await db.questions.find_one({"_id": ObjectId(question_id)})
         
-        response_data = {
-            "correct_index": correct_index,
-            "has_explanation": False,
-            "has_after_media": False
-        }
+        # Обычные участники могут видеть правильный ответ только после того, как ответили на вопрос
+        elif not is_host and not has_answered:
+            raise HTTPException(status_code=403, detail="Вы должны сначала ответить на вопрос")
         
-        # Если вопрос найден, добавляем объяснение и информацию о дополнительном медиа
-        if question:
-            response_data["explanation"] = question.get("explanation")
-            response_data["has_explanation"] = bool(question.get("explanation"))
-            
-            # Проверяем наличие дополнительного медиа-файла
-            has_after_media = bool(question.get("after_answer_media_file_id") or question.get("after_answer_media_id"))
-            response_data["has_after_media"] = has_after_media
-            response_data["has_after_answer_media"] = has_after_media  # Для совместимости
-            
-            # Определяем тип дополнительного медиа
-            after_media_filename = question.get("after_answer_media_filename", "")
-            if after_media_filename:
-                is_video = after_media_filename.lower().endswith((".mp4", ".webm", ".mov"))
-                response_data["after_answer_media_type"] = "video" if is_video else "image"
-                
-            # Получаем текст правильного варианта ответа
-            if "options" in question and isinstance(question["options"], list) and 0 <= correct_index < len(question["options"]):
-                response_data["correct_answer_text"] = question["options"][correct_index].get("text", {})
+        # Получаем дополнительную информацию о вопросе из questions_data или напрямую из базы
+        questions_data = lobby.get("questions_data", {})
+        question_data = questions_data.get(question_id, {})
+        explanation = question_data.get("explanation", "")
         
-        logger.info(f"Успешно возвращен правильный ответ для вопроса {question_id} пользователю {user_id}")
-        return success(data=response_data)
+        # Если объяснения нет в лобби, получаем его из базы данных  
+        question = None
+        if not explanation:
+            question = await db.questions.find_one({"_id": ObjectId(question_id)})
+            if question:
+                explanation = question.get("explanation", {})
+                logger.info(f"Got explanation from database for question {question_id}: {type(explanation)} - {str(explanation)[:100] if explanation else 'empty'}")
+        
+        # Проверяем наличие медиа после ответа
+        has_after_media = bool(
+            question_data.get("after_answer_media_file_id") or 
+            question_data.get("after_answer_media_id")
+        )
+        
+        # Если не нашли в данных лобби, проверяем в базе данных
+        if not has_after_media and not question:
+            question = await db.questions.find_one({"_id": ObjectId(question_id)})
+        
+        if question and not has_after_media:
+            has_after_media = bool(
+                question.get("after_answer_media_file_id") or 
+                question.get("after_answer_media_id")
+            )
+        
+        return success(data={
+            "question_id": question_id,
+            "correct_answer_index": correct_answer_index,
+            "explanation": explanation,
+            "has_after_answer_media": has_after_media
+        })
+        
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Ошибка при получении правильного ответа: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
+        raise HTTPException(status_code=500, detail="Ошибка при получении правильного ответа")
 
 @router.post("/lobbies/{lobby_id}/answer", summary="Отправить ответ на вопрос")
 async def submit_answer(
@@ -1146,10 +1596,31 @@ async def submit_answer(
     - После всех 40 вопросов завершает тест
     """
     user_id = get_user_id(current_user)
+    
+    # Rate limiting
+    if not rate_limiter.check_rate_limit(user_id):
+        raise HTTPException(status_code=429, detail="Too many requests")
+    
     question_id = payload.question_id
     answer_index = payload.answer_index
     
-    logger.info(f"Пользователь {user_id} отправляет ответ на вопрос {question_id} в лобби {lobby_id}, индекс ответа: {answer_index}")
+    logger.info(f"Processing answer submission: user_id={user_id}, lobby_id={lobby_id}, question_id={question_id}, answer_index={answer_index}")
+    
+    # Валидация входных данных
+    if not validate_object_id(question_id):
+        logger.error(f"Invalid question ID format: {question_id}")
+        raise HTTPException(status_code=400, detail="Invalid question ID format")
+    
+    if not isinstance(answer_index, int) or answer_index < 0:
+        logger.error(f"Invalid answer index: {answer_index} (type: {type(answer_index)})")
+        raise HTTPException(status_code=400, detail="Invalid answer index")
+    
+    logger.info(f"Input validation passed for user {user_id}, question {question_id}, answer {answer_index}")
+    
+    # Проверка целостности данных
+    if not await validate_answer_integrity(lobby_id, question_id, answer_index):
+        logger.error(f"Answer integrity validation failed for user {user_id}, lobby {lobby_id}, question {question_id}, answer {answer_index}")
+        raise HTTPException(status_code=400, detail="Invalid answer data")
     
     try:
         # Получаем информацию о лобби
@@ -1194,20 +1665,16 @@ async def submit_answer(
         # Хост может отвечать на любой вопрос
         is_host = user_id == lobby.get("host_id")
         
-        # Пользователь должен отвечать на все вопросы по порядку
+        # В мультиплеерном режиме участники могут отвечать на текущий и предыдущие вопросы
         if not is_host:
-            # Проверяем, что это текущий или предыдущий вопрос
+            # Проверяем, что это не вопрос из будущего
             if question_index > current_index:
                 logger.warning(f"Пользователь {user_id} пытается ответить на вопрос {question_id} раньше времени")
                 raise HTTPException(status_code=403, detail="Вы не можете отвечать на этот вопрос, пока не дойдете до него")
             
-            # Проверяем, что пользователь ответил на все предыдущие вопросы
-            for i in range(question_index):
-                prev_question_id = question_ids[i]
-                if prev_question_id not in user_answers:
-                    logger.warning(f"Пользователь {user_id} пытается ответить на вопрос {question_id}, не ответив на предыдущий вопрос {prev_question_id}")
-                    raise HTTPException(status_code=403, detail="Вы должны ответить на все предыдущие вопросы")
-            
+            # В мультиплеере разрешаем отвечать на любые предыдущие вопросы без ограничений
+            # Это позволяет участникам догонять, если они пропустили вопросы
+        
         # Проверяем правильность ответа
         correct_answer = lobby["correct_answers"].get(question_id)
         if correct_answer is None:
@@ -1223,7 +1690,11 @@ async def submit_answer(
                 raise HTTPException(status_code=400, detail=f"Недопустимый индекс ответа. Должен быть от 0 до {options_count-1}")
         
         is_correct = (answer_index == correct_answer)
-        logger.info(f"Ответ пользователя {user_id} на вопрос {question_id}: {is_correct} (выбрано: {answer_index}, правильно: {correct_answer})")
+        logger.info(f"Ответ пользователя {user_id} на вопрос {question_id}: {'корректный' if is_correct else 'некорректный'}")
+        
+        # Получаем информацию о вопросе для ответа (нужно получить до формирования response_data)
+        question = await db.questions.find_one({"_id": ObjectId(question_id)})
+        explanation = question.get("explanation", {}) if question else {}
         
         # Сохраняем ответ пользователя в коллекцию user_answers
         answer_doc = {
@@ -1234,114 +1705,30 @@ async def submit_answer(
             "is_correct": is_correct,
             "timestamp": datetime.utcnow()
         }
-        await db.user_answers.insert_one(answer_doc)
         
-        # Обновляем информацию в документе лобби
-        await db.lobbies.update_one(
-            {"_id": lobby_id},
-            {"$set": {f"participants_answers.{user_id}.{question_id}": is_correct}}
-        )
-        
-        # Отправляем уведомление всем участникам
+        # Batch операции для оптимизации производительности
         try:
-            await ws_manager.send_json(lobby_id, {
-                "type": "answer_received",
-                "data": {
-                    "user_id": user_id,
-                    "question_id": question_id,
-                    "is_correct": is_correct
-                }
-            })
+            # Выполняем обе операции записи параллельно
+            insert_task = db.user_answers.insert_one(answer_doc)
+            update_task = db.lobbies.update_one(
+                {"_id": lobby_id},
+                {"$set": {
+                    f"participants_answers.{user_id}.{question_id}": is_correct,
+                    f"participants_raw_answers.{user_id}.{question_id}": answer_index
+                }}
+            )
+            
+            # Ждем завершения обеих операций
+            await asyncio.gather(insert_task, update_task)
+            
+            # Инвалидируем кэш лобби после изменения
+            lobby_cache.invalidate_lobby(lobby_id)
+            
         except Exception as e:
-            logger.error(f"Ошибка при отправке WebSocket уведомления: {str(e)}")
+            logger.error(f"Database error while saving answer: {str(e)}")
+            raise HTTPException(status_code=500, detail="Ошибка при сохранении ответа")
 
-        # Проверяем, все ли пользователи ответили на текущий вопрос
-        lobby = await db.lobbies.find_one({"_id": lobby_id})
-        current_index = lobby.get("current_index", 0)
-        current_question_id = lobby["question_ids"][current_index]
-        
-        all_answered = True
-        for participant_id in lobby["participants"]:
-            # Проверяем, ответил ли участник на текущий вопрос
-            if current_question_id not in lobby.get("participants_answers", {}).get(participant_id, {}):
-                all_answered = False
-                break
-        
-        # Если все участники ответили на текущий вопрос и это был текущий вопрос,
-        # переходим к следующему вопросу
-        if all_answered and current_question_id == question_id:
-            total_questions = len(lobby.get("question_ids", []))
-            
-            # Если это был последний вопрос (или уже достигли 40 вопросов), завершаем тест
-            if current_index >= total_questions - 1 or current_index >= 39:  # 0-based index, 39 = 40 вопросов
-                logger.info(f"Все участники ответили на последний вопрос {question_id} в лобби {lobby_id}, завершаем тест")
-                
-                # Завершаем тест
-                await db.lobbies.update_one(
-                    {"_id": lobby_id}, 
-                    {"$set": {"status": "finished", "finished_at": datetime.utcnow()}}
-                )
-                
-                # Получаем финальные данные для подсчета результатов
-                results = {}
-                for participant_id, answers in lobby.get("participants_answers", {}).items():
-                    correct_count = sum(1 for is_corr in answers.values() if is_corr)
-                    results[participant_id] = {"correct": correct_count, "total": total_questions}
-                    
-                    # Сохраняем запись об истории прохождения
-                    history_record = {
-                        "user_id": participant_id,
-                        "lobby_id": lobby_id,
-                        "date": datetime.utcnow(),
-                        "score": correct_count,
-                        "total": total_questions,
-                        "categories": lobby.get("categories", []),
-                        "sections": lobby.get("sections", []),
-                        "mode": lobby.get("mode", "solo"),
-                        "pass_percentage": (correct_count / total_questions * 100) if total_questions > 0 else 0
-                    }
-                    await db.history.insert_one(history_record)
-                
-                # Отправляем уведомление о завершении теста
-                try:
-                    await ws_manager.send_json(lobby_id, {
-                        "type": "test_finished",
-                        "data": results
-                    })
-                except Exception as e:
-                    logger.error(f"Ошибка при отправке WebSocket уведомления о завершении теста: {str(e)}")
-
-            else:
-                # Переходим к следующему вопросу
-                new_index = current_index + 1
-                logger.info(f"Все участники ответили на вопрос {question_id} в лобби {lobby_id}, переходим к следующему вопросу (индекс {new_index})")
-                
-                await db.lobbies.update_one({"_id": lobby_id}, {"$set": {"current_index": new_index}})
-                next_question_id = lobby["question_ids"][new_index]
-                
-                # Уведомляем всех о переходе к следующему вопросу
-                try:
-                    await ws_manager.send_json(lobby_id, {
-                        "type": "next_question",
-                        "data": {"question_id": next_question_id}
-                    })
-                except Exception as e:
-                    logger.error(f"Ошибка при отправке WebSocket уведомления о следующем вопросе: {str(e)}")
-
-        # Получаем информацию о вопросе для ответа
-        if question:
-            explanation = question.get("explanation", {})
-            
-            # Определяем текст правильного варианта ответа
-            correct_option_text = None
-            options = question.get("options", [])
-            if options and 0 <= correct_answer < len(options):
-                correct_option_text = options[correct_answer].get("text", {})
-        else:
-            explanation = {}
-            correct_option_text = None
-
-        # Формируем ответ
+        # Формируем ответ для пользователя
         response_data = {
             "is_correct": is_correct,
             "correct_index": correct_answer,
@@ -1361,7 +1748,124 @@ async def submit_answer(
             response_data["correct_index"] = None
             response_data["explanation"] = None
             response_data["has_after_answer_media"] = False
+
+        # WebSocket уведомления отправляем в фоне для не блокирования ответа
+        async def send_ws_notifications():
+            try:
+                # Получаем информацию о лобби для определения хоста
+                current_lobby = await db.lobbies.find_one({"_id": lobby_id})
+                host_id = current_lobby.get("host_id") if current_lobby else None
+                
+                # Отправляем информацию о том, что участник ответил
+                # Хосту отправляем с деталями ответа, остальным - без
+                participants = current_lobby.get("participants", []) if current_lobby else []
+                
+                for participant_id in participants:
+                    if participant_id == host_id:
+                        # Хосту отправляем полную информацию
+                        await ws_manager.send_to_user(lobby_id, participant_id, {
+                            "type": "answer_received",
+                            "data": {
+                                "user_id": user_id,
+                                "question_id": question_id,
+                                "answer_index": answer_index,  # Только хост видит индекс ответа
+                                "is_correct": is_correct
+                            }
+                        })
+                    else:
+                        # Обычным участникам отправляем без деталей ответа
+                        await ws_manager.send_to_user(lobby_id, participant_id, {
+                            "type": "answer_received",
+                            "data": {
+                                "user_id": user_id,
+                                "question_id": question_id,
+                                "is_correct": is_correct  # Без answer_index
+                            }
+                        })
+                
+                # Дополнительно отправляем уведомление о том, что участник ответил (всем)
+                await ws_manager.send_json_parallel(lobby_id, {
+                    "type": "participant_answered",
+                    "data": {
+                        "user_id": user_id,
+                        "question_id": question_id,
+                        "answered": True
+                    }
+                })
+            except Exception as e:
+                logger.error(f"Ошибка при отправке WebSocket уведомления: {str(e)}")
+
+        # Запускаем WebSocket уведомления в фоне
+        asyncio.create_task(send_ws_notifications())
+        
+        # Проверка завершения вопроса в фоне (не блокирует ответ пользователю)
+        async def check_question_completion():
+            try:
+                # Получаем свежие данные лобби
+                updated_lobby = await db.lobbies.find_one({"_id": lobby_id})
+                if not updated_lobby:
+                    return
+                    
+                current_index = updated_lobby.get("current_index", 0)
+                question_ids = updated_lobby.get("question_ids", [])
+                
+                if current_index >= len(question_ids):
+                    return
+                    
+                current_question_id = question_ids[current_index]
+                participants = updated_lobby.get("participants", [])
+                participants_answers = updated_lobby.get("participants_answers", {})
+                
+                # Проверяем, все ли участники ответили на текущий вопрос
+                # В мультиплеере не требуем ответов от всех - переход управляется хостом
+                answered_count = sum(
+                    1 for participant_id in participants
+                    if current_question_id in participants_answers.get(participant_id, {})
+                )
+                
+                # Автоматический переход только если ответили больше половины участников
+                # или если прошло достаточно времени (можно добавить таймер позже)
+                min_answers_for_auto_advance = max(1, len(participants) // 2)  # Минимум половина
+                should_auto_advance = answered_count >= min_answers_for_auto_advance
+                
+                logger.info(f"Question completion check: {current_question_id}, answered: {answered_count}/{len(participants)}, auto_advance: {should_auto_advance}")
+                
+                # В мультиплеере переход к следующему вопросу управляется только хостом
+                # Автоматический переход отключен для лучшего контроля
+                logger.info(f"Question {current_question_id}: {answered_count}/{len(participants)} participants answered. Waiting for host to advance.")
+                
+                # Уведомляем хоста о статусе ответов
+                await ws_manager.send_json_parallel(lobby_id, {
+                    "type": "question_status",
+                    "data": {
+                        "question_id": current_question_id,
+                        "answered_count": answered_count,
+                        "total_participants": len(participants),
+                        "can_advance": answered_count > 0  # Хост может перейти если хотя бы кто-то ответил
+                    }
+                })
+                
+
+                        
+            except Exception as e:
+                logger.error(f"Error in check_question_completion: {str(e)}")
+
+        # Запускаем проверку завершения вопроса в фоне
+        asyncio.create_task(check_question_completion())
+
+        # Получаем информацию о вопросе для ответа
+        if question:
+            explanation = question.get("explanation", {})
             
+            # Определяем текст правильного варианта ответа
+            correct_option_text = None
+            options = question.get("options", [])
+            if options and 0 <= correct_answer < len(options):
+                correct_option_text = options[correct_answer].get("text", {})
+        else:
+            explanation = {}
+            correct_option_text = None
+
         logger.info(f"Ответ пользователя {user_id} на вопрос {question_id} в лобби {lobby_id} успешно обработан")
         return success(data=response_data)
     
@@ -1370,6 +1874,92 @@ async def submit_answer(
     except Exception as e:
         logger.error(f"Ошибка при обработке ответа пользователя {user_id} на вопрос {question_id} в лобби {lobby_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
+
+@router.post("/lobbies/{lobby_id}/multiplayer-answer", summary="Отправить ответ в мультиплеерном режиме")
+async def submit_multiplayer_answer(
+    lobby_id: str,
+    payload: MultiplayerAnswerSubmit,
+    request: Request = None, 
+    current_user: dict = Depends(get_current_actor)
+):
+    """
+    Отправляет ответ на вопрос в мультиплеерном режиме.
+    Синхронизирует ответы между всеми участниками через WebSocket.
+    """
+    user_id = get_user_id(current_user)
+    logger.info(f"Пользователь {user_id} отправляет мультиплеерный ответ на вопрос {payload.question_id} в лобби {lobby_id}")
+    
+    try:
+        # Если это гость, убедимся что он существует в базе данных
+        is_guest = current_user.get("type") == "guest"
+        if is_guest and isinstance(user_id, str) and user_id.startswith("guest_"):
+            existing_guest = await db.guests.find_one({"_id": user_id})
+            if not existing_guest:
+                # Создаем гостя в базе данных
+                guest_data = {
+                    "_id": user_id,
+                    "full_name": current_user.get("full_name", "Guest User"),
+                    "created_at": datetime.utcnow(),
+                    "is_active": True
+                }
+                await db.guests.insert_one(guest_data)
+                logger.info(f"Created new guest user: {user_id}")
+        
+        # Получаем лобби
+        lobby = await db.lobbies.find_one({"_id": lobby_id})
+        if not lobby:
+            raise HTTPException(status_code=404, detail="Лобби не найдено")
+        
+        # Проверяем, что пользователь участник лобби
+        if user_id not in lobby["participants"]:
+            raise HTTPException(status_code=403, detail="Вы не участник данного лобби")
+        
+        # Проверяем статус лобби
+        if lobby["status"] != "in_progress":
+            raise HTTPException(status_code=400, detail="Тест не запущен")
+        
+        # Получаем правильный ответ
+        question = await db.questions.find_one({"_id": ObjectId(payload.question_id)})
+        if not question:
+            raise HTTPException(status_code=404, detail="Вопрос не найден")
+        
+        correct_answer_index = question.get("correct_answer", 0)
+        is_correct = payload.answer_index == correct_answer_index
+        
+        # Сохраняем ответ в лобби
+        await db.lobbies.update_one(
+            {"_id": lobby_id},
+            {
+                "$set": {
+                    f"participants_answers.{user_id}.{payload.question_id}": is_correct,
+                    f"participants_raw_answers.{user_id}.{payload.question_id}": payload.answer_index
+                }
+            }
+        )
+        
+        # Отправляем WebSocket уведомление всем участникам
+        try:
+            await ws_manager.send_json(lobby_id, {
+                "type": "answer_received",
+                "data": {
+                    "user_id": user_id,
+                    "question_id": payload.question_id,
+                    "question_index": payload.question_index,
+                    "answer_index": payload.answer_index,
+                    "is_correct": is_correct
+                }
+            })
+        except Exception as e:
+            logger.error(f"Error sending WebSocket notification: {str(e)}")
+        
+        logger.info(f"Мультиплеерный ответ сохранен: пользователь {user_id}, вопрос {payload.question_id}, правильно: {is_correct}")
+        return success(data={"message": "Ответ отправлен", "is_correct": is_correct})
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error submitting multiplayer answer: {str(e)}")
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при отправке ответа")
 
 @router.post("/lobbies/{lobby_id}/skip", summary="Пропустить текущий вопрос")
 async def skip_question(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
@@ -1439,62 +2029,248 @@ async def skip_question(lobby_id: str, request: Request = None, current_user: di
 
         return success(data={"message": "Тест завершен", "results": results})
 
-@router.post("/lobbies/{lobby_id}/kick", summary="Исключить участника из лобби")
-async def kick_participant(
+@router.post("/lobbies/{lobby_id}/next-question", summary="Перейти к следующему вопросу (мультиплеер)")
+async def next_question_multiplayer(
     lobby_id: str,
-    target_user_id: str,
     current_user: dict = Depends(get_current_actor)
 ):
     """
-    Исключает участника из лобби. Только хост лобби может исключать участников.
+    Переходит к следующему вопросу в мультиплеерном режиме.
+    Только хост может управлять переходом между вопросами.
     """
     user_id = get_user_id(current_user)
-    print(f"Zapros na isklyuchenie uchastnika {target_user_id} iz lobbi {lobby_id} ot polzovatelya {user_id}")
-    
-    # Получаем информацию о лобби
-    lobby = await db.lobbies.find_one({"_id": lobby_id})
-    if not lobby:
-        print(f"Lobbi {lobby_id} ne naideno")
-        raise HTTPException(status_code=404, detail="Лобби не найдено")
-    
-    # Проверяем, является ли пользователь хостом лобби
-    if lobby["host_id"] != user_id:
-        print(f"Polzovatel {user_id} ne yavlyaetsya hostom lobbi {lobby_id}")
-        raise HTTPException(status_code=403, detail="Только хост лобби может исключать участников")
-    
-    # Проверяем, существует ли участник в лобби
-    if target_user_id not in lobby["participants"]:
-        print(f"Uchastnik {target_user_id} ne naiden v lobbi {lobby_id}")
-        raise HTTPException(status_code=404, detail="Участник не найден в лобби")
-    
-    # Нельзя исключить хоста
-    if target_user_id == lobby["host_id"]:
-        print(f"Popytka isklyuchit hosta {target_user_id} iz lobbi {lobby_id}")
-        raise HTTPException(status_code=400, detail="Нельзя исключить хоста лобби")
+    logger.info(f"Хост {user_id} переходит к следующему вопросу в лобби {lobby_id}")
     
     try:
-        # Удаляем участника из списка участников
+        lobby = await db.lobbies.find_one({"_id": lobby_id})
+        if not lobby:
+            raise HTTPException(status_code=404, detail="Лобби не найдено")
+        
+        if lobby["host_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Только хост может управлять вопросами")
+        
+        if lobby["status"] != "in_progress":
+            raise HTTPException(status_code=400, detail="Тест не запущен")
+        
+        current_index = lobby.get("current_index", 0)
+        total_questions = len(lobby.get("question_ids", []))
+        
+        if current_index >= total_questions - 1:
+            # Завершаем тест
+            await db.lobbies.update_one(
+                {"_id": lobby_id}, 
+                {"$set": {"status": "finished", "finished_at": datetime.utcnow()}}
+            )
+            
+            # Отправляем уведомление о завершении теста
+            await ws_manager.send_json(lobby_id, {
+                "type": "test_finished",
+                "data": {"message": "Тест завершен"}
+            })
+            
+            return success(data={"message": "Тест завершен"})
+        
+        # Переходим к следующему вопросу
+        new_index = current_index + 1
+        await db.lobbies.update_one(
+            {"_id": lobby_id}, 
+            {"$set": {"current_index": new_index}}
+        )
+        
+        # Инвалидируем кэш лобби, чтобы участники получили обновленный current_index
+        lobby_cache.invalidate_lobby(lobby_id)
+        
+        next_question_id = lobby["question_ids"][new_index]
+        
+        # Отправляем WebSocket уведомление о переходе к следующему вопросу
+        await ws_manager.send_json(lobby_id, {
+            "type": "next_question",
+            "data": {
+                "question_id": next_question_id,
+                "question_index": new_index
+            }
+        })
+        
+        return success(data={"message": "Переход к следующему вопросу", "question_index": new_index})
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error going to next question: {str(e)}")
+        raise HTTPException(status_code=500, detail="Ошибка при переходе к следующему вопросу")
+
+@router.post("/lobbies/{lobby_id}/kick", summary="Исключить участника из лобби")
+async def kick_participant(
+    lobby_id: str,
+    request: KickParticipantRequest,
+    current_user: dict = Depends(get_current_actor)
+):
+    """
+    Исключает участника из лобби и добавляет в черный список.
+    Только хост может исключать участников.
+    """
+    user_id = get_user_id(current_user)
+    target_user_id = request.target_user_id
+    
+    logger.info(f"Хост {user_id} исключает участника {target_user_id} из лобби {lobby_id}")
+    
+    try:
+        # Получаем информацию о лобби
+        lobby = await db.lobbies.find_one({"_id": lobby_id})
+        if not lobby:
+            raise HTTPException(status_code=404, detail="Лобби не найдено")
+        
+        # Проверяем, что пользователь является хостом
+        if lobby["host_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Только хост может исключать участников")
+        
+        # Проверяем, что исключаемый пользователь действительно участник лобби
+        if target_user_id not in lobby.get("participants", []):
+            raise HTTPException(status_code=400, detail="Пользователь не является участником лобби")
+        
+        # Хост не может исключить самого себя
+        if target_user_id == user_id:
+            raise HTTPException(status_code=400, detail="Хост не может исключить самого себя")
+        
+        # Получаем информацию об исключаемом пользователе
+        kicked_user_name = "Участник"
+        try:
+            if target_user_id.startswith("guest_"):
+                kicked_user_name = f"Гость {target_user_id[-8:]}"
+            else:
+                user_response = await db.users.find_one({"_id": ObjectId(target_user_id)})
+                if user_response:
+                    kicked_user_name = user_response.get("full_name", "Участник")
+        except Exception as e:
+            logger.warning(f"Could not fetch user name for {target_user_id}: {str(e)}")
+        
+        # Убираем участника из лобби и добавляем в черный список
+        update_result = await db.lobbies.update_one(
+            {"_id": lobby_id},
+            {
+                "$pull": {"participants": target_user_id},
+                "$addToSet": {"blacklisted_users": target_user_id},  # Добавляем в черный список
+                "$unset": {f"participants_answers.{target_user_id}": ""}  # Удаляем ответы
+            }
+        )
+        
+        if update_result.modified_count == 0:
+            raise HTTPException(status_code=500, detail="Не удалось исключить участника")
+        
+        # Инвалидируем кэш лобби
+        lobby_cache.invalidate_lobby(lobby_id)
+        
+        # Отправляем WebSocket уведомления
+        try:
+            # Уведомляем исключенного пользователя
+            await ws_manager.send_json_to_user(target_user_id, {
+                "type": "user_kicked",
+                "data": {
+                    "lobby_id": lobby_id,
+                    "message": "Вы были исключены из лобби хостом",
+                    "kicked_by": user_id,
+                    "redirect": True
+                }
+            })
+            
+            # Уведомляем всех остальных участников
+            await ws_manager.send_json_parallel(lobby_id, {
+                "type": "participant_kicked",
+                "data": {
+                    "user_id": target_user_id,
+                    "user_name": kicked_user_name,
+                    "kicked_by": user_id
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error sending WebSocket notifications for kick: {str(e)}")
+        
+        return success(data={
+            "message": f"Участник {kicked_user_name} исключен из лобби",
+            "kicked_user_id": target_user_id,
+            "kicked_user_name": kicked_user_name
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error kicking participant: {str(e)}")
+        raise HTTPException(status_code=500, detail="Ошибка при исключении участника")
+
+@router.post("/lobbies/{lobby_id}/close", summary="Закрыть лобби")
+async def close_lobby(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
+    """
+    Закрывает лобби (удаляет его).
+    Только хост может закрыть лобби.
+    """
+    user_id = get_user_id(current_user)
+    logger.info(f"Пользователь {user_id} пытается закрыть лобби {lobby_id}")
+    
+    try:
+        lobby = await db.lobbies.find_one({"_id": lobby_id})
+        if not lobby:
+            raise HTTPException(status_code=404, detail="Лобби не найдено")
+        
+        # Только хост может закрыть лобби
+        if lobby["host_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Только хост может закрыть лобби")
+        
+        # Нельзя закрыть уже завершенное лобби
+        if lobby["status"] == "finished":
+            raise HTTPException(status_code=400, detail="Лобби уже завершено")
+        
+        # Сначала оповещаем всех участников о закрытии лобби
+        try:
+            await ws_manager.broadcast_to_lobby(lobby_id, {
+                "type": "lobby_closed",
+                "data": {"message": "Лобби было закрыто хостом", "redirect": True}
+            })
+            logger.info(f"Отправлено уведомление о закрытии лобби {lobby_id}")
+        except Exception as e:
+            logger.error(f"Ошибка при отправке WebSocket уведомления о закрытии лобби: {str(e)}")
+        
+        # Ждем немного, чтобы сообщение дошло до клиентов
+        await asyncio.sleep(1)
+        
+        # Помечаем лобби как закрытое вместо удаления
         await db.lobbies.update_one(
             {"_id": lobby_id},
-            {"$pull": {"participants": target_user_id}}
+            {
+                "$set": {
+                    "status": "closed",
+                    "closed_at": datetime.utcnow(),
+                    "closed_by": user_id,
+                    "participants": []  # Очищаем список участников
+                }
+            }
         )
-        print(f"Uchastnik {target_user_id} isklyuchen iz lobbi {lobby_id}")
         
-        # Отправляем WebSocket сообщение об исключении участника
+        # Инвалидируем кэш
+        lobby_cache.invalidate_lobby(lobby_id)
+        
+        # Закрываем все WebSocket соединения для этого лобби
         try:
-            print(f"Otpravka WebSocket soobsheniya USER_KICKED:{target_user_id}")
-            await ws_manager.send_json(lobby_id, {
-                "type": "user_kicked",
-                "data": {"user_id": target_user_id}
-            })
-
+            if lobby_id in ws_manager.connections:
+                connections_to_close = list(ws_manager.connections[lobby_id])
+                for conn in connections_to_close:
+                    try:
+                        await conn["websocket"].close(code=1000, reason="Lobby closed")
+                    except Exception as e:
+                        logger.error(f"Error closing WebSocket for user {conn['user_id']}: {str(e)}")
+                # Очищаем список соединений
+                del ws_manager.connections[lobby_id]
         except Exception as e:
-            print(f"Oshibka pri otpravke WebSocket soobsheniya: {str(e)}")
+            logger.error(f"Ошибка при закрытии WebSocket соединений: {str(e)}")
         
-        return success(data={"status": "ok"})
+        logger.info(f"Лобби {lobby_id} успешно закрыто пользователем {user_id}")
+        return success(data={"message": "Лобби успешно закрыто"})
+        
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Oshibka pri isklyuchenii uchastnika: {str(e)}")
-        raise HTTPException(status_code=500, detail="Ошибка при исключении участника")
+        logger.error(f"Ошибка при закрытии лобби {lobby_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Ошибка при закрытии лобби")
 
 @router.post("/lobbies/{lobby_id}/finish", summary="Завершить тест")
 async def finish_lobby(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
@@ -1514,10 +2290,10 @@ async def finish_lobby(lobby_id: str, request: Request = None, current_user: dic
         
         # В solo-режиме пользователь может завершить свой тест
         # В multi-режиме только хост может завершить тест
-        if lobby["mode"] == "multi" and lobby["host_id"] != user_id:
+        if lobby["mode"] in ["multi", "multiplayer"] and lobby["host_id"] != user_id:
             raise HTTPException(status_code=403, detail="Только хост может завершить тест")
         
-        if lobby["mode"] == "solo" and lobby["host_id"] != user_id:
+        if lobby["mode"] not in ["multi", "multiplayer"] and lobby["host_id"] != user_id:
             raise HTTPException(status_code=403, detail="Вы не можете завершить чужой тест")
         
         if lobby["status"] != "in_progress":
@@ -1531,7 +2307,8 @@ async def finish_lobby(lobby_id: str, request: Request = None, current_user: dic
             "$set": {
                 "status": "finished", 
                 "finished_at": finished_time,
-                "duration_seconds": duration
+                "duration_seconds": duration,
+                "finish_reason": "manual"
             }
         })
         
@@ -1623,7 +2400,9 @@ async def finish_lobby(lobby_id: str, request: Request = None, current_user: dic
                     "pass_percentage": (correct_count / total_questions * 100) if total_questions > 0 else 0,
                     "duration_seconds": duration,
                     "is_passed": correct_count >= int(total_questions * 0.8),  # 80% правильных для прохождения
-                    "detailed_results": detailed_results[participant_id]
+                    "detailed_results": detailed_results[participant_id],
+                    "exam_mode": lobby.get("exam_mode", False),
+                    "finish_reason": "manual"
                 }
                 await db.history.insert_one(history_record)
             except Exception as e:
@@ -1662,10 +2441,63 @@ async def finish_lobby(lobby_id: str, request: Request = None, current_user: dic
         print(f"Unexpected error finishing lobby {lobby_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при завершении теста")
 
+@router.get("/lobbies/{lobby_id}/public", summary="Получить публичную информацию о лобби")
+async def get_lobby_public_info(lobby_id: str):
+    """
+    Получает публичную информацию о лобби для страницы присоединения.
+    Не требует аутентификации.
+    """
+    try:
+        lobby = await db.lobbies.find_one({"_id": lobby_id})
+        if not lobby:
+            raise HTTPException(status_code=404, detail="Лобби не найдено")
+        
+        # Получаем информацию о хосте
+        host = await db.users.find_one({"_id": ObjectId(lobby["host_id"])})
+        if not host:
+            raise HTTPException(status_code=404, detail="Хост лобби не найден")
+        
+        # Получаем подписку хоста
+        host_subscription = await db.subscriptions.find_one({
+            "user_id": ObjectId(lobby["host_id"]),
+            "is_active": True,
+            "expires_at": {"$gt": datetime.utcnow()}
+        })
+        
+        host_subscription_type = host_subscription.get("subscription_type", "Demo") if host_subscription else "Demo"
+        
+        # Calculate remaining time if lobby is active
+        remaining_seconds = 0
+        if lobby["status"] in ["waiting", "in_progress"] and lobby.get("created_at"):
+            lobby_age = (datetime.utcnow() - lobby["created_at"]).total_seconds()
+            remaining_seconds = max(0, MAX_LOBBY_LIFETIME - lobby_age)
+        
+        return success(data={
+            "lobby_id": lobby_id,
+            "status": lobby["status"],
+            "mode": lobby.get("mode", "solo"),
+            "categories": lobby.get("categories", []),
+            "questions_count": lobby.get("questions_count", 40),
+            "max_participants": lobby.get("max_participants", 8),
+            "participants_count": len(lobby.get("participants", [])),
+            "host_name": host.get("full_name", "Unknown"),
+            "host_subscription_type": host_subscription_type,
+            "allows_guests": host_subscription_type.lower() == "school",
+            "created_at": lobby.get("created_at").isoformat() if lobby.get("created_at") and isinstance(lobby.get("created_at"), datetime) else str(lobby.get("created_at", "")),
+            "remaining_seconds": int(remaining_seconds)
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при получении публичной информации о лобби {lobby_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Ошибка при получении информации о лобби")
+
 @router.get("/lobbies/{lobby_id}", summary="Получить информацию о лобби")
 async def get_lobby(
     lobby_id: str,
-    current_user: dict = Depends(get_current_actor)
+    current_user: dict = Depends(get_current_actor),
+    t: str = Query(None, description="Timestamp for cache busting"),
+    retry: str = Query(None, description="Retry flag for cache refresh")
 ):
     """
     Получает информацию о лобби по его ID.
@@ -1674,35 +2506,43 @@ async def get_lobby(
     logger.info(f"Запрос информации о лобби {lobby_id} от пользователя {user_id}")
     
     try:
-        # Получаем информацию о лобби
-        lobby = await db.lobbies.find_one({"_id": lobby_id})
+        # Принудительно обновляем кеш если есть параметры cache-busting
+        force_refresh = bool(t or retry)
+        
+        # Получаем лобби из кэша
+        lobby = await lobby_cache.get_lobby(lobby_id, force_refresh=force_refresh)
         if not lobby:
-            logger.error(f"Лобби {lobby_id} не найдено")
             raise HTTPException(status_code=404, detail="Лобби не найдено")
         
-        # Проверяем, является ли пользователь участником лобби
-        if user_id not in lobby["participants"]:
-            logger.warning(f"Пользователь {user_id} не является участником лобби {lobby_id}")
-            raise HTTPException(status_code=403, detail="Вы не являетесь участником этого лобби")
+        is_host = user_id == lobby.get("host_id")
         
-        # Получаем информацию о создателе лобби
-        host_user = await db.users.find_one({"_id": ObjectId(lobby["host_id"])})
-        host_name = host_user.get("full_name", "Неизвестный пользователь") if host_user else "Неизвестный пользователь"
+        # Получаем тип подписки хоста
+        host_subscription = await lobby_cache.get_user_subscription(lobby["host_id"])
+        host_subscription_type = host_subscription["subscription_type"] if host_subscription else "Demo"
         
         # Calculate remaining time if lobby is active
         remaining_seconds = 0
-        if lobby["status"] == "in_progress" and lobby.get("created_at"):
+        if lobby["status"] in ["waiting", "in_progress"] and lobby.get("created_at"):
             lobby_age = (datetime.utcnow() - lobby["created_at"]).total_seconds()
             remaining_seconds = max(0, MAX_LOBBY_LIFETIME - lobby_age)
+            
+            # Логирование для отладки
+            logger.info(f"Lobby {lobby_id} time calculation: created_at={lobby['created_at']}, "
+                       f"lobby_age={lobby_age:.2f}s, remaining_seconds={remaining_seconds:.2f}s")
+        
+        # Получаем имя хоста (можно кэшировать, но для этого нужен отдельный кэш пользователей)
+        host_user = await db.users.find_one({"_id": ObjectId(lobby["host_id"])})
+        host_name = host_user.get("full_name", "Неизвестный пользователь") if host_user else "Неизвестный пользователь"
         
         # Формируем ответ
         response_data = {
             "id": str(lobby["_id"]),
             "host_id": lobby["host_id"],
             "host_name": host_name,
-            "is_host": lobby["host_id"] == user_id,
+            "is_host": is_host,
             "current_user_id": user_id,
             "status": lobby["status"],
+            "participants": lobby.get("participants", []),  # Добавляем массив участников
             "participants_count": len(lobby["participants"]),
             "created_at": lobby["created_at"].isoformat() if isinstance(lobby["created_at"], datetime) else str(lobby["created_at"]),
             "mode": lobby["mode"],
@@ -1710,8 +2550,39 @@ async def get_lobby(
             "sections": lobby["sections"],
             "exam_mode": lobby.get("exam_mode", False),
             "question_ids": lobby.get("question_ids", []),
-            "remaining_seconds": int(remaining_seconds)
+            "questions_count": lobby.get("questions_count", len(lobby.get("question_ids", []))),  # Добавляем количество вопросов
+            "remaining_seconds": int(remaining_seconds),
+            "max_participants": lobby.get("max_participants", 8),  # Добавляем максимальное количество участников
+            "host_subscription_type": host_subscription_type  # Добавляем тип подписки хоста
         }
+        
+        # Добавляем ответы участников для хоста
+        if is_host:
+            response_data["participants_answers"] = lobby.get("participants_answers", {})
+            response_data["participants_raw_answers"] = lobby.get("participants_raw_answers", {})
+        else:
+            # Для обычных участников добавляем только их собственные ответы
+            response_data["user_answers"] = lobby.get("participants_answers", {}).get(user_id, {})
+        
+        # Добавляем current_index для всех участников (нужно для валидации доступа к вопросам)
+        response_data["current_index"] = lobby.get("current_index", 0)
+        
+        # Добавляем информацию о таймере экзамена
+        if lobby.get("exam_mode", False):
+            current_time = datetime.utcnow()
+            expires_at = lobby.get("exam_timer_expires_at")
+            if expires_at:
+                exam_time_left = max(0, int((expires_at - current_time).total_seconds()))
+                response_data["exam_timer"] = {
+                    "time_left": exam_time_left,
+                    "expires_at": expires_at.isoformat(),
+                    "duration": lobby.get("exam_timer_duration", EXAM_TIMER_DURATION)
+                }
+            else:
+                response_data["exam_timer"] = {
+                    "time_left": EXAM_TIMER_DURATION,
+                    "duration": EXAM_TIMER_DURATION
+                }
         
         logger.info(f"Возвращена информация о лобби {lobby_id}")
         return success(data=response_data)
@@ -1943,17 +2814,17 @@ async def get_user_active_lobby(current_user: dict = Depends(get_current_actor))
     logger.info(f"Проверка активного лобби для пользователя {user_id}")
     
     try:
-        # Ищем активное лобби пользователя
+        # Ищем активное лобби пользователя (исключаем закрытые и завершенные)
         active_lobby = await db.lobbies.find_one({
             "participants": user_id,
-            "status": {"$ne": "finished"}
+            "status": {"$nin": ["finished", "closed"]}
         })
         
         if not active_lobby:
             logger.info(f"У пользователя {user_id} нет активных лобби")
             return success(data={"has_active_lobby": False})
         
-        # Проверяем, не истёк ли срок действия лобби (6 часов)
+        # Проверяем, не истёк ли срок действия лобби (4 часа)
         if active_lobby.get("created_at"):
             lobby_age = (datetime.utcnow() - active_lobby["created_at"]).total_seconds()
             if lobby_age > MAX_LOBBY_LIFETIME:
@@ -2109,3 +2980,419 @@ async def get_categories_stats(current_user: dict = Depends(get_current_actor)):
     except Exception as e:
         logger.error(f"Ошибка при получении статистики категорий: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
+
+@router.get("/lobbies/{lobby_id}/online-users", summary="Получить список онлайн пользователей в лобби")
+async def get_online_users(
+    lobby_id: str,
+    current_user: dict = Depends(get_current_actor)
+):
+    """
+    Получить список пользователей, которые в данный момент онлайн в лобби
+    """
+    try:
+        user_id = get_user_id(current_user)
+        logger.info(f"Запрос онлайн пользователей лобби {lobby_id} от пользователя {user_id}")
+        
+        # Проверяем доступ к лобби
+        lobby, is_host, subscription_type = await validate_lobby_access(
+            lobby_id, user_id, is_guest=current_user.get("is_guest", False)
+        )
+        
+        # Получаем список онлайн пользователей из WebSocket менеджера
+        online_user_ids = ws_manager.get_online_users(lobby_id)
+        
+        # Получаем информацию о пользователях
+        online_users = []
+        for online_user_id in online_user_ids:
+            try:
+                user_info = await ws_manager.get_user_info(online_user_id)
+                online_users.append({
+                    "user_id": online_user_id,
+                    "name": user_info.get("full_name", "Unknown"),
+                    "is_host": online_user_id == lobby.get("host_id"),
+                    "is_guest": user_info.get("is_guest", False)
+                })
+            except Exception as e:
+                logger.error(f"Error getting info for user {online_user_id}: {str(e)}")
+        
+        logger.info(f"Возвращен список из {len(online_users)} онлайн пользователей для лобби {lobby_id}")
+        
+        return success(data={
+            "lobby_id": lobby_id,
+            "online_users": online_users,
+            "total_online": len(online_users),
+            "total_participants": len(lobby.get("participants", []))
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при получении онлайн пользователей лобби {lobby_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
+
+@router.post("/lobbies/{lobby_id}/leave", summary="Выйти из лобби")
+async def leave_lobby(lobby_id: str, current_user: dict = Depends(get_current_actor)):
+    """
+    Выход пользователя из лобби.
+    Если выходит хост, лобби закрывается.
+    """
+    user_id = get_user_id(current_user)
+    logger.info(f"Пользователь {user_id} выходит из лобби {lobby_id}")
+    
+    try:
+        lobby = await db.lobbies.find_one({"_id": lobby_id})
+        if not lobby:
+            raise HTTPException(status_code=404, detail="Лобби не найдено")
+        
+        if user_id not in lobby["participants"]:
+            raise HTTPException(status_code=400, detail="Вы не участник этого лобби")
+        
+        # Если выходит хост, закрываем лобби
+        if lobby["host_id"] == user_id:
+            # Уведомляем всех участников о закрытии лобби
+            await ws_manager.broadcast_to_lobby(lobby_id, {
+                "type": "lobby_closed",
+                "data": {"message": "Хост покинул лобби", "redirect": True}
+            })
+            
+            # Помечаем лобби как закрытое
+            await db.lobbies.update_one(
+                {"_id": lobby_id},
+                {
+                    "$set": {
+                        "status": "closed",
+                        "closed_at": datetime.utcnow(),
+                        "closed_by": user_id,
+                        "participants": []
+                    }
+                }
+            )
+        else:
+            # Обычный участник выходит
+            await db.lobbies.update_one(
+                {"_id": lobby_id},
+                {"$pull": {"participants": user_id}}
+            )
+            
+            # Уведомляем остальных участников
+            await ws_manager.broadcast_to_lobby(lobby_id, {
+                "type": "participant_left",
+                "data": {"user_id": user_id}
+            })
+        
+        # Инвалидируем кэш
+        lobby_cache.invalidate_lobby(lobby_id)
+        
+        return success(data={"message": "Вы покинули лобби"})
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при выходе из лобби: {str(e)}")
+        raise HTTPException(status_code=500, detail="Ошибка при выходе из лобби")
+
+class ShowCorrectAnswerRequest(BaseModel):
+    question_id: str
+    question_index: int
+
+@router.post("/lobbies/{lobby_id}/show-correct-answer", summary="Показать правильный ответ")
+async def show_correct_answer(
+    lobby_id: str,
+    request_data: ShowCorrectAnswerRequest = None,
+    current_user: dict = Depends(get_current_actor)
+):
+    """
+    Показывает правильный ответ на текущий вопрос всем участникам.
+    Только хост может управлять показом правильных ответов.
+    """
+    user_id = get_user_id(current_user)
+    logger.info(f"Хост {user_id} показывает правильный ответ в лобби {lobby_id}")
+    
+    try:
+        # Инвалидируем кэш для получения актуального состояния лобби
+        lobby_cache.invalidate_lobby(lobby_id)
+        
+        lobby = await db.lobbies.find_one({"_id": lobby_id})
+        if not lobby:
+            raise HTTPException(status_code=404, detail="Лобби не найдено")
+        
+        if lobby["host_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Только хост может показывать правильные ответы")
+        
+        if lobby["status"] != "in_progress":
+            raise HTTPException(status_code=400, detail="Тест не запущен")
+        
+        # Используем данные из запроса, если переданы, иначе берем из базы
+        if request_data and request_data.question_id:
+            current_question_id = request_data.question_id
+            current_index = request_data.question_index
+            logger.info(f"Using question from request: {current_question_id} (index {current_index})")
+        else:
+            current_index = lobby.get("current_index", 0)
+            question_ids = lobby.get("question_ids", [])
+            
+            if current_index >= len(question_ids):
+                raise HTTPException(status_code=400, detail="Нет текущего вопроса")
+            
+            current_question_id = question_ids[current_index]
+            logger.info(f"Using question from lobby state: {current_question_id} (index {current_index})")
+        
+        logger.info(f"Show correct answer debug: lobby {lobby_id}, current_index: {current_index}, question_id: {current_question_id}")
+        
+        # Получаем данные вопроса из базы данных
+        question = await db.questions.find_one({"_id": ObjectId(current_question_id)})
+        if not question:
+            raise HTTPException(status_code=404, detail="Вопрос не найден")
+        
+        correct_answer_index = question.get("correct_answer", 0)
+        explanation = question.get("explanation", "")
+        
+        logger.info(f"Question found: {current_question_id}, correct answer index: {correct_answer_index}")
+        
+        # Проверяем, есть ли медиа после ответа
+        has_after_media = bool(
+            question.get("has_after_media", False) or 
+            question.get("has_after_answer_media", False) or
+            question.get("after_answer_media_file_id") or
+            question.get("after_answer_media_id")
+        )
+        
+        # Определяем тип медиа после ответа
+        after_answer_media_type = ""
+        if has_after_media:
+            filename = question.get("after_answer_media_filename", "")
+            if filename:
+                is_video = filename.lower().endswith((".mp4", ".webm", ".mov", ".avi"))
+                after_answer_media_type = "video" if is_video else "image"
+            else:
+                after_answer_media_type = "image"  # Default
+        
+        # Получаем после-ответный media_file_id если есть
+        after_answer_media_file_id = None
+        if has_after_media:
+            after_answer_media_file_id = question.get("after_answer_media_file_id") or question.get("after_answer_media_id")
+        
+        # Отправляем WebSocket уведомление всем участникам
+        from app.websocket.lobby_ws import ws_manager
+        
+        websocket_data = {
+            "type": "show_correct_answer",
+            "data": {
+                "question_id": str(current_question_id),
+                "correct_answer_index": correct_answer_index,
+                "explanation": explanation,
+                "has_after_media": has_after_media,
+                "after_answer_media_type": after_answer_media_type,
+                "after_answer_media_file_id": str(after_answer_media_file_id) if after_answer_media_file_id else None,
+                "question_index": current_index  # Добавляем индекс для дополнительной проверки
+            }
+        }
+        
+        logger.info(f"Sending show_correct_answer WebSocket message for question {current_question_id} (index {current_index}): {websocket_data}")
+        
+        await ws_manager.send_json_parallel(lobby_id, websocket_data)
+        
+        logger.info(f"Правильный ответ показан в лобби {lobby_id}: вопрос {current_question_id}, ответ {correct_answer_index}")
+        
+        return success(data={
+            "message": "Правильный ответ показан всем участникам",
+            "question_id": str(current_question_id),
+            "correct_answer_index": correct_answer_index,
+            "explanation": explanation
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error showing correct answer: {str(e)}")
+        raise HTTPException(status_code=500, detail="Ошибка при показе правильного ответа")
+
+@router.post("/lobbies/{lobby_id}/toggle-participant-answers", summary="Переключить видимость ответов участников")
+async def toggle_participant_answers(
+    lobby_id: str,
+    current_user: dict = Depends(get_current_actor)
+):
+    """
+    Переключает видимость ответов участников для хоста.
+    Только хост может управлять видимостью ответов.
+    """
+    user_id = get_user_id(current_user)
+    logger.info(f"Хост {user_id} переключает видимость ответов в лобби {lobby_id}")
+    
+    try:
+        lobby = await db.lobbies.find_one({"_id": lobby_id})
+        if not lobby:
+            raise HTTPException(status_code=404, detail="Лобби не найдено")
+        
+        if lobby["host_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Только хост может управлять видимостью ответов")
+        
+        if lobby["status"] != "in_progress":
+            raise HTTPException(status_code=400, detail="Тест не запущен")
+        
+        # Переключаем состояние видимости ответов
+        current_visibility = lobby.get("show_participant_answers", False)
+        new_visibility = not current_visibility
+        
+        await db.lobbies.update_one(
+            {"_id": lobby_id},
+            {"$set": {"show_participant_answers": new_visibility}}
+        )
+        
+        # Отправляем WebSocket уведомление всем участникам
+        await ws_manager.broadcast_to_lobby(lobby_id, {
+            "type": "toggle_participant_answers",
+            "data": {
+                "show_answers": new_visibility
+            }
+        })
+        
+        return success(data={
+            "message": f"Видимость ответов {'включена' if new_visibility else 'выключена'}",
+            "show_answers": new_visibility
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error toggling participant answers visibility: {str(e)}")
+        raise HTTPException(status_code=500, detail="Ошибка при переключении видимости ответов")
+
+@router.post("/lobbies/{lobby_id}/sync-state", summary="Синхронизировать состояние лобби")
+async def sync_lobby_state(
+    lobby_id: str,
+    current_user: dict = Depends(get_current_actor)
+):
+    """
+    Синхронизирует состояние лобби для всех участников.
+    Может вызываться хостом для принудительной синхронизации.
+    """
+    user_id = get_user_id(current_user)
+    logger.info(f"Пользователь {user_id} запрашивает синхронизацию состояния лобби {lobby_id}")
+    
+    try:
+        lobby = await db.lobbies.find_one({"_id": lobby_id})
+        if not lobby:
+            raise HTTPException(status_code=404, detail="Лобби не найдено")
+        
+        if user_id not in lobby.get("participants", []):
+            raise HTTPException(status_code=403, detail="Вы не являетесь участником этого лобби")
+        
+        current_index = lobby.get("current_index", 0)
+        question_ids = lobby.get("question_ids", [])
+        current_question_id = question_ids[current_index] if current_index < len(question_ids) else None
+        
+        # Отправляем синхронизацию через WebSocket всем участникам
+        from app.websocket.lobby_ws import ws_manager
+        await ws_manager.send_json_parallel(lobby_id, {
+            "type": "sync_response",
+            "data": {
+                "current_question_index": current_index,
+                "current_question_id": str(current_question_id) if current_question_id else None,
+                "lobby_status": lobby.get("status"),
+                "participants": lobby.get("participants", []),
+                "show_participant_answers": lobby.get("show_participant_answers", False),
+                "forced_sync": True,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        })
+        
+        logger.info(f"Состояние лобби {lobby_id} синхронизировано для всех участников")
+        
+        return success(data={
+            "message": "Состояние лобби синхронизировано",
+            "current_index": current_index,
+            "current_question_id": str(current_question_id) if current_question_id else None
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error syncing lobby state: {str(e)}")
+        raise HTTPException(status_code=500, detail="Ошибка при синхронизации состояния лобби")
+
+@router.post("/lobbies/{lobby_id}/finish-test", summary="Завершить тест (хост)")
+async def finish_test(
+    lobby_id: str,
+    current_user: dict = Depends(get_current_actor)
+):
+    """
+    Завершает тест досрочно. Только хост может завершить тест.
+    Подсчитывает результаты всех участников и сохраняет их в историю.
+    """
+    user_id = get_user_id(current_user)
+    logger.info(f"Хост {user_id} завершает тест в лобби {lobby_id}")
+    
+    try:
+        lobby = await db.lobbies.find_one({"_id": lobby_id})
+        if not lobby:
+            raise HTTPException(status_code=404, detail="Лобби не найдено")
+        
+        if lobby["host_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Только хост может завершить тест")
+        
+        if lobby["status"] != "in_progress":
+            raise HTTPException(status_code=400, detail="Тест не запущен или уже завершен")
+        
+        # Завершаем тест
+        await db.lobbies.update_one(
+            {"_id": lobby_id},
+            {
+                "$set": {
+                    "status": "finished",
+                    "finished_at": datetime.utcnow()
+                }
+            }
+        )
+        
+        # Подсчитываем результаты
+        results = {}
+        participants_answers = lobby.get("participants_answers", {})
+        total_questions = len(lobby.get("question_ids", []))
+        
+        for participant_id in lobby.get("participants", []):
+            participant_answers = participants_answers.get(participant_id, {})
+            correct_count = sum(1 for is_correct in participant_answers.values() if is_correct)
+            
+            results[participant_id] = {
+                "correct": correct_count,
+                "total": len(participant_answers),
+                "percentage": round((correct_count / len(participant_answers) * 100) if len(participant_answers) > 0 else 0, 1)
+            }
+            
+            # Сохраняем в историю
+            history_record = {
+                "user_id": participant_id,
+                "lobby_id": lobby_id,
+                "date": datetime.utcnow(),
+                "score": correct_count,
+                "total": len(participant_answers),
+                "categories": lobby.get("categories", []),
+                "sections": lobby.get("sections", []),
+                "mode": lobby.get("mode", "multiplayer"),
+                "pass_percentage": (correct_count / len(participant_answers) * 100) if len(participant_answers) > 0 else 0
+            }
+            await db.history.insert_one(history_record)
+        
+        # Инвалидируем кэш
+        lobby_cache.invalidate_lobby(lobby_id)
+        
+        # Отправляем WebSocket уведомление о завершении теста
+        await ws_manager.broadcast_to_lobby(lobby_id, {
+            "type": "test_finished",
+            "data": {
+                "results": results,
+                "message": "Тест завершен хостом"
+            }
+        })
+        
+        return success(data={
+            "message": "Тест завершен",
+            "results": results
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error finishing test: {str(e)}")
+        raise HTTPException(status_code=500, detail="Ошибка при завершении теста")

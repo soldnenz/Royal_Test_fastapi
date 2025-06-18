@@ -35,11 +35,11 @@ const DashboardSidebar = ({ isOpen, toggleSidebar, currentTheme, currentLanguage
 
   // Navigation items - can be expanded later
   const navItems = [
-    { name: translations[language].tests, icon: <FaClipboardList className="mr-3 text-lg" />, path: '/dashboard/tests' },
-    { name: translations[language].statistics, icon: <FaChartBar className="mr-3 text-lg" />, path: '/dashboard/statistics' },
-    { name: translations[language].referralSystem, icon: <FaUserFriends className="mr-3 text-lg" />, path: '/dashboard/referrals' },
-    { name: translations[language].subscription, icon: <FaCrown className="mr-3 text-lg" />, path: '/dashboard/subscription' },
-    { name: translations[language].promoCodes, icon: <FaGift className="mr-3 text-lg" />, path: '/dashboard/promo-codes' },
+    { name: t.tests, icon: <FaClipboardList className="mr-3 text-lg" />, path: '/dashboard/tests' },
+    { name: t.statistics, icon: <FaChartBar className="mr-3 text-lg" />, path: '/dashboard/statistics' },
+    { name: t.referralSystem, icon: <FaUserFriends className="mr-3 text-lg" />, path: '/dashboard/referrals' },
+    { name: t.subscription, icon: <FaCrown className="mr-3 text-lg" />, path: '/dashboard/subscription' },
+    { name: t.promoCodes, icon: <FaGift className="mr-3 text-lg" />, path: '/dashboard/promo-codes' },
   ];
 
   return (

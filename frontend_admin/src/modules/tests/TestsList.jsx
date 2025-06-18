@@ -217,47 +217,65 @@ const TestsList = () => {
   });
 
   const showDeleteConfirm = (uid) => {
-    confirm({
-      title: 'Удаление вопроса',
-      content: 'Вы уверены, что хотите удалить этот вопрос? Это действие невозможно отменить.',
-      icon: <ExclamationCircleOutlined style={{ color: 'var(--danger)' }} />,
-      okText: 'Удалить',
-      okType: 'danger',
-      cancelText: 'Отмена',
-      onOk() {
+    console.log('showDeleteConfirm called with UID:', uid);
+    try {
+      const result = window.confirm('Вы уверены, что хотите удалить этот вопрос? Это действие невозможно отменить.');
+      if (result) {
+        console.log('Delete confirmed for UID:', uid);
         deleteTest(uid);
-      },
-    });
+      } else {
+        console.log('Delete cancelled for UID:', uid);
+      }
+    } catch (error) {
+      console.error('Error showing confirmation:', error);
+    }
   };
 
   const deleteTest = async (uid) => {
     try {
-      const response = await axios.delete(`/api/tests`, {
-        data: { 
-          question_id: uid,
-          deleted_by: "Администратор"
+      console.log('deleteTest function called with UID:', uid);
+      console.log('Making DELETE request to /api/tests/');
+      
+      const requestData = { question_id: uid };
+      console.log('Request data:', requestData);
+      
+      const response = await axios.delete(`/api/tests/`, {
+        data: requestData,
+        headers: {
+          'Content-Type': 'application/json'
         }
       });
       
-      if (response.status === 200 || response.status === 204) {
+      console.log('Delete response received:', response);
+      console.log('Response status:', response.status);
+      console.log('Response data:', response.data);
+      
+      if (response.status === 200) {
+        console.log('Deletion successful, showing success message');
         message.success('Вопрос успешно удален');
-        fetchTests();
+        console.log('Refreshing tests list');
+        fetchTests(); // Обновляем список
       } else {
+        console.error('Unexpected status:', response.status);
         message.error('Ошибка при удалении вопроса');
       }
     } catch (error) {
-      message.error('Ошибка при удалении вопроса');
-      console.error('Error deleting test:', error);
+      console.error('Error in deleteTest function:', error);
+      console.error('Error message:', error.message);
+      console.error('Error response:', error.response);
+      console.error('Error response data:', error.response?.data);
+      console.error('Error response status:', error.response?.status);
+      message.error(error.response?.data?.detail || 'Ошибка при удалении вопроса');
     }
   };
 
   const handleViewDetails = async (record) => {
     setModalInfo(record);
     setMediaUrl(null);
-    setMediaLoading(true);
+    setMediaLoading(false);
     setLoadingProgress(0);
     setAfterAnswerMediaUrl(null);
-    setAfterAnswerMediaLoading(true);
+    setAfterAnswerMediaLoading(false);
     setAfterAnswerLoadingProgress(0);
     setDetailsLoading(true);
     
@@ -267,6 +285,8 @@ const TestsList = () => {
     abortControllerRef.current = new AbortController();
     
     try {
+      console.log('Loading details for test:', record.uid);
+      
       const response = await axios.get(`/api/tests/by_uid/${record.uid}`, {
         onDownloadProgress: (progressEvent) => {
           if (progressEvent.total) {
@@ -281,88 +301,60 @@ const TestsList = () => {
       });
       
       const responseData = response.data.data;
+      console.log('Test details loaded:', responseData);
+      console.log('After answer media info:', {
+        after_answer_media_file_id: responseData.after_answer_media_file_id,
+        after_answer_media_id: responseData.after_answer_media_id,
+        has_after_answer_media: responseData.has_after_answer_media,
+        has_after_media: responseData.has_after_media,
+        after_answer_media_filename: responseData.after_answer_media_filename,
+        after_answer_media_base64: responseData.after_answer_media_base64 ? 'present' : 'missing'
+      });
       setModalInfo(responseData);
       
+      // Обрабатываем основное медиа
       if (responseData.media_file_id && responseData.media_file_base64) {
-        const isVideo = responseData.media_filename?.endsWith('.mp4');
+        console.log('Loading main media from base64');
+        const isVideo = responseData.media_filename?.toLowerCase().endsWith('.mp4') || 
+                       responseData.media_filename?.toLowerCase().endsWith('.webm') || 
+                       responseData.media_filename?.toLowerCase().endsWith('.mov');
         const contentType = isVideo ? 'video/mp4' : 'image/jpeg';
         const mediaUrl = `data:${contentType};base64,${responseData.media_file_base64}`;
         setMediaUrl(mediaUrl);
         setMediaType(contentType);
       } else if (responseData.media_file_id) {
-        message.info('Загружаем основное медиа...');
-        try {
-          const mediaResponse = await axios.get(`/api/files/files/${responseData.media_file_id}?as_base64=true`, {
-            onDownloadProgress: (progressEvent) => {
-              if (progressEvent.total) {
-                const percentCompleted = Math.round(
-                  (progressEvent.loaded * 100) / progressEvent.total
-                );
-                setLoadingProgress(percentCompleted);
-              }
-            },
-            signal: abortControllerRef.current.signal
-          });
-          
-          if (mediaResponse.data.success && mediaResponse.data.data.media_base64) {
-            const isVideo = responseData.media_filename?.endsWith('.mp4');
-            const contentType = isVideo ? 'video/mp4' : 'image/jpeg';
-            const mediaUrl = `data:${contentType};base64,${mediaResponse.data.data.media_base64}`;
-            setMediaUrl(mediaUrl);
-            setMediaType(contentType);
-          }
-        } catch (error) {
-          if (!axios.isCancel(error)) {
-            console.error('Ошибка при загрузке основного медиа:', error);
-          }
-        }
+        console.log('Main media ID found but no base64 data:', responseData.media_file_id);
       }
-      setMediaLoading(false);
       
-      if (responseData.after_answer_media_file_id && responseData.after_answer_media_base64) {
-        const isVideo = responseData.after_answer_media_filename?.endsWith('.mp4');
+      // Обрабатываем дополнительное медиа (после ответа)
+      const afterAnswerMediaId = responseData.after_answer_media_file_id || responseData.after_answer_media_id;
+      if (afterAnswerMediaId && responseData.after_answer_media_base64) {
+        console.log('Loading after-answer media from base64');
+        console.log('After-answer media filename:', responseData.after_answer_media_filename);
+        const isVideo = responseData.after_answer_media_filename?.toLowerCase().endsWith('.mp4') || 
+                       responseData.after_answer_media_filename?.toLowerCase().endsWith('.webm') || 
+                       responseData.after_answer_media_filename?.toLowerCase().endsWith('.mov');
+        console.log('Is video?', isVideo);
         const contentType = isVideo ? 'video/mp4' : 'image/jpeg';
+        console.log('Content type:', contentType);
+        console.log('Base64 data length:', responseData.after_answer_media_base64.length);
+        console.log('Base64 data sample (first 100 chars):', responseData.after_answer_media_base64.substring(0, 100));
         const mediaUrl = `data:${contentType};base64,${responseData.after_answer_media_base64}`;
+        console.log('Generated media URL length:', mediaUrl.length);
         setAfterAnswerMediaUrl(mediaUrl);
         setAfterAnswerMediaType(contentType);
-      } else if (responseData.after_answer_media_file_id) {
-        message.info('Загружаем дополнительное медиа...');
-        try {
-          const mediaResponse = await axios.get(`/api/files/files/${responseData.after_answer_media_file_id}?as_base64=true`, {
-            onDownloadProgress: (progressEvent) => {
-              if (progressEvent.total) {
-                const percentCompleted = Math.round(
-                  (progressEvent.loaded * 100) / progressEvent.total
-                );
-                setAfterAnswerLoadingProgress(percentCompleted);
-              }
-            },
-            signal: abortControllerRef.current.signal
-          });
-          
-          if (mediaResponse.data.success && mediaResponse.data.data.media_base64) {
-            const isVideo = responseData.after_answer_media_filename?.endsWith('.mp4');
-            const contentType = isVideo ? 'video/mp4' : 'image/jpeg';
-            const mediaUrl = `data:${contentType};base64,${mediaResponse.data.data.media_base64}`;
-            setAfterAnswerMediaUrl(mediaUrl);
-            setAfterAnswerMediaType(contentType);
-          }
-        } catch (error) {
-          if (!axios.isCancel(error)) {
-            console.error('Ошибка при загрузке дополнительного медиа:', error);
-          }
-        }
+      } else if (afterAnswerMediaId) {
+        console.log('After-answer media ID found but no base64 data:', afterAnswerMediaId);
+      } else if (responseData.has_after_answer_media || responseData.has_after_media) {
+        console.log('Has after answer media flag set but no media ID found');
       }
-      setAfterAnswerMediaLoading(false);
       
     } catch (error) {
       if (!axios.isCancel(error)) {
-        message.error('Ошибка при загрузке информации о тесте');
         console.error('Error fetching test details:', error);
+        message.error('Ошибка при загрузке информации о тесте');
       }
     } finally {
-      setMediaLoading(false);
-      setAfterAnswerMediaLoading(false);
       setDetailsLoading(false);
     }
   };
@@ -450,8 +442,29 @@ const TestsList = () => {
           <Button 
             icon={<DeleteOutlined />} 
             danger
-            onClick={() => showDeleteConfirm(record.uid)}
+            onClick={(e) => {
+              console.log('=== DELETE BUTTON CLICKED ===');
+              console.log('Event:', e);
+              console.log('Record:', record);
+              console.log('Record UID:', record?.uid);
+              
+              e.preventDefault();
+              e.stopPropagation();
+              
+              if (!record || !record.uid) {
+                console.error('No record or UID found');
+                return;
+              }
+              
+              try {
+                console.log('Calling showDeleteConfirm with UID:', record.uid);
+                showDeleteConfirm(record.uid);
+              } catch (error) {
+                console.error('Error in onClick handler:', error);
+              }
+            }}
             className="action-btn delete"
+            style={{ pointerEvents: 'auto', cursor: 'pointer' }}
             block
           >
             Удалить
@@ -474,7 +487,7 @@ const TestsList = () => {
 
     const isDark = document.body.classList.contains('dark-theme');
     const hasMainMedia = !!modalInfo.media_file_id;
-    const hasAfterAnswerMedia = !!modalInfo.after_answer_media_file_id;
+    const hasAfterAnswerMedia = !!(modalInfo.after_answer_media_file_id || modalInfo.after_answer_media_id || modalInfo.has_after_answer_media || modalInfo.has_after_media);
     
     return (
       <Modal
@@ -672,10 +685,20 @@ const TestsList = () => {
                         <img src={mediaUrl} alt="Медиа" className="detail-media" />
                       )}
                     </div>
+                  ) : modalInfo.media_file_id ? (
+                    <div className="media-placeholder" style={isDark ? { color: 'var(--text-light, #fff)' } : {}}>
+                      <PlayCircleOutlined style={isDark ? { color: 'var(--text-light, #fff)' } : {}} />
+                      <div>Медиафайл не может быть загружен</div>
+                      <div style={{ fontSize: '12px', marginTop: '8px' }}>
+                        ID: {modalInfo.media_file_id}
+                        {modalInfo.media_filename && <br />}
+                        {modalInfo.media_filename && `Файл: ${modalInfo.media_filename}`}
+                      </div>
+                    </div>
                   ) : (
                     <div className="media-placeholder" style={isDark ? { color: 'var(--text-light, #fff)' } : {}}>
                       <PlayCircleOutlined style={isDark ? { color: 'var(--text-light, #fff)' } : {}} />
-                      <div>Медиафайл существует (ID: {modalInfo.media_file_id}), но не может быть загружен</div>
+                      <div>Медиафайл отсутствует</div>
                     </div>
                   )}
                 </Card>
@@ -710,18 +733,41 @@ const TestsList = () => {
                   ) : afterAnswerMediaUrl ? (
                     <div className="media-container">
                       {afterAnswerMediaType?.startsWith('video/') ? (
-                        <video controls className="detail-media" crossOrigin="anonymous">
+                        <video 
+                          controls 
+                          className="detail-media" 
+                          crossOrigin="anonymous"
+                          onLoadStart={() => console.log('Video load started')}
+                          onLoadedData={() => console.log('Video loaded successfully')}
+                          onError={(e) => console.error('Video load error:', e)}
+                        >
                           <source src={afterAnswerMediaUrl} type={afterAnswerMediaType} />
                           Ваш браузер не поддерживает видео.
                         </video>
                       ) : (
-                        <img src={afterAnswerMediaUrl} alt="Доп. медиа" className="detail-media" />
+                        <img 
+                          src={afterAnswerMediaUrl} 
+                          alt="Доп. медиа" 
+                          className="detail-media"
+                          onLoad={() => console.log('Image loaded successfully')}
+                          onError={(e) => console.error('Image load error:', e)}
+                        />
                       )}
+                    </div>
+                  ) : (modalInfo.after_answer_media_file_id || modalInfo.after_answer_media_id) ? (
+                    <div className="media-placeholder" style={isDark ? { color: 'var(--text-light, #fff)' } : {}}>
+                      <PlayCircleOutlined style={isDark ? { color: 'var(--text-light, #fff)' } : {}} />
+                      <div>Дополнительный медиафайл не может быть загружен</div>
+                      <div style={{ fontSize: '12px', marginTop: '8px' }}>
+                        ID: {modalInfo.after_answer_media_file_id || modalInfo.after_answer_media_id}
+                        {modalInfo.after_answer_media_filename && <br />}
+                        {modalInfo.after_answer_media_filename && `Файл: ${modalInfo.after_answer_media_filename}`}
+                      </div>
                     </div>
                   ) : (
                     <div className="media-placeholder" style={isDark ? { color: 'var(--text-light, #fff)' } : {}}>
                       <PlayCircleOutlined style={isDark ? { color: 'var(--text-light, #fff)' } : {}} />
-                      <div>Дополнительный медиафайл существует (ID: {modalInfo.after_answer_media_file_id}), но не может быть загружен</div>
+                      <div>Дополнительный медиафайл отсутствует</div>
                     </div>
                   )}
                 </Card>

@@ -19,16 +19,26 @@ const SubscriptionModal = ({ show, onClose, user, onRefresh }) => {
   useEffect(() => {
     if (show && user) {
       // Set default expiry date to 30 days from now
-      const expiryDate = new Date();
-      expiryDate.setDate(expiryDate.getDate() + 30);
-      
-      setFormData({
-        subscription_type: 'economy',
-        duration_days: 30,
-        expires_at: expiryDate.toISOString().split('T')[0],
-        activation_method: 'manual',
-        note: ''
-      });
+      try {
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + 30);
+        
+        // Verify the date is valid
+        if (isNaN(expiryDate.getTime())) {
+          console.error('Invalid default expiry date calculated');
+          return;
+        }
+        
+        setFormData({
+          subscription_type: 'economy',
+          duration_days: 30,
+          expires_at: expiryDate.toISOString().split('T')[0],
+          activation_method: 'manual',
+          note: ''
+        });
+      } catch (error) {
+        console.error('Error setting default expiry date:', error);
+      }
     }
   }, [show, user]);
 
@@ -38,30 +48,58 @@ const SubscriptionModal = ({ show, onClose, user, onRefresh }) => {
     if (name === 'duration_days') {
       // Update expires_at when duration_days changes
       const days = parseInt(value);
-      if (!isNaN(days)) {
-        const expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + days);
-        
-        setFormData(prev => ({
-          ...prev,
-          [name]: value,
-          expires_at: expiryDate.toISOString().split('T')[0]
-        }));
+      
+      // Validate the input
+      if (!isNaN(days) && days >= 0 && days <= 3650) { // Max 10 years
+        try {
+          const expiryDate = new Date();
+          expiryDate.setDate(expiryDate.getDate() + days);
+          
+          // Verify the date is valid
+          if (isNaN(expiryDate.getTime())) {
+            console.error('Invalid date calculated for days:', days);
+            setFormData(prev => ({ ...prev, [name]: value }));
+            return;
+          }
+          
+          setFormData(prev => ({
+            ...prev,
+            [name]: value,
+            expires_at: expiryDate.toISOString().split('T')[0]
+          }));
+        } catch (error) {
+          console.error('Error calculating expiry date:', error);
+          setFormData(prev => ({ ...prev, [name]: value }));
+        }
       } else {
+        // Just update the days field without calculating expires_at for invalid values
         setFormData(prev => ({ ...prev, [name]: value }));
       }
     } else if (name === 'expires_at') {
       // Update duration_days when expires_at changes
-      const selectedDate = new Date(value);
-      const now = new Date();
-      const diffTime = selectedDate - now;
-      const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      setFormData(prev => ({
-        ...prev,
-        [name]: value,
-        duration_days: days > 0 ? days : 0
-      }));
+      try {
+        const selectedDate = new Date(value);
+        
+        // Verify the selected date is valid
+        if (isNaN(selectedDate.getTime())) {
+          console.error('Invalid date selected:', value);
+          setFormData(prev => ({ ...prev, [name]: value }));
+          return;
+        }
+        
+        const now = new Date();
+        const diffTime = selectedDate - now;
+        const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        setFormData(prev => ({
+          ...prev,
+          [name]: value,
+          duration_days: days > 0 ? days : 0
+        }));
+      } catch (error) {
+        console.error('Error parsing date:', error);
+        setFormData(prev => ({ ...prev, [name]: value }));
+      }
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -75,13 +113,20 @@ const SubscriptionModal = ({ show, onClose, user, onRefresh }) => {
       return;
     }
 
+    // Validate date before sending
+    const expiryDate = new Date(formData.expires_at);
+    if (isNaN(expiryDate.getTime())) {
+      showToast('Некорректная дата окончания подписки', 'error');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const payload = {
         user_id: user.id,
         iin: user.iin,
         subscription_type: formData.subscription_type.toLowerCase(),
-        expires_at: new Date(formData.expires_at).toISOString(),
+        expires_at: expiryDate.toISOString(),
         activation_method: formData.activation_method,
         note: formData.note || "",
         duration_days: parseInt(formData.duration_days)
@@ -196,9 +241,13 @@ const SubscriptionModal = ({ show, onClose, user, onRefresh }) => {
               value={formData.duration_days}
               onChange={handleInputChange}
               min="1"
+              max="3650"
+              step="1"
               required
               disabled={isLoading}
+              title="Введите количество дней от 1 до 3650 (максимум 10 лет)"
             />
+            <small className="form-text">Максимум 3650 дней (≈10 лет)</small>
           </div>
           
           <div className="form-group">

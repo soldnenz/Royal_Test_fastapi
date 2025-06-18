@@ -76,6 +76,19 @@ async def get_file(
                 file_id_str = str(question["media_file_id"])
                 allowed_media_files.add(file_id_str)
                 media_types[file_id_str] = question.get("media_type", "image/jpeg")  # По умолчанию изображение
+            
+            # Также добавляем after-answer медиа файлы
+            after_media_id = question.get("after_answer_media_file_id") or question.get("after_answer_media_id")
+            if after_media_id:
+                after_file_id_str = str(after_media_id)
+                allowed_media_files.add(after_file_id_str)
+                # Определяем тип файла по расширению имени файла
+                filename = question.get("after_answer_media_filename", "")
+                if filename:
+                    is_video = filename.lower().endswith((".mp4", ".webm", ".mov", ".avi"))
+                    media_types[after_file_id_str] = "video/mp4" if is_video else "image/jpeg"
+                else:
+                    media_types[after_file_id_str] = "image/jpeg"  # По умолчанию изображение
         
         # Проверяем, что запрашиваемый файл принадлежит вопросу в активном лобби
         if file_id not in allowed_media_files:

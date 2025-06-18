@@ -31,17 +31,21 @@ def create_access_token(data: dict, expires_delta: timedelta = None) -> tuple[st
     return token, expire
 
 
-async def store_token_in_db(token: str, user_id: ObjectId, expires_at: datetime, ip: str, user_agent: str):
-    # Ограничиваем до 3 активных токенов
-    active_tokens = await db.tokens.find({
-        "user_id": user_id,
-        "revoked": False,
-        "expires_at": {"$gt": datetime.utcnow()}
-    }).sort("created_at", 1).to_list(length=100)
+async def store_token_in_db(token: str, user_id, expires_at: datetime, ip: str, user_agent: str):
+    # For guest users, user_id is a string, for regular users it's ObjectId
+    is_guest = isinstance(user_id, str) and user_id.startswith("guest_")
+    
+    if not is_guest:
+        # Ограничиваем до 3 активных токенов для обычных пользователей
+        active_tokens = await db.tokens.find({
+            "user_id": user_id,
+            "revoked": False,
+            "expires_at": {"$gt": datetime.utcnow()}
+        }).sort("created_at", 1).to_list(length=100)
 
-    if len(active_tokens) >= 3:
-        oldest = active_tokens[0]
-        await db.tokens.update_one({"_id": oldest["_id"]}, {"$set": {"revoked": True}})
+        if len(active_tokens) >= 3:
+            oldest = active_tokens[0]
+            await db.tokens.update_one({"_id": oldest["_id"]}, {"$set": {"revoked": True}})
 
     await db.tokens.insert_one({
         "user_id": user_id,
@@ -51,7 +55,8 @@ async def store_token_in_db(token: str, user_id: ObjectId, expires_at: datetime,
         "revoked": False,
         "ip": ip,
         "user_agent": user_agent,
-        "last_activity": datetime.utcnow()
+        "last_activity": datetime.utcnow(),
+        "is_guest": is_guest
     })
 
 async def get_current_user(request: Request):
@@ -94,6 +99,13 @@ async def get_current_user(request: Request):
             detail={"message": "Токен отозван или просрочен"}
         )
 
+    # Проверяем, что это не гость
+    if isinstance(user_id, str) and user_id.startswith("guest_"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"message": "Неверный тип пользователя для данного метода"}
+        )
+    
     user = await db.users.find_one({"_id": ObjectId(user_id)})
     if not user:
         raise HTTPException(
@@ -114,9 +126,9 @@ async def get_current_user(request: Request):
 async def get_current_actor(request: Request) -> dict:
     """
     Достаёт токен из cookie, валидирует и возвращает словарь с информацией
-    о текущем пользователе / админе / модераторе.
+    о текущем пользователе / админе / модераторе / госте.
 
-    Возможные role в JWT: 'user', 'admin', 'moderator'
+    Возможные role в JWT: 'user', 'admin', 'moderator', 'guest'
     """
     # ─────────────────────────────────────────────────────────────────────────
     token = request.cookies.get("access_token")
@@ -130,7 +142,12 @@ async def get_current_actor(request: Request) -> dict:
         payload  = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id  = payload.get("sub")
         role     = payload.get("role")          # строка
-        if not user_id or not ObjectId.is_valid(user_id):
+        lobby_id = payload.get("lobby_id")      # для гостей
+        
+        # Для гостей user_id - строка, для обычных пользователей - ObjectId
+        is_guest = isinstance(user_id, str) and user_id.startswith("guest_")
+        
+        if not user_id or (not is_guest and not ObjectId.is_valid(user_id)):
             raise HTTPException(
                 status_code=401,
                 detail={"message": "Некорректные данные токена", "hint": "Проверьте токен"}
@@ -146,8 +163,8 @@ async def get_current_actor(request: Request) -> dict:
             detail={"message": "Ошибка валидации токена", "hint": "Невозможно декодировать токен"}
         )
 
-    # ──────────────────────────── USER ──────────────────────────────────────
-    if role == "user":
+    # ──────────────────────────── GUEST ──────────────────────────────────────
+    if role == "guest":
         token_doc = await db.tokens.find_one({"token": token})
         if not token_doc or token_doc.get("revoked") or token_doc["expires_at"] < datetime.utcnow():
             raise HTTPException(
@@ -165,6 +182,50 @@ async def get_current_actor(request: Request) -> dict:
             }}
         )
 
+        guest = await db.guests.find_one({"_id": user_id})
+        if not guest:
+            raise HTTPException(
+                status_code=404,
+                detail={"message": "Гостевой пользователь не найден"}
+            )
+
+        return {
+            "type": "guest",
+            "id": guest["_id"],
+            "role": role,
+            "full_name": guest.get("full_name"),
+            "email": guest.get("email"),
+            "lobby_id": guest.get("lobby_id"),
+            "is_guest": True,
+            "created_at": guest.get("created_at")
+        }
+
+    # ──────────────────────────── USER ──────────────────────────────────────
+    elif role == "user":
+        token_doc = await db.tokens.find_one({"token": token})
+        if not token_doc or token_doc.get("revoked") or token_doc["expires_at"] < datetime.utcnow():
+            raise HTTPException(
+                status_code=401,
+                detail={"message": "Токен недействителен", "hint": "Он отозван или истёк"}
+            )
+
+        # обновляем метки активности
+        await db.tokens.update_one(
+            {"_id": token_doc["_id"]},
+            {"$set": {
+                "last_activity": datetime.utcnow(),
+                "ip": request.client.host,
+                "user_agent": request.headers.get("User-Agent", "unknown")
+            }}
+        )
+
+        # Проверяем, что это не гость (для роли user)
+        if isinstance(user_id, str) and user_id.startswith("guest_"):
+            raise HTTPException(
+                status_code=401,
+                detail={"message": "Гости не могут использовать роль user"}
+            )
+        
         user = await db.users.find_one({"_id": ObjectId(user_id)})
         if not user:
             raise HTTPException(
@@ -186,6 +247,13 @@ async def get_current_actor(request: Request) -> dict:
 
     # ─────────────────────── ADMIN / MODER ──────────────────────────────────
     elif role in ("admin", "moderator", "tests_creator"):
+        # Проверяем, что это не гость (для админских ролей)
+        if isinstance(user_id, str) and user_id.startswith("guest_"):
+            raise HTTPException(
+                status_code=401,
+                detail={"message": "Гости не могут иметь административные роли"}
+            )
+        
         admin = await db.admins.find_one({"_id": ObjectId(user_id)})
         if not admin:
             raise HTTPException(
