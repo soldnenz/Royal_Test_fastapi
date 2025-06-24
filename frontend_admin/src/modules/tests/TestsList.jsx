@@ -315,10 +315,25 @@ const TestsList = () => {
       // Обрабатываем основное медиа
       if (responseData.media_file_id && responseData.media_file_base64) {
         console.log('Loading main media from base64');
-        const isVideo = responseData.media_filename?.toLowerCase().endsWith('.mp4') || 
-                       responseData.media_filename?.toLowerCase().endsWith('.webm') || 
-                       responseData.media_filename?.toLowerCase().endsWith('.mov');
-        const contentType = isVideo ? 'video/mp4' : 'image/jpeg';
+        
+        // Определяем правильный тип контента на основе расширения файла
+        let contentType = 'image/jpeg'; // по умолчанию
+        if (responseData.media_filename) {
+          const filename = responseData.media_filename.toLowerCase();
+          if (filename.endsWith('.mp4') || filename.endsWith('.webm') || filename.endsWith('.mov')) {
+            contentType = 'video/mp4';
+          } else if (filename.endsWith('.png')) {
+            contentType = 'image/png';
+          } else if (filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
+            contentType = 'image/jpeg';
+          } else if (filename.endsWith('.gif')) {
+            contentType = 'image/gif';
+          } else if (filename.endsWith('.webp')) {
+            contentType = 'image/webp';
+          }
+        }
+        
+        console.log('Main media content type:', contentType);
         const mediaUrl = `data:${contentType};base64,${responseData.media_file_base64}`;
         setMediaUrl(mediaUrl);
         setMediaType(contentType);
@@ -336,13 +351,30 @@ const TestsList = () => {
                        responseData.after_answer_media_filename?.toLowerCase().endsWith('.mov');
         console.log('Is video?', isVideo);
         const contentType = isVideo ? 'video/mp4' : 'image/jpeg';
-        console.log('Content type:', contentType);
+        // Определяем правильный тип контента на основе расширения файла
+        let actualContentType = 'image/jpeg'; // по умолчанию
+        if (responseData.after_answer_media_filename) {
+          const filename = responseData.after_answer_media_filename.toLowerCase();
+          if (filename.endsWith('.mp4') || filename.endsWith('.webm') || filename.endsWith('.mov')) {
+            actualContentType = 'video/mp4';
+          } else if (filename.endsWith('.png')) {
+            actualContentType = 'image/png';
+          } else if (filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
+            actualContentType = 'image/jpeg';
+          } else if (filename.endsWith('.gif')) {
+            actualContentType = 'image/gif';
+          } else if (filename.endsWith('.webp')) {
+            actualContentType = 'image/webp';
+          }
+        }
+        
+        console.log('Detected content type:', actualContentType);
         console.log('Base64 data length:', responseData.after_answer_media_base64.length);
         console.log('Base64 data sample (first 100 chars):', responseData.after_answer_media_base64.substring(0, 100));
-        const mediaUrl = `data:${contentType};base64,${responseData.after_answer_media_base64}`;
+        const mediaUrl = `data:${actualContentType};base64,${responseData.after_answer_media_base64}`;
         console.log('Generated media URL length:', mediaUrl.length);
         setAfterAnswerMediaUrl(mediaUrl);
-        setAfterAnswerMediaType(contentType);
+        setAfterAnswerMediaType(actualContentType);
       } else if (afterAnswerMediaId) {
         console.log('After-answer media ID found but no base64 data:', afterAnswerMediaId);
       } else if (responseData.has_after_answer_media || responseData.has_after_media) {

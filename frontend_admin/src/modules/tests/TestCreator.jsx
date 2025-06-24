@@ -4,6 +4,7 @@ import LoadingSpinner from '../../shared/components/LoadingSpinner';
 import ErrorDisplay from '../../shared/components/ErrorDisplay';
 import ProgressBar from '../../shared/components/ProgressBar';
 import { useToast, TOAST_TYPES } from '../../shared/ToastContext';
+import { validateAndSanitizeFile } from '../../shared/utils/fileUtils';
 
 const TestCreator = ({ onCreated }) => {
   // Form state
@@ -270,18 +271,36 @@ const TestCreator = ({ onCreated }) => {
         setLoading(false);
         
         if (xhr.status >= 200 && xhr.status < 300) {
-          showToast('Вопрос успешно создан!', TOAST_TYPES.SUCCESS);
-          resetForm();
-          if (onCreated) onCreated();
+          try {
+            const response = JSON.parse(xhr.responseText);
+            if (response.success) {
+              showToast('Вопрос успешно создан!', TOAST_TYPES.SUCCESS);
+              resetForm();
+              if (onCreated) onCreated();
+            } else {
+              // Даже если статус 200, но success=false, это ошибка
+              const errorMessage = response.message || response.error || 'Ошибка при создании вопроса';
+              console.error('Ошибка с сервера (статус 200, но success=false):', errorMessage);
+              showToast(errorMessage, TOAST_TYPES.ERROR);
+              setError(errorMessage);
+            }
+          } catch (e) {
+            // Если не удалось разобрать JSON, это тоже ошибка
+            console.error('Ошибка при парсинге ответа:', e, 'Текст ответа:', xhr.responseText);
+            showToast('Ошибка при создании вопроса', TOAST_TYPES.ERROR);
+            setError('Ошибка при создании вопроса');
+          }
         } else {
           try {
             const errorResponse = JSON.parse(xhr.responseText);
-            const errorMessage = errorResponse.detail || 'Ошибка при создании вопроса';
+            const errorMessage = errorResponse.detail || errorResponse.message || errorResponse.error || 'Ошибка при создании вопроса';
+            console.error('Ошибка с сервера (статус не 2xx):', errorMessage, 'Статус:', xhr.status);
             showToast(errorMessage, TOAST_TYPES.ERROR);
             setError(errorMessage);
           } catch (e) {
-            showToast('Ошибка при создании вопроса', TOAST_TYPES.ERROR);
-            setError('Ошибка при создании вопроса');
+            console.error('Ошибка при парсинге ответа ошибки:', e, 'Статус:', xhr.status, 'Текст ответа:', xhr.responseText);
+            showToast(`Ошибка при создании вопроса (${xhr.status})`, TOAST_TYPES.ERROR);
+            setError(`Ошибка при создании вопроса (${xhr.status})`);
           }
         }
       };
@@ -289,6 +308,15 @@ const TestCreator = ({ onCreated }) => {
       xhr.onerror = () => {
         setLoading(false);
         const errorMessage = 'Ошибка соединения с сервером';
+        console.error('Ошибка сети при создании вопроса');
+        showToast(errorMessage, TOAST_TYPES.ERROR);
+        setError(errorMessage);
+      };
+      
+      xhr.ontimeout = () => {
+        setLoading(false);
+        const errorMessage = 'Превышено время ожидания ответа сервера';
+        console.error('Таймаут при создании вопроса');
         showToast(errorMessage, TOAST_TYPES.ERROR);
         setError(errorMessage);
       };
@@ -414,19 +442,30 @@ const TestCreator = ({ onCreated }) => {
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (ALLOWED_MEDIA_TYPES.includes(file.type)) {
-        if (file.size > 50 * 1024 * 1024) {
-          showToast('Размер файла превышает лимит 50МБ', TOAST_TYPES.ERROR);
+      try {
+        const validation = validateAndSanitizeFile(file, ALLOWED_MEDIA_TYPES, 50);
+        
+        if (!validation.isValid) {
+          showToast(validation.error, TOAST_TYPES.ERROR);
           if (fileInputRef.current) {
             fileInputRef.current.value = '';
           }
           return;
         }
         
-        setMedia(file);
-      } else {
-        showToast('Неподдерживаемый тип файла. Разрешены: JPG, PNG и MP4.', TOAST_TYPES.ERROR);
-        // Clear file input
+        setMedia(validation.file);
+        
+        if (validation.wasRenamed) {
+          showToast(
+            `Файл с кириллическим именем "${validation.originalName}" переименован в "${validation.safeName}"`, 
+            TOAST_TYPES.INFO
+          );
+        }
+        
+        console.log('Основной медиа файл выбран:', validation.file.name, 'Размер:', (validation.file.size / 1024 / 1024).toFixed(2), 'МБ');
+      } catch (error) {
+        console.error('Ошибка при обработке файла:', error);
+        showToast('Ошибка при обработке файла', TOAST_TYPES.ERROR);
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
@@ -438,19 +477,30 @@ const TestCreator = ({ onCreated }) => {
   const handleAfterAnswerFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (ALLOWED_MEDIA_TYPES.includes(file.type)) {
-        if (file.size > 50 * 1024 * 1024) {
-          showToast('Размер файла превышает лимит 50МБ', TOAST_TYPES.ERROR);
+      try {
+        const validation = validateAndSanitizeFile(file, ALLOWED_MEDIA_TYPES, 50);
+        
+        if (!validation.isValid) {
+          showToast(validation.error, TOAST_TYPES.ERROR);
           if (afterAnswerFileInputRef.current) {
             afterAnswerFileInputRef.current.value = '';
           }
           return;
         }
         
-        setAfterAnswerMedia(file);
-      } else {
-        showToast('Неподдерживаемый тип файла. Разрешены: JPG, PNG и MP4.', TOAST_TYPES.ERROR);
-        // Clear file input
+        setAfterAnswerMedia(validation.file);
+        
+        if (validation.wasRenamed) {
+          showToast(
+            `Дополнительный файл с кириллическим именем "${validation.originalName}" переименован в "${validation.safeName}"`, 
+            TOAST_TYPES.INFO
+          );
+        }
+        
+        console.log('Дополнительный медиа файл выбран:', validation.file.name, 'Размер:', (validation.file.size / 1024 / 1024).toFixed(2), 'МБ');
+      } catch (error) {
+        console.error('Ошибка при обработке дополнительного файла:', error);
+        showToast('Ошибка при обработке файла', TOAST_TYPES.ERROR);
         if (afterAnswerFileInputRef.current) {
           afterAnswerFileInputRef.current.value = '';
         }
@@ -480,15 +530,27 @@ const TestCreator = ({ onCreated }) => {
     
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      if (ALLOWED_MEDIA_TYPES.includes(file.type)) {
-        if (file.size > 50 * 1024 * 1024) {
-          showToast('Размер файла превышает лимит 50МБ', TOAST_TYPES.ERROR);
+      try {
+        const validation = validateAndSanitizeFile(file, ALLOWED_MEDIA_TYPES, 50);
+        
+        if (!validation.isValid) {
+          showToast(validation.error, TOAST_TYPES.ERROR);
           return;
         }
         
-        setMedia(file);
-      } else {
-        showToast('Неподдерживаемый тип файла. Разрешены: JPG, PNG и MP4.', TOAST_TYPES.ERROR);
+        setMedia(validation.file);
+        
+        if (validation.wasRenamed) {
+          showToast(
+            `Файл с кириллическим именем "${validation.originalName}" переименован в "${validation.safeName}"`, 
+            TOAST_TYPES.INFO
+          );
+        }
+        
+        console.log('Основной медиа файл загружен через drag&drop:', validation.file.name, 'Размер:', (validation.file.size / 1024 / 1024).toFixed(2), 'МБ');
+      } catch (error) {
+        console.error('Ошибка при обработке файла через drag&drop:', error);
+        showToast('Ошибка при обработке файла', TOAST_TYPES.ERROR);
       }
     }
   };
@@ -515,15 +577,27 @@ const TestCreator = ({ onCreated }) => {
     
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      if (ALLOWED_MEDIA_TYPES.includes(file.type)) {
-        if (file.size > 50 * 1024 * 1024) {
-          showToast('Размер файла превышает лимит 50МБ', TOAST_TYPES.ERROR);
+      try {
+        const validation = validateAndSanitizeFile(file, ALLOWED_MEDIA_TYPES, 50);
+        
+        if (!validation.isValid) {
+          showToast(validation.error, TOAST_TYPES.ERROR);
           return;
         }
         
-        setAfterAnswerMedia(file);
-      } else {
-        showToast('Неподдерживаемый тип файла. Разрешены: JPG, PNG и MP4.', TOAST_TYPES.ERROR);
+        setAfterAnswerMedia(validation.file);
+        
+        if (validation.wasRenamed) {
+          showToast(
+            `Дополнительный файл с кириллическим именем "${validation.originalName}" переименован в "${validation.safeName}"`, 
+            TOAST_TYPES.INFO
+          );
+        }
+        
+        console.log('Дополнительный медиа файл загружен через drag&drop:', validation.file.name, 'Размер:', (validation.file.size / 1024 / 1024).toFixed(2), 'МБ');
+      } catch (error) {
+        console.error('Ошибка при обработке дополнительного файла через drag&drop:', error);
+        showToast('Ошибка при обработке файла', TOAST_TYPES.ERROR);
       }
     }
   };

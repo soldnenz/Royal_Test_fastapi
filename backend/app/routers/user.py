@@ -647,7 +647,7 @@ class SubscriptionType(str, Enum):
     
 class PurchaseSubscription(BaseModel):
     subscription_type: SubscriptionType
-    duration_days:     int = Field(..., gt=0, le=365)
+    duration_days:     int = Field(..., gt=0, le=90)  # максимум 3 месяца = 90 дней
     use_balance:       bool = True
 
 @router.post("/purchase-subscription", summary="Покупка подписки для себя")
@@ -789,24 +789,24 @@ def calculate_subscription_price(
 ) -> int:
     """
     Рассчитывает стоимость подписки по daily-prorated модели и скидкам:
-      - 5% скидка за 90–95 дней (~3 месяца)
-      - 10% скидка за 180–185 дней (~6 месяцев)
+      - 5% скидка за 60 дней (2 месяца)
+      - 10% скидка за 90 дней (3 месяца)
     """
     # Базовая цена за месяц (НОВЫЕ ЦЕНЫ)
     base_prices = {
-        SubscriptionType.economy: 2000,  # было 5000
-        SubscriptionType.vip:     4000,  # было 10000
-        SubscriptionType.royal:   6000,  # было 15000
+        SubscriptionType.economy: 1500,  # новая цена
+        SubscriptionType.vip:     3000,  # новая цена
+        SubscriptionType.royal:   5000,  # новая цена
     }
 
-    # Получаем базовую ценУ и считаем цену за 1 день
+    # Получаем базовую цену и считаем цену за 1 день
     monthly_price = base_prices[subscription_type]
     daily_price   = monthly_price / 30.0
 
     # Вычисляем скидку
-    if 180 <= duration_days <= 185:
+    if duration_days == 90:  # 3 месяца
         discount = 0.10
-    elif 90 <= duration_days <= 95:
+    elif duration_days == 60:  # 2 месяца
         discount = 0.05
     else:
         discount = 0.0

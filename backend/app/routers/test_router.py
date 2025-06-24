@@ -47,6 +47,31 @@ def generate_uid(length: int = 10) -> str:
     """
     return ''.join(random.choices(string.digits, k=length))
 
+def generate_safe_filename(original_filename: str, file_extension: str = None) -> str:
+    """
+    Генерирует безопасное ASCII имя файла из случайных символов
+    """
+    # Генерируем случайную строку из 8 символов (цифры и буквы)
+    random_name = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+    
+    # Определяем расширение файла
+    if not file_extension:
+        if '.' in original_filename:
+            file_extension = original_filename.split('.')[-1].lower()
+            # Проверяем, что расширение содержит только ASCII символы
+            try:
+                file_extension.encode('ascii')
+            except UnicodeEncodeError:
+                file_extension = 'bin'  # Используем безопасное расширение
+        else:
+            file_extension = 'bin'
+    
+    # Ограничиваем длину расширения для безопасности
+    if len(file_extension) > 10:
+        file_extension = 'bin'
+    
+    return f"{random_name}.{file_extension}"
+
 @router.post("/", response_model=QuestionOut)
 async def create_question(
     question_data_str: str = Form(...),
@@ -694,12 +719,25 @@ async def get_media_by_id(
         # Определяем тип контента
         content_type = file_info.get("contentType", "application/octet-stream")
         
+        # Генерируем безопасное случайное имя файла для HTTP заголовка
+        filename = file_info.get('filename', 'media')
+        try:
+            # Попытка закодировать имя файла в latin-1
+            filename.encode('latin-1')
+            safe_filename = filename  # Если успешно - оставляем оригинальное имя
+        except UnicodeEncodeError:
+            # Только если есть кириллица - генерируем случайное имя
+            safe_filename = generate_safe_filename(filename)
+            logger.info(f"Файл с кириллическим именем переименован: {filename} -> {safe_filename}")
+        
+        content_disposition = f"inline; filename={safe_filename}"
+        
         # Создаем потоковый ответ
         return StreamingResponse(
             iter([file_data]),
             media_type=content_type,
             headers={
-                "Content-Disposition": f"inline; filename={file_info.get('filename', 'media')}",
+                "Content-Disposition": content_disposition,
                 "Content-Length": str(file_info.get("length", 0))
             }
         )

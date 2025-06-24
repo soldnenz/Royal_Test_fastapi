@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { translations } from '../../translations/translations';
-import { toast } from 'react-toastify';
+import { notify } from '../../components/notifications/NotificationSystem';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import 'react-toastify/dist/ReactToastify.css';
 
 const SubscriptionPage = () => {
   const { language } = useLanguage();
@@ -108,15 +107,15 @@ const SubscriptionPage = () => {
   // Get subscription price based on type and duration
   const getSubscriptionPrice = (type, months = selectedDuration) => {
     const basePrice = {
-      'economy': 2000,  // Новая цена (было 5000)
-      'vip': 4000,      // Новая цена (было 10000) 
-      'royal': 6000     // Новая цена (было 15000)
-    }[type] || 2000;
+      'economy': 1500,  // Новая цена
+      'vip': 3000,      // Новая цена
+      'royal': 5000     // Новая цена
+    }[type] || 1500;
     
     // Apply discount based on selected duration
     let discount = 0;
-    if (months === 3) discount = 0.05; // 5% discount for 3 months
-    if (months === 6) discount = 0.10; // 10% discount for 6 months
+    if (months === 2) discount = 0.05; // 5% discount for 2 months
+    if (months === 3) discount = 0.10; // 10% discount for 3 months
     
     return basePrice * months * (1 - discount);
   };
@@ -124,14 +123,14 @@ const SubscriptionPage = () => {
   // Get old price for strikethrough
   const getOldPrice = (type, months = selectedDuration) => {
     const oldBasePrice = {
-      'economy': 5000,
-      'vip': 10000,
-      'royal': 15000
-    }[type] || 5000;
+      'economy': 2000,  // Старая цена для зачеркивания
+      'vip': 4000,      // Старая цена для зачеркивания
+      'royal': 6000     // Старая цена для зачеркивания
+    }[type] || 2000;
     
     let discount = 0;
-    if (months === 3) discount = 0.05;
-    if (months === 6) discount = 0.10;
+    if (months === 2) discount = 0.05;
+    if (months === 3) discount = 0.10;
     
     return oldBasePrice * months * (1 - discount);
   };
@@ -156,8 +155,8 @@ const SubscriptionPage = () => {
       });
       
       if (response.data.status === "ok") {
-        toast.success(tLang.purchaseSuccess || "Subscription purchased successfully!", {
-          autoClose: 5000
+        notify.success(tLang.purchaseSuccess || "Subscription purchased successfully!", {
+          duration: 5000
         });
         
         // Update balance from response
@@ -191,7 +190,11 @@ const SubscriptionPage = () => {
         errorMessage = error.message;
       }
       
-      toast.error(errorMessage);
+      // Показываем ошибку через кастомную систему уведомлений
+      notify.error(errorMessage, {
+        duration: 8000,
+        important: true
+      });
     } finally {
       setPurchaseLoading(false);
     }
@@ -203,7 +206,7 @@ const SubscriptionPage = () => {
     
     // Validate IIN if gift by IIN is selected
     if (giftOption === 'iin' && (!giftIIN || giftIIN.length !== 12)) {
-      toast.error(tLang.invalidIIN || "Please enter a valid 12-digit IIN");
+      notify.error(tLang.invalidIIN || "Please enter a valid 12-digit IIN");
       return;
     }
     
@@ -212,7 +215,7 @@ const SubscriptionPage = () => {
     
     // Check if user has enough balance
     if (balance < price) {
-      toast.error(tLang.notEnoughBalance || "У вас недостаточно средств на балансе для совершения этой покупки");
+      notify.error(tLang.notEnoughBalance || "У вас недостаточно средств на балансе для совершения этой покупки");
       return;
     }
     
@@ -234,7 +237,7 @@ const SubscriptionPage = () => {
         });
         
         if (response.data.status === "ok") {
-          toast.success(tLang.giftPurchaseSuccess || "Gift purchased successfully!");
+          notify.success(tLang.giftPurchaseSuccess || "Gift purchased successfully!");
           
           // Update balance from response
           if (response.data.data && typeof response.data.data.balance_after === 'number') {
@@ -262,18 +265,14 @@ const SubscriptionPage = () => {
         
         if (response.data.status === "ok") {
           const promoCode = response.data.data?.promo_code;
-          toast.success(
+          notify.success(
             (promoCode ? `${tLang.yourPromoCode || "Ваш промокод"}: ${promoCode}. ` : '') +
             (response.data.message || 
             tLang.promoCodeCreated || 
             "Промокод успешно создан. Вы можете поделиться им с кем угодно."),
             {
-              autoClose: 8000,
-              position: "top-right",
-              hideProgressBar: false,
-              closeOnClick: true,
-              pauseOnHover: true,
-              draggable: true
+              duration: 8000,
+              important: true
             }
           );
           
@@ -305,7 +304,7 @@ const SubscriptionPage = () => {
         errorMessage = error.message;
       }
       
-      toast.error(errorMessage);
+      notify.error(errorMessage);
     } finally {
       setPurchaseLoading(false);
     }
@@ -321,7 +320,7 @@ const SubscriptionPage = () => {
       const amount = formElement.querySelector('#amount')?.value || topUpAmount;
       
       if (!amount || isNaN(amount) || parseInt(amount) < 500) {
-        toast.error(tLang.minAmountError || "Минимальная сумма для пополнения: 500 ₸");
+        notify.error(tLang.minAmountError || "Минимальная сумма для пополнения: 500 ₸");
         return;
       }
       
@@ -358,7 +357,7 @@ const SubscriptionPage = () => {
         errorMessage = error.message;
       }
       
-      toast.error(errorMessage);
+      notify.error(errorMessage);
     }
   };
   
@@ -372,7 +371,7 @@ const SubscriptionPage = () => {
       const promoCode = formElement.querySelector('#promoCode')?.value;
       
       if (!promoCode || promoCode.trim() === '') {
-        toast.error(tLang.promoCodeRequired || "Пожалуйста, введите промокод");
+        notify.error(tLang.promoCodeRequired || "Пожалуйста, введите промокод");
         return;
       }
       
@@ -389,7 +388,7 @@ const SubscriptionPage = () => {
       });
       
       if (response.data.status === "ok") {
-        toast.success(tLang.promoActivatedSuccess || "Promo code activated successfully!");
+        notify.success(tLang.promoActivatedSuccess || "Promo code activated successfully!");
         
         // Clear input field
         formElement.querySelector('#promoCode').value = '';
@@ -417,7 +416,7 @@ const SubscriptionPage = () => {
         errorMessage = error.message;
       }
       
-      toast.error(errorMessage);
+      notify.error(errorMessage);
     } finally {
       setPurchaseLoading(false);
     }
@@ -428,7 +427,7 @@ const SubscriptionPage = () => {
     event.preventDefault();
     
     if (!giftIIN || giftIIN.length !== 12) {
-      toast.error(tLang.invalidIIN || "Please enter a valid 12-digit IIN");
+      notify.error(tLang.invalidIIN || "Please enter a valid 12-digit IIN");
       return;
     }
     
@@ -437,7 +436,7 @@ const SubscriptionPage = () => {
     
     // Check if user has enough balance
     if (balance < price) {
-      toast.error(tLang.notEnoughBalance || "У вас недостаточно средств на балансе для совершения этой покупки");
+      notify.error(tLang.notEnoughBalance || "У вас недостаточно средств на балансе для совершения этой покупки");
       return;
     }
     
@@ -458,7 +457,7 @@ const SubscriptionPage = () => {
       });
       
       if (response.data.status === "ok") {
-        toast.success(tLang.giftSentSuccess || "Gift sent successfully!");
+        notify.success(tLang.giftSentSuccess || "Gift sent successfully!");
         
         // Update balance from response
         if (response.data.data && typeof response.data.data.balance_after === 'number') {
@@ -490,7 +489,7 @@ const SubscriptionPage = () => {
         errorMessage = error.message;
       }
       
-      toast.error(errorMessage);
+      notify.error(errorMessage);
     } finally {
       setPurchaseLoading(false);
     }
@@ -553,7 +552,7 @@ const SubscriptionPage = () => {
             {tLang.choosePlanSubtitle || "Выберите тариф"}
           </h2>
           <p className="text-lg text-gray-600 dark:text-gray-400">
-            {tLang.specialPricesPromo || "Специальные цены! Экономьте до 60% на всех тарифах"}
+            {tLang.specialPricesPromo || "Новые доступные цены! Экономьте до 10% при покупке на 3 месяца"}
           </p>
         </div>
         
@@ -1047,6 +1046,55 @@ const SubscriptionPage = () => {
             </div>
           </div>
           
+          {/* 2 Months */}
+          <div 
+            className={`relative py-6 px-8 rounded-2xl transition-all duration-300 border-2 cursor-pointer group ${
+              selectedDuration === 2 
+                ? selectedSubscriptionType === 'economy' 
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/5 shadow-lg' 
+                  : selectedSubscriptionType === 'vip' 
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/5 shadow-lg' 
+                    : 'border-amber-500 bg-amber-50 dark:bg-amber-900/5 shadow-lg'
+                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md'
+            }`}
+            onClick={() => setSelectedDuration(2)}
+          >
+            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+              <span className="bg-green-500 text-white text-xs px-3 py-1 rounded-full font-bold">
+                {tLang.save || "Экономия"} 5%
+              </span>
+            </div>
+            <div className="text-center">
+              <div className="flex justify-center mb-3">
+                <span className={`inline-block h-6 w-6 rounded-full border-2 ${
+                  selectedDuration === 2 
+                    ? selectedSubscriptionType === 'economy' 
+                      ? 'bg-blue-500 border-blue-500' 
+                      : selectedSubscriptionType === 'vip' 
+                        ? 'bg-purple-500 border-purple-500' 
+                        : 'bg-amber-500 border-amber-500'
+                    : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600'
+                } flex items-center justify-center`}>
+                  {selectedDuration === 2 && (
+                    <svg className="h-4 w-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </span>
+              </div>
+              <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{tLang.months2 || "2 месяца"}</h4>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                {tLang.savings || "Экономия"} {formatMoney(getSubscriptionPrice(selectedSubscriptionType, 1) * 2 - getSubscriptionPrice(selectedSubscriptionType, 2))}
+              </p>
+              <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                {formatMoney(getSubscriptionPrice(selectedSubscriptionType, 2))}
+              </div>
+              <div className="text-sm text-gray-500 line-through">
+                {formatMoney(getSubscriptionPrice(selectedSubscriptionType, 1) * 2)}
+              </div>
+            </div>
+          </div>
+          
           {/* 3 Months */}
           <div 
             className={`relative py-6 px-8 rounded-2xl transition-all duration-300 border-2 cursor-pointer group ${
@@ -1060,9 +1108,15 @@ const SubscriptionPage = () => {
             }`}
             onClick={() => setSelectedDuration(3)}
           >
-            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-              <span className="bg-green-500 text-white text-xs px-3 py-1 rounded-full font-bold">
-                {tLang.save || "Экономия"} 5%
+            <div className="absolute -top-5 left-1/2 transform -translate-x-1/2 z-10">
+              <span className={`inline-block text-white text-sm px-4 py-2 rounded-full font-bold shadow-lg whitespace-nowrap ${
+                selectedSubscriptionType === 'economy' 
+                  ? 'bg-blue-500' 
+                  : selectedSubscriptionType === 'vip' 
+                    ? 'bg-purple-500' 
+                    : 'bg-amber-500'
+              }`}>
+                🏆 {tLang.bestValue || "Выгодно"}
               </span>
             </div>
             <div className="text-center">
@@ -1095,61 +1149,6 @@ const SubscriptionPage = () => {
               </div>
             </div>
           </div>
-          
-          {/* 6 Months */}
-          <div 
-            className={`relative py-6 px-8 rounded-2xl transition-all duration-300 border-2 cursor-pointer group ${
-              selectedDuration === 6 
-                ? selectedSubscriptionType === 'economy' 
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/5 shadow-lg' 
-                  : selectedSubscriptionType === 'vip' 
-                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/5 shadow-lg' 
-                    : 'border-amber-500 bg-amber-50 dark:bg-amber-900/5 shadow-lg'
-                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md'
-            }`}
-            onClick={() => setSelectedDuration(6)}
-          >
-            <div className="absolute -top-5 left-1/2 transform -translate-x-1/2 z-10">
-              <span className={`inline-block text-white text-sm px-4 py-2 rounded-full font-bold shadow-lg whitespace-nowrap ${
-                selectedSubscriptionType === 'economy' 
-                  ? 'bg-blue-500' 
-                  : selectedSubscriptionType === 'vip' 
-                    ? 'bg-purple-500' 
-                    : 'bg-amber-500'
-              }`}>
-                🏆 {tLang.bestValue || "Выгодно"}
-              </span>
-            </div>
-            <div className="text-center">
-              <div className="flex justify-center mb-3">
-                <span className={`inline-block h-6 w-6 rounded-full border-2 ${
-                  selectedDuration === 6 
-                    ? selectedSubscriptionType === 'economy' 
-                      ? 'bg-blue-500 border-blue-500' 
-                      : selectedSubscriptionType === 'vip' 
-                        ? 'bg-purple-500 border-purple-500' 
-                        : 'bg-amber-500 border-amber-500'
-                    : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600'
-                } flex items-center justify-center`}>
-                  {selectedDuration === 6 && (
-                    <svg className="h-4 w-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  )}
-                </span>
-              </div>
-              <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{tLang.months6 || "6 месяцев"}</h4>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-                {tLang.savings || "Экономия"} {formatMoney(getSubscriptionPrice(selectedSubscriptionType, 1) * 6 - getSubscriptionPrice(selectedSubscriptionType, 6))}
-              </p>
-              <div className="text-lg font-semibold text-gray-900 dark:text-white">
-                {formatMoney(getSubscriptionPrice(selectedSubscriptionType, 6))}
-              </div>
-              <div className="text-sm text-gray-500 line-through">
-                {formatMoney(getSubscriptionPrice(selectedSubscriptionType, 1) * 6)}
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -1158,9 +1157,17 @@ const SubscriptionPage = () => {
   // Render purchase options
   const renderPurchaseOptions = () => {
     const currentPrice = getSubscriptionPrice(selectedSubscriptionType, selectedDuration);
-    const oldPrice = getOldPrice(selectedSubscriptionType, selectedDuration);
-    const savings = oldPrice - currentPrice;
-    const savingsPercent = Math.round((savings / oldPrice) * 100);
+    // Рассчитываем обычную цену без скидок за количество месяцев
+    const basePrice = {
+      'economy': 1500,
+      'vip': 3000,
+      'royal': 5000
+    }[selectedSubscriptionType] || 1500;
+    
+    const regularPrice = basePrice * selectedDuration; // Цена без скидки за месяцы
+    const monthlyDiscount = selectedDuration === 2 ? 0.05 : selectedDuration === 3 ? 0.10 : 0;
+    const savings = regularPrice * monthlyDiscount; // Скидка только за количество месяцев
+    const savingsPercent = monthlyDiscount * 100; // Процент скидки за месяцы
     
     return (
       <div className="max-w-4xl mx-auto">
@@ -1225,21 +1232,25 @@ const SubscriptionPage = () => {
                   </h4>
                   <p className="text-gray-500 dark:text-gray-400">
                     {selectedDuration === 1 ? (tLang.duration1Month || '1 месяц') : 
-                     selectedDuration === 3 ? (tLang.duration3Months || '3 месяца') : (tLang.duration6Months || '6 месяцев')}
+                     selectedDuration === 2 ? (tLang.duration2Months || '2 месяца') : (tLang.duration3Months || '3 месяца')}
                   </p>
                 </div>
               </div>
               
               {/* Price Breakdown */}
               <div className="space-y-3">
-                <div className="flex justify-between items-center text-lg">
-                  <span className="text-gray-600 dark:text-gray-400">{tLang.originalPrice || "Обычная цена"}:</span>
-                  <span className="text-gray-500 line-through">{formatMoney(oldPrice)}</span>
-                </div>
-                <div className="flex justify-between items-center text-lg">
-                  <span className="text-gray-600 dark:text-gray-400">{tLang.yourDiscount || "Ваша скидка"}:</span>
-                  <span className="text-green-600 font-semibold">-{formatMoney(savings)} ({savingsPercent}%)</span>
-                </div>
+                {savings > 0 && (
+                  <div className="flex justify-between items-center text-lg">
+                    <span className="text-gray-600 dark:text-gray-400">{tLang.originalPrice || "Обычная цена"}:</span>
+                    <span className="text-gray-500 line-through">{formatMoney(regularPrice)}</span>
+                  </div>
+                )}
+                {savings > 0 && (
+                  <div className="flex justify-between items-center text-lg">
+                    <span className="text-gray-600 dark:text-gray-400">{tLang.yourDiscount || "Ваша скидка"}:</span>
+                    <span className="text-green-600 font-semibold">-{formatMoney(savings)} ({savingsPercent}%)</span>
+                  </div>
+                )}
                 <hr className="border-gray-200 dark:border-gray-700" />
                 <div className="flex justify-between items-center text-2xl font-bold">
                   <span className="text-gray-900 dark:text-white">{tLang.totalToPay || "К оплате"}:</span>
@@ -1470,19 +1481,20 @@ const SubscriptionPage = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
-        <div className="h-2 bg-gradient-to-r from-primary-600 to-primary-400"></div>
-        <div className="p-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {tLang.subscriptionManagement || "Subscription Management"}
-          </h1>
-          <p className="text-gray-600 dark:text-gray-300">
-            {tLang.subscriptionDescription || "Here you can manage your subscription, top up your balance, or activate a promo code"}
-          </p>
+    <>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+          <div className="h-2 bg-gradient-to-r from-primary-600 to-primary-400"></div>
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {tLang.subscriptionManagement || "Subscription Management"}
+            </h1>
+            <p className="text-gray-600 dark:text-gray-300">
+              {tLang.subscriptionDescription || "Here you can manage your subscription, top up your balance, or activate a promo code"}
+            </p>
+          </div>
         </div>
-      </div>
       
       {/* Loading State Overlay */}
       {purchaseLoading && (
@@ -1540,11 +1552,13 @@ const SubscriptionPage = () => {
         </div>
       </div>
       
-      {/* Tab Content */}
-      {activeTab === 'subscription' && renderCurrentSubscription()}
-      {activeTab === 'buy' && renderPurchaseOptions()}
-      {activeTab === 'balance' && renderBalanceAndPromo()}
-    </div>
+              {/* Tab Content */}
+        {activeTab === 'subscription' && renderCurrentSubscription()}
+        {activeTab === 'buy' && renderPurchaseOptions()}
+        {activeTab === 'balance' && renderBalanceAndPromo()}
+      </div>
+
+        </>
   );
 };
 

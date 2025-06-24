@@ -4,6 +4,7 @@ import LoadingSpinner from '../../shared/components/LoadingSpinner';
 import ErrorDisplay from '../../shared/components/ErrorDisplay';
 import ProgressBar from '../../shared/components/ProgressBar';
 import { useToast, TOAST_TYPES } from '../../shared/ToastContext';
+import { validateAndSanitizeFile } from '../../shared/utils/fileUtils';
 import axios from 'axios';
 import { Modal } from 'antd';
 
@@ -231,8 +232,26 @@ const TestEditor = ({ onCreated, onClose, uid }) => {
       
       // Handle media files
       if (testData.has_media && testData.media_file_base64) {
-        const isVideo = testData.media_filename?.toLowerCase().endsWith('.mp4');
-        const contentType = isVideo ? 'video/mp4' : 'image/jpeg';
+        // Определяем правильный тип контента на основе расширения файла
+        let contentType = 'image/jpeg'; // по умолчанию
+        let isVideo = false;
+        
+        if (testData.media_filename) {
+          const filename = testData.media_filename.toLowerCase();
+          if (filename.endsWith('.mp4') || filename.endsWith('.webm') || filename.endsWith('.mov')) {
+            contentType = 'video/mp4';
+            isVideo = true;
+          } else if (filename.endsWith('.png')) {
+            contentType = 'image/png';
+          } else if (filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
+            contentType = 'image/jpeg';
+          } else if (filename.endsWith('.gif')) {
+            contentType = 'image/gif';
+          } else if (filename.endsWith('.webp')) {
+            contentType = 'image/webp';
+          }
+        }
+        
         const dataUrl = `data:${contentType};base64,${testData.media_file_base64}`;
         setMediaUrl(dataUrl);
         setMediaType(contentType);
@@ -798,19 +817,30 @@ const TestEditor = ({ onCreated, onClose, uid }) => {
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (ALLOWED_MEDIA_TYPES.includes(file.type)) {
-        if (file.size > 50 * 1024 * 1024) {
-          showToast('Размер файла превышает лимит 50МБ', TOAST_TYPES.ERROR);
+      try {
+        const validation = validateAndSanitizeFile(file, ALLOWED_MEDIA_TYPES, 50);
+        
+        if (!validation.isValid) {
+          showToast(validation.error, TOAST_TYPES.ERROR);
           if (fileInputRef.current) {
             fileInputRef.current.value = '';
           }
           return;
         }
         
-        setMedia(file);
-      } else {
-        showToast('Неподдерживаемый тип файла. Разрешены: JPG, PNG и MP4.', TOAST_TYPES.ERROR);
-        // Clear file input
+        setMedia(validation.file);
+        
+        if (validation.wasRenamed) {
+          showToast(
+            `Файл с кириллическим именем "${validation.originalName}" переименован в "${validation.safeName}"`, 
+            TOAST_TYPES.INFO
+          );
+        }
+        
+        console.log('Основной медиа файл выбран для редактирования:', validation.file.name, 'Размер:', (validation.file.size / 1024 / 1024).toFixed(2), 'МБ');
+      } catch (error) {
+        console.error('Ошибка при обработке файла в редакторе:', error);
+        showToast('Ошибка при обработке файла', TOAST_TYPES.ERROR);
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
@@ -822,19 +852,30 @@ const TestEditor = ({ onCreated, onClose, uid }) => {
   const handleAfterAnswerFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (ALLOWED_MEDIA_TYPES.includes(file.type)) {
-        if (file.size > 50 * 1024 * 1024) {
-          showToast('Размер файла превышает лимит 50МБ', TOAST_TYPES.ERROR);
+      try {
+        const validation = validateAndSanitizeFile(file, ALLOWED_MEDIA_TYPES, 50);
+        
+        if (!validation.isValid) {
+          showToast(validation.error, TOAST_TYPES.ERROR);
           if (afterAnswerFileInputRef.current) {
             afterAnswerFileInputRef.current.value = '';
           }
           return;
         }
         
-        setAfterAnswerMedia(file);
-      } else {
-        showToast('Неподдерживаемый тип файла. Разрешены: JPG, PNG и MP4.', TOAST_TYPES.ERROR);
-        // Clear file input
+        setAfterAnswerMedia(validation.file);
+        
+        if (validation.wasRenamed) {
+          showToast(
+            `Дополнительный файл с кириллическим именем "${validation.originalName}" переименован в "${validation.safeName}"`, 
+            TOAST_TYPES.INFO
+          );
+        }
+        
+        console.log('Дополнительный медиа файл выбран для редактирования:', validation.file.name, 'Размер:', (validation.file.size / 1024 / 1024).toFixed(2), 'МБ');
+      } catch (error) {
+        console.error('Ошибка при обработке дополнительного файла в редакторе:', error);
+        showToast('Ошибка при обработке файла', TOAST_TYPES.ERROR);
         if (afterAnswerFileInputRef.current) {
           afterAnswerFileInputRef.current.value = '';
         }
@@ -864,15 +905,27 @@ const TestEditor = ({ onCreated, onClose, uid }) => {
     
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      if (ALLOWED_MEDIA_TYPES.includes(file.type)) {
-        if (file.size > 50 * 1024 * 1024) {
-          showToast('Размер файла превышает лимит 50МБ', TOAST_TYPES.ERROR);
+      try {
+        const validation = validateAndSanitizeFile(file, ALLOWED_MEDIA_TYPES, 50);
+        
+        if (!validation.isValid) {
+          showToast(validation.error, TOAST_TYPES.ERROR);
           return;
         }
         
-        setMedia(file);
-      } else {
-        showToast('Неподдерживаемый тип файла. Разрешены: JPG, PNG и MP4.', TOAST_TYPES.ERROR);
+        setMedia(validation.file);
+        
+        if (validation.wasRenamed) {
+          showToast(
+            `Файл с кириллическим именем "${validation.originalName}" переименован в "${validation.safeName}"`, 
+            TOAST_TYPES.INFO
+          );
+        }
+        
+        console.log('Основной медиа файл загружен через drag&drop в редакторе:', validation.file.name, 'Размер:', (validation.file.size / 1024 / 1024).toFixed(2), 'МБ');
+      } catch (error) {
+        console.error('Ошибка при обработке файла через drag&drop в редакторе:', error);
+        showToast('Ошибка при обработке файла', TOAST_TYPES.ERROR);
       }
     }
   };
@@ -899,15 +952,27 @@ const TestEditor = ({ onCreated, onClose, uid }) => {
     
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      if (ALLOWED_MEDIA_TYPES.includes(file.type)) {
-        if (file.size > 50 * 1024 * 1024) {
-          showToast('Размер файла превышает лимит 50МБ', TOAST_TYPES.ERROR);
+      try {
+        const validation = validateAndSanitizeFile(file, ALLOWED_MEDIA_TYPES, 50);
+        
+        if (!validation.isValid) {
+          showToast(validation.error, TOAST_TYPES.ERROR);
           return;
         }
         
-        setAfterAnswerMedia(file);
-      } else {
-        showToast('Неподдерживаемый тип файла. Разрешены: JPG, PNG и MP4.', TOAST_TYPES.ERROR);
+        setAfterAnswerMedia(validation.file);
+        
+        if (validation.wasRenamed) {
+          showToast(
+            `Дополнительный файл с кириллическим именем "${validation.originalName}" переименован в "${validation.safeName}"`, 
+            TOAST_TYPES.INFO
+          );
+        }
+        
+        console.log('Дополнительный медиа файл загружен через drag&drop в редакторе:', validation.file.name, 'Размер:', (validation.file.size / 1024 / 1024).toFixed(2), 'МБ');
+      } catch (error) {
+        console.error('Ошибка при обработке дополнительного файла через drag&drop в редакторе:', error);
+        showToast('Ошибка при обработке файла', TOAST_TYPES.ERROR);
       }
     }
   };

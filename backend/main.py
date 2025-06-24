@@ -21,12 +21,15 @@ from datetime import datetime, timedelta
 import json
 
 from app.core.logging_config import setup_logging
+from app.core.security import security_background_tasks
 from app.core.response import error
 from app.routers import authentication, user, reset_password, admin_router, test_router, subscription_router, referrals_router, transaction_router, admin_router
 from app.admin.telegram_2fa import bot, router as telegram_routers
 from app.routers import lobby_router
 from app.routers.lobby_router import start_background_tasks
 from app.routers import files_router
+from app.routers import solo_lobby_router
+from app.routers import solo_files_router
 from app.routers import websocket_router
 from app.websocket.lobby_ws import lobby_ws_endpoint, ws_manager
 from app.websocket.ping_task import ping_task
@@ -69,6 +72,8 @@ app.include_router(referrals_router.router, prefix="/referrals")
 app.include_router(transaction_router.router, prefix="/transactions")
 app.include_router(lobby_router.router, prefix="/lobbies", tags=["lobbies"])
 app.include_router(files_router.router, prefix="/files", tags=["files"])
+app.include_router(solo_lobby_router.router, prefix="/lobby_solo", tags=["solo-lobbies"])
+app.include_router(solo_files_router.router, prefix="/files_solo", tags=["solo-files"])
 app.include_router(websocket_router.router, prefix="/websocket_token", tags=["websocket"])
 app.include_router(admin_router.router, prefix="/admin_function", tags=["admin_function"])
 # WebSocket endpoint для лобби
@@ -226,6 +231,8 @@ async def check_stalled_lobbies():
 async def startup_event():
     asyncio.create_task(start_bot())
     asyncio.create_task(check_stalled_lobbies())  # Запускаем проверку зависших лобби
+    # Запуск фоновых задач безопасности
+    asyncio.create_task(security_background_tasks())
     asyncio.create_task(start_background_tasks())  # Запускаем задачи фоновой обработки
     await ping_task.start()  # Запускаем задачу пинга WebSocket соединений
 

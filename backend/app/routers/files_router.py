@@ -9,6 +9,13 @@ from app.core.security import get_current_actor
 from app.core.response import success
 import logging
 from app.core.config import settings
+from collections import defaultdict
+import time
+
+# Security functions will be imported after definition in lobby_router
+import json
+
+
 
 router = APIRouter()
 logger = logging.getLogger("files_router")
@@ -150,3 +157,4 @@ async def get_file(
             status_code=500,
             detail=f"Ошибка при получении файла: {str(e)}. Попробуйте позже или обратитесь к администратору."
         )
+

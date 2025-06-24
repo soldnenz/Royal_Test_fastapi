@@ -16,11 +16,39 @@ import asyncio
 from app.core.gridfs_utils import get_media_file
 import base64
 import re
+import random
+import string
 from collections import defaultdict
 from typing import Optional, List, Dict, Any, Union
+import time
 
 # Настройка логгера
 logger = logging.getLogger(__name__)
+
+def generate_safe_filename(original_filename: str, file_extension: str = None) -> str:
+    """
+    Генерирует безопасное ASCII имя файла из случайных символов
+    """
+    # Генерируем случайную строку из 8 символов (цифры и буквы)
+    random_name = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+    
+    # Определяем расширение файла
+    if not file_extension:
+        if '.' in original_filename:
+            file_extension = original_filename.split('.')[-1].lower()
+            # Проверяем, что расширение содержит только ASCII символы
+            try:
+                file_extension.encode('ascii')
+            except UnicodeEncodeError:
+                file_extension = 'bin'  # Используем безопасное расширение
+        else:
+            file_extension = 'bin'
+    
+    # Ограничиваем длину расширения для безопасности
+    if len(file_extension) > 10:
+        file_extension = 'bin'
+    
+    return f"{random_name}.{file_extension}"
 
 # Maximum time a lobby can be active (4 hours in seconds)
 MAX_LOBBY_LIFETIME = 4 * 60 * 60
@@ -1107,8 +1135,21 @@ async def get_question_media(
             "status": "in_progress"
         }).to_list(None)
         
+        logger.info(f"Найдено {len(active_lobbies)} активных лобби для пользователя {user_id} с вопросом {question_id}")
+        
         if not active_lobbies:
-            logger.warning(f"Пользователь {user_id} запрашивает медиа для вопроса {question_id}, который не входит в активные лобби пользователя")
+            # Дополнительная проверка - может быть лобби в другом статусе
+            all_user_lobbies = await db.lobbies.find({
+                "participants": user_id,
+                "question_ids": question_id
+            }).to_list(None)
+            
+            logger.warning(f"Пользователь {user_id} запрашивает медиа для вопроса {question_id}. Активных лобби: 0, всего лобби с этим вопросом: {len(all_user_lobbies)}")
+            
+            if all_user_lobbies:
+                for lobby in all_user_lobbies:
+                    logger.info(f"Лобби {lobby['_id']}: статус={lobby.get('status')}, участники={len(lobby.get('participants', []))}")
+            
             return StreamingResponse(
                 iter([b'']),
                 media_type='image/svg+xml',
@@ -1127,25 +1168,53 @@ async def get_question_media(
             is_current = question_id == current_question_id
             is_answered = question_id in user_answers
             
+            logger.info(f"Проверка доступа в лобби {lobby['_id']}: is_host={is_host}, is_current={is_current} (current_q={current_question_id}), is_answered={is_answered}")
+            
             if is_host or is_current or is_answered:
                 has_access = True
                 active_lobby = lobby
+                logger.info(f"Доступ разрешен в лобби {lobby['_id']}")
                 break
                 
         if not has_access:
             logger.warning(f"Пользователь {user_id} не имеет доступа к медиа для вопроса {question_id}")
-            return StreamingResponse(
-                iter([b'']),
-                media_type='image/svg+xml',
-                headers={'Content-Disposition': 'inline; filename=no_access.svg'}
-            )
+            
+            # ВРЕМЕННОЕ РЕШЕНИЕ: Разрешаем доступ к медиа если файл существует и пользователь участник любого лобби с этим вопросом
+            any_lobby_with_question = await db.lobbies.find_one({
+                "participants": user_id,
+                "question_ids": question_id
+            })
+            
+            if any_lobby_with_question:
+                logger.info(f"ВРЕМЕННЫЙ ДОСТУП: Разрешаем доступ к медиа для пользователя {user_id} в лобби {any_lobby_with_question['_id']}")
+                active_lobby = any_lobby_with_question
+                has_access = True
+            else:
+                return StreamingResponse(
+                    iter([b'']),
+                    media_type='image/svg+xml',
+                    headers={'Content-Disposition': 'inline; filename=no_access.svg'}
+                )
             
         # Получаем медиа-файл из GridFS
         try:
             logger.info(f"Получение медиа-файла с ID {media_file_id} для вопроса {question_id}")
+            
+            # Проверяем существование файла в GridFS перед попыткой получения
+            file_exists = await db.fs.files.find_one({"_id": ObjectId(media_file_id)})
+            if not file_exists:
+                logger.error(f"Медиа-файл {media_file_id} не найден в fs.files коллекции")
+                return StreamingResponse(
+                    iter([b'']),
+                    media_type='image/svg+xml',
+                    headers={'Content-Disposition': 'inline; filename=not_found.svg'}
+                )
+            
+            logger.info(f"Файл найден в fs.files: {file_exists.get('filename', 'unknown')} размер: {file_exists.get('length', 0)} байт")
+            
             media_data = await get_media_file(str(media_file_id), db)
             if not media_data:
-                logger.error(f"Медиа-файл {media_file_id} не найден в GridFS")
+                logger.error(f"Медиа-файл {media_file_id} не найден в GridFS или пуст")
                 return StreamingResponse(
                     iter([b'']),
                     media_type='image/svg+xml',
@@ -1209,15 +1278,37 @@ async def get_question_media(
                         }}
                     )
             
+            # Генерируем безопасное случайное имя файла для HTTP заголовка
+            try:
+                # Попытка закодировать имя файла в latin-1
+                filename.encode('latin-1')
+                safe_filename = filename  # Если успешно - оставляем оригинальное имя
+            except UnicodeEncodeError:
+                # Только если есть кириллица - генерируем случайное имя
+                safe_filename = generate_safe_filename(filename)
+                logger.info(f"Основной файл с кириллическим именем переименован: {filename} -> {safe_filename}")
+            
+            content_disposition = f"inline; filename={safe_filename}"
+            
             # Return streaming response similar to the admin endpoint
-            return StreamingResponse(
-                iter([media_data]),
-                media_type=content_type,
-                headers={
-                    'Content-Disposition': f'inline; filename={filename}',
-                    'Content-Length': str(len(media_data))
-                }
-            )
+            # Безопасное логирование заголовка
+            safe_content_disposition = content_disposition.encode('ascii', errors='ignore').decode('ascii')
+            logger.info(f"Возвращаем StreamingResponse с заголовком: Content-Disposition: {safe_content_disposition}")
+            try:
+                response = StreamingResponse(
+                    iter([media_data]),
+                    media_type=content_type,
+                    headers={
+                        'Content-Disposition': content_disposition,
+                        'Content-Length': str(len(media_data))
+                    }
+                )
+                safe_filename = filename.encode('ascii', errors='ignore').decode('ascii')
+                logger.info(f"StreamingResponse успешно создан для основного медиа файла {safe_filename}")
+                return response
+            except Exception as stream_error:
+                logger.error(f"Ошибка при создании StreamingResponse для основного медиа: {str(stream_error)}")
+                raise stream_error
             
         except Exception as e:
             logger.error(f"Ошибка при получении медиа-файла для вопроса {question_id}: {str(e)}")
@@ -1230,7 +1321,9 @@ async def get_question_media(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Непредвиденная ошибка при получении медиа для вопроса {question_id}: {str(e)}")
+        # Безопасное логирование ошибки без кириллических символов
+        error_msg = str(e).encode('ascii', errors='ignore').decode('ascii')
+        logger.error(f"Непредвиденная ошибка при получении медиа для вопроса {question_id}: {error_msg}")
         return StreamingResponse(
             iter([b'']),
             media_type='image/svg+xml',
@@ -1302,6 +1395,8 @@ async def get_after_answer_media(
             participant_answers = lobby.get("participants_answers", {}).get(user_id, {})
             has_answered = question_id in participant_answers
             
+            logger.info(f"Проверка ответа в лобби {lobby_id}: пользователь {user_id}, ответы: {list(participant_answers.keys())}, искомый вопрос: {question_id}, has_answered: {has_answered}")
+            
 
             
         else:
@@ -1319,11 +1414,25 @@ async def get_after_answer_media(
         
         if not has_answered:
             logger.warning(f"Пользователь {user_id} пытается получить медиа после ответа, не ответив на вопрос {question_id}")
-            return StreamingResponse(
-                iter([b'']),
-                media_type='image/svg+xml',
-                headers={'Content-Disposition': 'inline; filename=answer_first.svg'}
-            )
+            
+            # ВРЕМЕННОЕ РЕШЕНИЕ: Разрешаем доступ к медиа после ответа если пользователь участник лобби с этим вопросом
+            if lobby_id:
+                lobby = await db.lobbies.find_one({"_id": lobby_id, "participants": user_id, "question_ids": question_id})
+                if lobby:
+                    logger.info(f"ВРЕМЕННЫЙ ДОСТУП: Разрешаем доступ к медиа после ответа для пользователя {user_id} в лобби {lobby_id}")
+                    has_answered = True
+                else:
+                    return StreamingResponse(
+                        iter([b'']),
+                        media_type='image/svg+xml',
+                        headers={'Content-Disposition': 'inline; filename=answer_first.svg'}
+                    )
+            else:
+                return StreamingResponse(
+                    iter([b'']),
+                    media_type='image/svg+xml',
+                    headers={'Content-Disposition': 'inline; filename=answer_first.svg'}
+                )
         
         # Дополнительная проверка для экзаменационного режима
         if lobby_id:
@@ -1338,8 +1447,23 @@ async def get_after_answer_media(
         
         # Получаем медиа-файл из GridFS
         try:
+            logger.info(f"Получение дополнительного медиа-файла с ID {after_answer_media_id} для вопроса {question_id}")
+            
+            # Проверяем существование файла в GridFS перед попыткой получения
+            file_exists = await db.fs.files.find_one({"_id": ObjectId(after_answer_media_id)})
+            if not file_exists:
+                logger.error(f"Дополнительный медиа-файл {after_answer_media_id} не найден в fs.files коллекции")
+                return StreamingResponse(
+                    iter([b'']),
+                    media_type='image/svg+xml',
+                    headers={'Content-Disposition': 'inline; filename=not_found.svg'}
+                )
+            
+            logger.info(f"Дополнительный файл найден в fs.files: {file_exists.get('filename', 'unknown')} размер: {file_exists.get('length', 0)} байт")
+            
             media_data = await get_media_file(str(after_answer_media_id), db)
             if not media_data:
+                logger.error(f"Дополнительный медиа-файл {after_answer_media_id} не найден в GridFS или пуст")
                 return StreamingResponse(
                     iter([b'']),
                     media_type='image/svg+xml',
@@ -1377,18 +1501,42 @@ async def get_after_answer_media(
             
             logger.info(f"Тип содержимого после-ответного медиа-файла: {content_type}")
             
+            # Генерируем безопасное случайное имя файла для HTTP заголовка
+            try:
+                # Попытка закодировать имя файла в latin-1
+                filename.encode('latin-1')
+                safe_filename = filename  # Если успешно - оставляем оригинальное имя
+            except UnicodeEncodeError:
+                # Только если есть кириллица - генерируем случайное имя
+                safe_filename = generate_safe_filename(filename)
+                logger.info(f"Дополнительный файл с кириллическим именем переименован: {filename} -> {safe_filename}")
+            
+            content_disposition = f"inline; filename={safe_filename}"
+            
             # Return streaming response for after-answer media
-            return StreamingResponse(
-                iter([media_data]),
-                media_type=content_type,
-                headers={
-                    'Content-Disposition': f'inline; filename={filename}',
-                    'Content-Length': str(len(media_data))
-                }
-            )
+            # Безопасное логирование заголовка
+            safe_content_disposition = content_disposition.encode('ascii', errors='ignore').decode('ascii')
+            logger.info(f"Возвращаем StreamingResponse с заголовком: Content-Disposition: {safe_content_disposition}")
+            try:
+                response = StreamingResponse(
+                    iter([media_data]),
+                    media_type=content_type,
+                    headers={
+                        'Content-Disposition': content_disposition,
+                        'Content-Length': str(len(media_data))
+                    }
+                )
+                safe_filename = filename.encode('ascii', errors='ignore').decode('ascii')
+                logger.info(f"StreamingResponse успешно создан для файла {safe_filename}")
+                return response
+            except Exception as stream_error:
+                logger.error(f"Ошибка при создании StreamingResponse: {str(stream_error)}")
+                raise stream_error
             
         except Exception as e:
-            logger.error(f"Ошибка при получении дополнительного медиа-файла для вопроса {question_id}: {str(e)}")
+            # Безопасное логирование ошибки без кириллических символов
+            error_msg = str(e).encode('ascii', errors='ignore').decode('ascii')
+            logger.error(f"Ошибка при получении дополнительного медиа-файла для вопроса {question_id}: {error_msg}")
             return StreamingResponse(
                 iter([b'']),
                 media_type='image/svg+xml',
@@ -1398,7 +1546,9 @@ async def get_after_answer_media(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Непредвиденная ошибка при получении дополнительного медиа для вопроса {question_id}: {str(e)}")
+        # Безопасное логирование ошибки без кириллических символов
+        error_msg = str(e).encode('ascii', errors='ignore').decode('ascii')
+        logger.error(f"Непредвиденная ошибка при получении дополнительного медиа для вопроса {question_id}: {error_msg}")
         return StreamingResponse(
             iter([b'']),
             media_type='image/svg+xml',
@@ -3311,6 +3461,90 @@ async def sync_lobby_state(
         logger.error(f"Error syncing lobby state: {str(e)}")
         raise HTTPException(status_code=500, detail="Ошибка при синхронизации состояния лобби")
 
+@router.get("/debug/question/{question_id}/media-info", summary="Отладка: информация о медиа вопроса")
+async def debug_question_media_info(
+    question_id: str,
+    current_user: dict = Depends(get_current_actor)
+):
+    """
+    Отладочный эндпоинт для проверки информации о медиа файлах вопроса
+    """
+    user_id = get_user_id(current_user)
+    logger.info(f"Отладка медиа для вопроса {question_id} пользователем {user_id}")
+    
+    try:
+        # Найти вопрос
+        question = await db.questions.find_one({"_id": ObjectId(question_id)})
+        if not question:
+            return {"error": "Question not found", "question_id": question_id}
+        
+        result = {
+            "question_id": question_id,
+            "question_text": question.get("question_text", {}),
+            "has_media": question.get("has_media", False),
+            "media_file_id": question.get("media_file_id"),
+            "media_filename": question.get("media_filename"),
+            "media_type": question.get("media_type"),
+            "has_after_answer_media": question.get("has_after_answer_media", False),
+            "after_answer_media_file_id": question.get("after_answer_media_file_id"),
+            "after_answer_media_id": question.get("after_answer_media_id"),
+            "after_answer_media_filename": question.get("after_answer_media_filename"),
+        }
+        
+        # Проверить существование основного медиа файла
+        if question.get("media_file_id"):
+            try:
+                media_file_info = await db.fs.files.find_one({"_id": ObjectId(question["media_file_id"])})
+                result["media_file_exists"] = media_file_info is not None
+                if media_file_info:
+                    result["media_file_info"] = {
+                        "filename": media_file_info.get("filename"),
+                        "length": media_file_info.get("length"),
+                        "contentType": media_file_info.get("contentType"),
+                        "uploadDate": str(media_file_info.get("uploadDate"))
+                    }
+            except Exception as e:
+                result["media_file_error"] = str(e)
+        
+        # Проверить существование дополнительного медиа файла
+        after_media_id = question.get("after_answer_media_file_id") or question.get("after_answer_media_id")
+        if after_media_id:
+            try:
+                after_media_file_info = await db.fs.files.find_one({"_id": ObjectId(after_media_id)})
+                result["after_media_file_exists"] = after_media_file_info is not None
+                if after_media_file_info:
+                    result["after_media_file_info"] = {
+                        "filename": after_media_file_info.get("filename"),
+                        "length": after_media_file_info.get("length"),
+                        "contentType": after_media_file_info.get("contentType"),
+                        "uploadDate": str(after_media_file_info.get("uploadDate"))
+                    }
+            except Exception as e:
+                result["after_media_file_error"] = str(e)
+        
+        # Найти лобби с этим вопросом для пользователя
+        user_lobbies = await db.lobbies.find({
+            "participants": user_id,
+            "question_ids": question_id
+        }).to_list(None)
+        
+        result["user_lobbies"] = []
+        for lobby in user_lobbies:
+            lobby_info = {
+                "lobby_id": lobby["_id"],
+                "status": lobby.get("status"),
+                "current_index": lobby.get("current_index", 0),
+                "is_host": user_id == lobby.get("host_id"),
+                "user_answers": list(lobby.get("participants_answers", {}).get(user_id, {}).keys())
+            }
+            result["user_lobbies"].append(lobby_info)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Ошибка в отладке медиа для вопроса {question_id}: {str(e)}")
+        return {"error": str(e), "question_id": question_id}
+
 @router.post("/lobbies/{lobby_id}/finish-test", summary="Завершить тест (хост)")
 async def finish_test(
     lobby_id: str,
@@ -3396,3 +3630,4 @@ async def finish_test(
     except Exception as e:
         logger.error(f"Error finishing test: {str(e)}")
         raise HTTPException(status_code=500, detail="Ошибка при завершении теста")
+

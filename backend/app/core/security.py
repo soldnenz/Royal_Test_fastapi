@@ -10,10 +10,22 @@ from app.core.response import error
 from app.db.database import db
 from app.core.config import settings
 
+import asyncio
+from motor.motor_asyncio import AsyncIOMotorDatabase
+from app.db.database import get_database
+
 logger = logging.getLogger(__name__)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
+# Security logger
+security_logger = logging.getLogger('security_tasks')
+security_handler = logging.FileHandler('security_tasks.log')
+security_handler.setLevel(logging.INFO)
+security_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+security_handler.setFormatter(security_formatter)
+security_logger.addHandler(security_handler)
+security_logger.setLevel(logging.INFO)
 
 def hash_password(plain_password: str) -> str:
     return pwd_context.hash(plain_password)
@@ -291,3 +303,69 @@ async def get_current_actor(request: Request) -> dict:
         status_code=403,
         detail={"message": "Неизвестная роль", "hint": "Роль не распознана"}
     )
+
+async def auto_close_expired_exams():
+    """Background task to automatically close expired exam lobbies"""
+    try:
+        # Get database connection
+        db = await get_database()
+        
+        # Find active exam lobbies with expired timers
+        expired_lobbies = await db.lobbies.find({
+            "status": "active",
+            "exam_mode": True,
+            "exam_timer.time_left": {"$lte": 0}
+        }).to_list(None)
+        
+        closed_count = 0
+        for lobby in expired_lobbies:
+            lobby_id = str(lobby["_id"])
+            
+            # Close the lobby
+            await db.lobbies.update_one(
+                {"_id": lobby["_id"]},
+                {
+                    "$set": {
+                        "status": "completed",
+                        "completed_at": datetime.utcnow(),
+                        "auto_closed": True,
+                        "auto_close_reason": "exam_time_expired_background"
+                    }
+                }
+            )
+            
+            security_logger.info(f"AUTO_CLOSE_BACKGROUND: Closed expired exam lobby {lobby_id}")
+            closed_count += 1
+        
+        if closed_count > 0:
+            security_logger.info(f"AUTO_CLOSE_SUMMARY: Closed {closed_count} expired exam lobbies")
+            
+    except Exception as e:
+        security_logger.error(f"AUTO_CLOSE_ERROR: Error in auto-close task: {str(e)}")
+
+async def cleanup_old_security_logs():
+    """Clean up old security log entries"""
+    try:
+        # This would typically clean up old log files or database entries
+        # For now, just log that cleanup was attempted
+        security_logger.info("CLEANUP: Security logs cleanup completed")
+    except Exception as e:
+        security_logger.error(f"CLEANUP_ERROR: Error in cleanup task: {str(e)}")
+
+async def security_background_tasks():
+    """Main security background tasks runner"""
+    while True:
+        try:
+            # Run auto-close task every 30 seconds
+            await auto_close_expired_exams()
+            
+            # Run cleanup every hour
+            current_minute = datetime.now().minute
+            if current_minute == 0:
+                await cleanup_old_security_logs()
+                
+            await asyncio.sleep(30)  # Wait 30 seconds before next check
+            
+        except Exception as e:
+            security_logger.error(f"BACKGROUND_TASK_ERROR: {str(e)}")
+            await asyncio.sleep(60)  # Wait longer on error

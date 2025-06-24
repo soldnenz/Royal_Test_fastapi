@@ -22,6 +22,7 @@ const PromoCodesPage     = lazy(() => import('./pages/dashboard/PromoCodesPage')
 const ProfilePage        = lazy(() => import('./pages/dashboard/ProfilePage'));
 const TestDashboardPage  = lazy(() => import('./pages/dashboard/TestDashboardPage'));
 const TestPage           = lazy(() => import('./pages/TestPage'));
+const TestResultsPage    = lazy(() => import('./pages/TestResultsPage'));
 const CreateLobbyPage    = lazy(() => import('./pages/multiplayer/CreateLobbyPage'));
 const LobbyWaitingPage   = lazy(() => import('./pages/multiplayer/LobbyWaitingPage'));
 const JoinLobbyPage      = lazy(() => import('./pages/multiplayer/JoinLobbyPage'));
@@ -57,6 +58,7 @@ function App() {
       import('./pages/dashboard/PromoCodesPage');
       import('./pages/dashboard/TestDashboardPage');
       import('./pages/TestPage');
+      import('./pages/TestResultsPage');
       import('./pages/multiplayer/CreateLobbyPage');
       import('./pages/multiplayer/LobbyWaitingPage');
       import('./pages/multiplayer/JoinLobbyPage');
@@ -96,8 +98,9 @@ function App() {
                 <Route path="settings"     element={<Placeholder title="Настройки" />} />
               </Route>
               
-              {/* Test route */}
+              {/* Test routes */}
               <Route path="test/:lobbyId" element={<TestPage />} />
+              <Route path="test-results/:lobbyId" element={<TestResultsPage />} />
               
               {/* Multiplayer routes */}
               <Route path="multiplayer/create" element={<CreateLobbyPage />} />

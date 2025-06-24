@@ -19,7 +19,7 @@ class SubscriptionCreate(BaseModel):
     expires_at: datetime
     activation_method: Literal["manual", "payment", "promocode", "gift"]  # Добавлен "gift"
     note: Optional[str]
-    duration_days: int = Field(..., gt=0, le=365)
+    duration_days: int = Field(..., gt=0, le=90)  # максимум 3 месяца
     payment: Optional[PaymentInfo] = None  # issued_by исключён — вставляется на бэке
     promo_code: Optional[str] = None  # Новый параметр для промокода
     referred_by: Optional[str] = None  # Новый параметр для реферала
@@ -58,7 +58,7 @@ class SubscriptionCancel(BaseModel):
 class GiftSubscriptionCreate(BaseModel):
     gift_iin: constr(strip_whitespace=True, min_length=12, max_length=12, pattern=r'^\d{12}$')
     subscription_type: Literal["economy", "vip", "royal"]
-    duration_days: int = Field(..., gt=0, le=365)
+    duration_days: int = Field(..., gt=0, le=90)  # максимум 3 месяца
     use_balance: bool = True
 
 class SubscriptionUpdate(BaseModel):

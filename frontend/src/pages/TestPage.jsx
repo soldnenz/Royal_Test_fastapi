@@ -93,6 +93,13 @@ const TestPage = () => {
     localStorage.setItem(`currentQuestionIndex_${lobbyId}`, currentQuestionIndex.toString());
   }, [currentQuestionIndex, lobbyId]);
 
+  // Handle test completion redirect
+  useEffect(() => {
+    if (testCompleted) {
+      navigate(`/test-results/${lobbyId}`);
+    }
+  }, [testCompleted, navigate, lobbyId]);
+
   // Theme toggle
   const handleToggleTheme = () => {
     const newTheme = toggleTheme();
@@ -344,7 +351,7 @@ const TestPage = () => {
 
     setReportSubmitting(true);
     try {
-      await api.post(`/lobbies/lobbies/${lobbyId}/report`, {
+              await api.post(`/lobby_solo/${lobbyId}/report`, {
         question_id: questions[currentQuestionIndex],
         report_type: reportData.type,
         description: reportData.description
@@ -361,19 +368,21 @@ const TestPage = () => {
     }
   };
 
-  // Fetch lobby information
+  // Fetch lobby information with security checks
   useEffect(() => {
     const fetchLobbyInfo = async () => {
       try {
-        console.log(`Fetching lobby info for ID: ${lobbyId}`);
+        console.log(`[SECURITY] Fetching secure lobby info for ID: ${lobbyId}`);
         setSyncing(true);
-        const response = await api.get(`/lobbies/lobbies/${lobbyId}`);
+        
+        // Use new secure endpoint
+        const response = await api.get(`/lobby_solo/${lobbyId}/secure`);
         
         if (response.data.status === "ok") {
-          console.log("Lobby info loaded successfully:", response.data.data);
+          console.log("[SECURITY] Secure lobby info loaded successfully:", response.data.data);
           setLobbyInfo(response.data.data);
           
-          if (response.data.data.status === 'completed' || response.data.data.status === 'inactive') {
+          if (response.data.data.status === 'finished' || response.data.data.status === 'inactive') {
             setTestCompleted(true);
             fetchTestResults();
             return;
@@ -386,6 +395,15 @@ const TestPage = () => {
             const serverTimeLeft = response.data.data.exam_timer.time_left;
             setTimeLeft(serverTimeLeft);
             localStorage.setItem(`exam_timer_${lobbyId}`, serverTimeLeft.toString());
+            
+            // Security: Auto-close lobby after 40 minutes in exam mode
+            if (serverTimeLeft <= 0) {
+              console.log("[SECURITY] Exam time expired, auto-closing lobby");
+              await api.post(`/lobby_solo/${lobbyId}/secure/auto-close-exam`);
+              setTestCompleted(true);
+              fetchTestResults();
+              return;
+            }
           }
           
           if (response.data.data.question_ids && response.data.data.question_ids.length > 0) {
@@ -398,7 +416,7 @@ const TestPage = () => {
               try {
                 localAnswers = JSON.parse(savedAnswers);
               } catch (e) {
-                console.error("Error parsing saved answers:", e);
+                console.error("[SECURITY] Error parsing saved answers:", e);
               }
             }
             
@@ -425,7 +443,7 @@ const TestPage = () => {
         setLoading(false);
         setSyncing(false);
       } catch (err) {
-        console.error('Error fetching lobby info:', err);
+        console.error('[SECURITY] Error fetching secure lobby info:', err);
         setError(err.response?.data?.message || 'Failed to load test information');
         setLoading(false);
         setSyncing(false);
@@ -435,7 +453,7 @@ const TestPage = () => {
     fetchLobbyInfo();
   }, [lobbyId]);
 
-  // Fetch current question
+  // Fetch current question with security checks
   const fetchCurrentQuestion = async () => {
     if (!questions.length || currentQuestionIndex >= questions.length) return;
     
@@ -445,18 +463,42 @@ const TestPage = () => {
       setMediaLoading(true);
       setVideoError(false);
       
-      const response = await api.get(`/lobbies/lobbies/${lobbyId}/questions/${questionId}`);
+      console.log(`[SECURITY] Fetching secure question: ${questionId}, index: ${currentQuestionIndex}`);
+      
+      // Use new secure endpoint with answer validation
+              const response = await api.get(`/lobby_solo/${lobbyId}/questions/${questionId}/secure`, {
+        params: {
+          current_index: currentQuestionIndex,
+          user_answers: JSON.stringify(userAnswers)
+        }
+      });
       
       if (response.data.status === "ok") {
         const questionData = response.data.data;
         
-        // Обработка основного медиа файла
-        if (questionData.has_media && questionData.media_file_id) {
-          const mediaUrl = `/api/lobbies/files/media/${questionId}?t=${Date.now()}`;
+        console.log(`[SECURITY] Question ${questionId} loaded securely:`, questionData);
+        console.log(`[SECURITY] Question answers:`, questionData.answers);
+        
+        // Security: Only show media if user has access
+        if (questionData.has_media && questionData.media_access_granted) {
+          const mediaUrl = `/api/files_solo/secure/media/${questionId}?lobby_id=${lobbyId}&t=${Date.now()}`;
           questionData.media_url = mediaUrl;
-        } else if (questionData.has_media) {
-          // Нет медиа file ID - показываем заглушку
+          
+          // Determine media type
+          if (questionData.media_filename) {
+            const filename = questionData.media_filename.toLowerCase();
+            if (filename.endsWith('.mp4') || filename.endsWith('.webm') || filename.endsWith('.mov')) {
+              questionData.media_type = 'video';
+            } else {
+              questionData.media_type = 'image';
+            }
+          } else {
+            questionData.media_type = 'image';
+          }
+        } else if (questionData.has_media && !questionData.media_access_granted) {
+          console.log(`[SECURITY] Media access denied for question ${questionId}`);
           questionData.media_url = null;
+          questionData.media_type = 'restricted';
         }
         
         setCurrentQuestion(questionData);
@@ -465,30 +507,40 @@ const TestPage = () => {
         setCorrectAnswer(null);
         setExplanation(null);
         setAfterAnswerMedia(null);
-        setAfterAnswerMediaType('image'); // Reset to image first
-        setAfterVideoProgress(0); // Reset after video progress
-        setAfterVideoLoading(false); // Reset after video loading
+        setAfterAnswerMediaType('image');
+        setAfterVideoProgress(0);
+        setAfterVideoLoading(false);
         
         if (userAnswers[questionId] !== undefined) {
           setSelectedAnswer(userAnswers[questionId]);
           setAnswerSubmitted(true);
           
-          // В экзаменационном режиме правильные ответы не показываются до завершения теста
-          const shouldShowAnswer = !isExamMode;
+          // Security: Only show answer if allowed in current mode
+          const shouldShowAnswer = !isExamMode && questionData.answer_access_granted;
           
           if (shouldShowAnswer) {
-            fetchCorrectAnswer(questionId);
+            fetchCorrectAnswerSecure(questionId);
           }
         }
         
         setMediaLoading(false);
       } else {
+        console.error(`[SECURITY] Failed to load question ${questionId}:`, response.data.message);
         setError(response.data.message || 'Failed to load question');
         setMediaLoading(false);
       }
     } catch (err) {
-      console.error('Error fetching question:', err);
-      setError(err.response?.data?.message || 'Failed to load question');
+      console.error('[SECURITY] Error fetching secure question:', err);
+      
+      if (err.response?.status === 403) {
+        console.log(`[SECURITY] Access denied for question ${questionId}:`, err.response.data.message);
+        setError('Доступ запрещен. Ответьте на текущий вопрос.');
+      } else if (err.response?.status === 429) {
+        console.log(`[SECURITY] Rate limit exceeded for question ${questionId}`);
+        setError('Слишком много запросов. Подождите немного.');
+      } else {
+        setError(err.response?.data?.message || 'Failed to load question');
+      }
       setMediaLoading(false);
     }
   };
@@ -500,21 +552,27 @@ const TestPage = () => {
     }
   }, [userAnswers, lobbyId]);
 
-  // Timer for exam mode with server synchronization
+  // Timer for exam mode with auto-close protection
   useEffect(() => {
     if (isExamMode && !testCompleted) {
       // Fetch initial timer state from server
       const fetchTimerState = async () => {
         try {
-          const response = await api.get(`/lobbies/lobbies/${lobbyId}/exam-timer`);
+          const response = await api.get(`/lobby_solo/${lobbyId}/secure/exam-timer`);
           if (response.data.status === "ok") {
             const serverTimeLeft = response.data.data.time_left;
             setTimeLeft(serverTimeLeft);
             localStorage.setItem(`exam_timer_${lobbyId}`, serverTimeLeft.toString());
+            
+            // Security: Check if exam time expired
+            if (serverTimeLeft <= 0) {
+              console.log('[SECURITY] Exam time expired from server');
+              finishTestSecure();
+              return;
+            }
           }
         } catch (err) {
-          console.error('Error fetching timer state:', err);
-          // Fallback to local storage
+          console.error('[SECURITY] Error fetching secure timer state:', err);
           const savedTimeLeft = localStorage.getItem(`exam_timer_${lobbyId}`);
           if (savedTimeLeft) {
             setTimeLeft(parseInt(savedTimeLeft, 10));
@@ -531,8 +589,9 @@ const TestPage = () => {
           localStorage.setItem(`exam_timer_${lobbyId}`, newTime.toString());
           
           if (newTime <= 0) {
+            console.log('[SECURITY] Exam time expired - auto-finishing test');
             clearInterval(intervalRef.current);
-            finishTest();
+            finishTestSecure();
             return 0;
           }
           return newTime;
@@ -543,11 +602,11 @@ const TestPage = () => {
       const syncInterval = setInterval(async () => {
         try {
           const currentTimeLeft = parseInt(localStorage.getItem(`exam_timer_${lobbyId}`) || '0', 10);
-          await api.post(`/lobbies/lobbies/${lobbyId}/exam-timer`, {
+          await api.post(`/lobby_solo/${lobbyId}/secure/exam-timer`, {
             time_left: currentTimeLeft
           });
         } catch (err) {
-          console.error('Error syncing timer with server:', err);
+          console.error('[SECURITY] Error syncing secure timer with server:', err);
         }
       }, 30000);
 
@@ -566,60 +625,112 @@ const TestPage = () => {
     };
   }, [isExamMode, testCompleted, lobbyId]);
 
-  const fetchCorrectAnswer = async (questionId) => {
+  const fetchCorrectAnswerSecure = async (questionId) => {
     try {
-      const response = await api.get(`/lobbies/lobbies/${lobbyId}/correct-answer`, {
-        params: { question_id: questionId }
+      console.log(`[SECURITY] Fetching secure correct answer for question: ${questionId}`);
+      
+              const response = await api.get(`/lobby_solo/${lobbyId}/secure/correct-answer`, {
+        params: { 
+          question_id: questionId,
+          user_answers: JSON.stringify(userAnswers),
+          exam_mode: isExamMode
+        }
       });
       
       if (response.data.status === "ok") {
         const correctData = response.data.data;
-        console.log('Received correct answer data:', correctData);
+        console.log('[SECURITY] Received secure correct answer data:', correctData);
+        
+        // Security: In exam mode, no correct answer data should be returned
+        if (isExamMode && correctData.correct_answer_index !== undefined) {
+          console.error('[SECURITY] VIOLATION: Correct answer leaked in exam mode!');
+          return;
+        }
         
         setCorrectAnswer({
           index: correctData.correct_answer_index,
           hasAfterAnswerMedia: correctData.has_after_answer_media
         });
         
-        // Устанавливаем объяснение из ответа сервера
         if (correctData.explanation && Object.keys(correctData.explanation).length > 0) {
-          console.log('Setting explanation from server:', correctData.explanation);
+          console.log('[SECURITY] Setting secure explanation:', correctData.explanation);
           setExplanation(correctData.explanation);
-        } else if (currentQuestion && currentQuestion.explanation) {
-          // Если нет объяснения в ответе, пытаемся взять из самого вопроса
-          console.log('Setting explanation from current question:', currentQuestion.explanation);
-          setExplanation(currentQuestion.explanation);
         } else {
-          console.log('No explanation available from server or current question');
-          // Устанавливаем null, чтобы очистить предыдущее объяснение
           setExplanation(null);
         }
         
-        // Получаем медиа после ответа если есть
-        if (correctData.has_after_answer_media) {
-          console.log('Fetching after answer media for question:', questionId);
-          fetchAfterAnswerMedia(questionId);
-        } else {
-          console.log('No after answer media available');
+        // Security: Only fetch after-answer media if access is granted
+        if (correctData.has_after_answer_media && correctData.after_media_access_granted) {
+          console.log('[SECURITY] Fetching secure after answer media for question:', questionId);
+          fetchAfterAnswerMediaSecure(questionId);
+        } else if (correctData.has_after_answer_media && !correctData.after_media_access_granted) {
+          console.log('[SECURITY] After answer media access denied for question:', questionId);
         }
       }
     } catch (err) {
-      console.error('Error fetching correct answer:', err);
+      console.error('[SECURITY] Error fetching secure correct answer:', err);
+      
+      if (err.response?.status === 403) {
+        console.log('[SECURITY] Access denied for correct answer:', err.response.data.message);
+      } else if (err.response?.status === 429) {
+        console.log('[SECURITY] Rate limit exceeded for correct answer');
+      }
     }
   };
 
-  const fetchAfterAnswerMedia = async (questionId) => {
+  const fetchAfterAnswerMediaSecure = async (questionId) => {
     try {
       setMediaLoading(true);
       
-      // Используем правильный эндпоинт для получения медиа после ответа
-      const mediaUrl = `/api/lobbies/files/after-answer-media/${questionId}?lobby_id=${lobbyId}&t=${Date.now()}`;
-      setAfterAnswerMedia(mediaUrl);
+      console.log(`[SECURITY] Fetching secure after answer media for question: ${questionId}`);
+      
+      // Security: Check access before fetching media
+              const accessResponse = await api.get(`/lobby_solo/${lobbyId}/secure/after-answer-media-access`, {
+        params: {
+          question_id: questionId,
+          user_answers: JSON.stringify(userAnswers)
+        }
+      });
+      
+      if (accessResponse.data.status === "ok" && accessResponse.data.data.access_granted) {
+        const questionResponse = await api.get(`/lobby_solo/${lobbyId}/questions/${questionId}/secure`, {
+          params: {
+            current_index: currentQuestionIndex,
+            user_answers: JSON.stringify(userAnswers)
+          }
+        });
+        
+        if (questionResponse.data.status === "ok") {
+          const questionData = questionResponse.data.data;
+          
+          const mediaUrl = `/api/files_solo/secure/after-answer-media/${questionId}?lobby_id=${lobbyId}&t=${Date.now()}`;
+          console.log('[SECURITY] Setting secure after answer media URL:', mediaUrl);
+          setAfterAnswerMedia(mediaUrl);
+          
+          if (questionData.after_answer_media_filename) {
+            const filename = questionData.after_answer_media_filename.toLowerCase();
+            if (filename.endsWith('.mp4') || filename.endsWith('.webm') || filename.endsWith('.mov')) {
+              console.log('[SECURITY] Setting after answer media type to video:', filename);
+              setAfterAnswerMediaType('video');
+            } else {
+              console.log('[SECURITY] Setting after answer media type to image:', filename);
+              setAfterAnswerMediaType('image');
+            }
+          } else {
+            setAfterAnswerMediaType('image');
+          }
+        }
+      } else {
+        console.log('[SECURITY] After answer media access denied for question:', questionId);
+        setAfterAnswerMedia(null);
+        setAfterAnswerMediaType('image');
+      }
       
       setMediaLoading(false);
     } catch (err) {
-      console.error('Error fetching after-answer media:', err);
+      console.error('[SECURITY] Error fetching secure after-answer media:', err);
       setAfterAnswerMedia(null);
+      setAfterAnswerMediaType('image');
       setMediaLoading(false);
     }
   };
@@ -638,26 +749,42 @@ const TestPage = () => {
     localStorage.setItem(`userAnswers_${lobbyId}`, JSON.stringify(updatedAnswers));
     
     try {
-      const response = await api.post(`/lobbies/lobbies/${lobbyId}/answer`, {
+      console.log(`[SECURITY] Submitting secure answer for question ${questionId}:`, answerIndex);
+      
+      const response = await api.post(`/lobby_solo/${lobbyId}/secure/answer`, {
         question_id: questionId,
-        answer_index: answerIndex
+        answer_index: answerIndex,
+        current_index: currentQuestionIndex,
+        exam_mode: isExamMode,
+        time_left: timeLeft
       });
       
       if (response.data.status === "ok") {
-        // В экзаменационном режиме правильные ответы не показываются до завершения теста
-        const shouldShowAnswer = !isExamMode;
+        console.log('[SECURITY] Secure answer submitted successfully:', response.data);
+        
+        // Security: Only show answer if not in exam mode and access is granted
+        const shouldShowAnswer = !isExamMode && response.data.data?.answer_access_granted;
         
         if (shouldShowAnswer) {
           try {
-            await fetchCorrectAnswer(questionId);
+            await fetchCorrectAnswerSecure(questionId);
           } catch (err) {
-            console.warn("Could not fetch correct answer", err);
+            console.warn("[SECURITY] Could not fetch secure correct answer", err);
           }
+        } else if (isExamMode) {
+          console.log('[SECURITY] Answer submitted in exam mode - correct answer will not be shown');
         }
       }
     } catch (err) {
-      console.error('Error submitting answer:', err);
-      if (err.response && !err.response.data?.message?.includes("не активен")) {
+      console.error('[SECURITY] Error submitting secure answer:', err);
+      
+      if (err.response?.status === 403) {
+        console.log('[SECURITY] Answer submission denied:', err.response.data.message);
+        setError('Доступ запрещен. Проверьте права доступа.');
+      } else if (err.response?.status === 429) {
+        console.log('[SECURITY] Rate limit exceeded for answer submission');
+        setError('Слишком много попыток. Подождите немного.');
+      } else if (err.response && !err.response.data?.message?.includes("не активен")) {
         setError(err.response?.data?.message || 'Failed to submit your answer');
       }
     } finally {
@@ -714,51 +841,58 @@ const TestPage = () => {
       // Fetch answer data for previous question
       const shouldShowAnswer = !isExamMode;
       if (shouldShowAnswer) {
-        fetchCorrectAnswer(questions[newIndex]);
+        fetchCorrectAnswerSecure(questions[newIndex]);
       }
     }
   };
 
-  const finishTest = async () => {
+  const finishTestSecure = async () => {
     try {
       setSyncing(true);
+      
+      console.log('[SECURITY] Finishing test securely');
       
       // Sync final timer state if in exam mode
       if (isExamMode) {
         try {
           const currentTimeLeft = parseInt(localStorage.getItem(`exam_timer_${lobbyId}`) || '0', 10);
-          await api.post(`/lobbies/lobbies/${lobbyId}/exam-timer`, {
+          await api.post(`/lobby_solo/${lobbyId}/secure/exam-timer`, {
             time_left: currentTimeLeft
           });
         } catch (err) {
-          console.error('Error syncing final timer state:', err);
+          console.error('[SECURITY] Error syncing final secure timer state:', err);
         }
       }
       
       try {
-        const response = await api.post(`/lobbies/lobbies/${lobbyId}/finish`, {});
+        const response = await api.post(`/lobby_solo/${lobbyId}/secure/finish`, {
+          final_answers: userAnswers,
+          exam_mode: isExamMode,
+          time_left: timeLeft
+        });
         
         if (response.data.status === "ok") {
+          console.log('[SECURITY] Test finished securely');
           setTestCompleted(true);
           if (intervalRef.current) {
             clearInterval(intervalRef.current);
           }
-          fetchTestResults();
+          fetchTestResultsSecure();
         }
       } catch (err) {
-        console.error('Error finishing test:', err);
+        console.error('[SECURITY] Error finishing secure test:', err);
         
         if (err.response?.status === 400 && 
             (err.response?.data?.message?.includes("не активен") || 
              err.response?.data?.message?.includes("уже завершен"))) {
-          console.log("Test already finished");
+          console.log("[SECURITY] Test already finished securely");
           setTestCompleted(true);
           
           if (intervalRef.current) {
             clearInterval(intervalRef.current);
           }
           
-          fetchTestResults();
+          fetchTestResultsSecure();
         } else {
           setError(err.response?.data?.message || 'Failed to finish test');
         }
@@ -766,17 +900,20 @@ const TestPage = () => {
         setSyncing(false);
       }
     } catch (e) {
-      console.error('Unexpected error in finishTest:', e);
+      console.error('[SECURITY] Unexpected error in secure finishTest:', e);
       setSyncing(false);
       setError('An unexpected error occurred');
     }
   };
 
-  const fetchTestResults = async () => {
+  const fetchTestResultsSecure = async () => {
     try {
-      const response = await api.get(`/lobbies/lobbies/${lobbyId}/results`);
+      console.log('[SECURITY] Fetching secure test results');
+      
+      const response = await api.get(`/lobby_solo/${lobbyId}/secure/results`);
       
       if (response.data.status === "ok") {
+        console.log('[SECURITY] Secure test results loaded');
         setTestResults(response.data.data);
         localStorage.removeItem(`exam_timer_${lobbyId}`);
         localStorage.removeItem(`userAnswers_${lobbyId}`);
@@ -785,7 +922,7 @@ const TestPage = () => {
         setError(response.data.message || 'Failed to load test results');
       }
     } catch (err) {
-      console.error('Error fetching test results:', err);
+      console.error('[SECURITY] Error fetching secure test results:', err);
       
       if (err.response?.status === 404 || 
           (err.response?.data?.message && err.response?.data?.message.includes("не активен"))) {
@@ -805,6 +942,14 @@ const TestPage = () => {
         setError(err.response?.data?.message || 'Failed to load test results');
       }
     }
+  };
+
+  const finishTest = async () => {
+    await finishTestSecure();
+  };
+
+  const fetchTestResults = async () => {
+    await fetchTestResultsSecure();
   };
 
   // Format time
@@ -874,52 +1019,8 @@ const TestPage = () => {
     );
   }
 
-  // Test results
-  if (testCompleted && testResults) {
-    const percentage = testResults.user_result.percentage;
-    const correctCount = testResults.user_result.correct_count;
-    const totalQuestions = testResults.user_result.total_questions;
-    const incorrectCount = totalQuestions - correctCount;
-    const isPassed = testResults.user_result.passed || percentage >= 70;
-    
-    // Calculate additional metrics
-    const totalTimeSpent = isExamMode ? (40 * 60 - timeLeft) : (testResults.user_result.duration_seconds || 0);
-    const averageTimePerQuestion = totalQuestions > 0 ? Math.round(totalTimeSpent / totalQuestions) : 0;
-    const efficiency = Math.round((correctCount / totalQuestions) * 100);
-    
-    // Determine skill level
-    let skillLevel = '';
-    let skillColor = '';
-    if (percentage >= 95) { 
-      skillLevel = getTranslation('excellent'); 
-      skillColor = 'var(--success)';
-    } else if (percentage >= 85) { 
-      skillLevel = getTranslation('veryGood'); 
-      skillColor = 'var(--success)';
-    } else if (percentage >= 75) { 
-      skillLevel = getTranslation('good'); 
-      skillColor = 'var(--warning)';
-    } else if (percentage >= 65) { 
-      skillLevel = getTranslation('satisfactory'); 
-      skillColor = 'var(--warning)';
-    } else if (percentage >= 50) { 
-      skillLevel = getTranslation('needsImprovement'); 
-      skillColor = 'var(--error)';
-    } else { 
-      skillLevel = getTranslation('poor'); 
-      skillColor = 'var(--error)';
-    }
-    
-    const formatTime = (seconds) => {
-      const hours = Math.floor(seconds / 3600);
-      const minutes = Math.floor((seconds % 3600) / 60);
-      const secs = seconds % 60;
-      if (hours > 0) {
-        return `${hours}:${minutes < 10 ? '0' : ''}${minutes}:${secs < 10 ? '0' : ''}${secs}`;
-      }
-      return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
-    };
-    
+  // Test completed - show loading while redirecting
+  if (testCompleted) {
     return (
       <div className={`app-container ${isDarkTheme ? 'dark-theme' : ''}`}>
         <DashboardHeader 
@@ -934,239 +1035,11 @@ const TestPage = () => {
         <DashboardSidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
         
         <div className={`main-content ${isSidebarOpen ? 'sidebar-open' : ''}`}>
-          <div className="test-results-container">
-            {/* Results Header */}
-            <div className="results-header">
-              <div className={`results-icon ${isPassed ? 'success' : 'failed'}`}>
-                {isPassed ? <FaStar size={48} /> : <FaTimes size={48} />}
-              </div>
-              
-              <div className="results-title-section">
-                <h1 className="results-title">{getTranslation('testResults')}</h1>
-                <div className={`results-status ${isPassed ? 'passed' : 'failed'}`}>
-                  {isPassed ? getTranslation('passed') : getTranslation('failed')}
-                </div>
-              </div>
-              
-              <div className="results-score-circle">
-                <div className="score-percentage" style={{ color: skillColor }}>
-                  {percentage}%
-                </div>
-                <div className="score-description">
-                  {getTranslation('yourScore')}
-                </div>
-              </div>
+          <div className="loading-container">
+            <div className="loading-bar-container">
+              <div className="loading-bar"></div>
             </div>
-            
-            {/* Main Results Grid */}
-            <div className="results-grid">
-              {/* Score Overview Card */}
-              <div className="result-card score-overview">
-                <div className="card-header">
-                  <FaStar className="card-icon" />
-                  <h3>{getTranslation('overallPerformance')}</h3>
-                </div>
-                <div className="card-content">
-                  <div className="score-display">
-                    <div className="main-score" style={{ color: skillColor }}>
-                      {percentage}%
-                    </div>
-                    <div className="score-fraction">
-                      {correctCount} / {totalQuestions}
-                    </div>
-                    <div className="skill-level" style={{ color: skillColor }}>
-                      {skillLevel}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Detailed Statistics Card */}
-              <div className="result-card detailed-stats">
-                <div className="card-header">
-                  <FaChartBar className="card-icon" />
-                  <h3>{getTranslation('detailedAnalysis')}</h3>
-                </div>
-                <div className="card-content">
-                  <div className="stats-grid">
-                    <div className="stat-item">
-                      <span className="stat-label">{getTranslation('questionsCorrect')}</span>
-                      <span className="stat-value correct">{correctCount}</span>
-                    </div>
-                    <div className="stat-item">
-                      <span className="stat-label">{getTranslation('questionsIncorrect')}</span>
-                      <span className="stat-value incorrect">{incorrectCount}</span>
-                    </div>
-                    <div className="stat-item">
-                      <span className="stat-label">{getTranslation('totalQuestions')}</span>
-                      <span className="stat-value total">{totalQuestions}</span>
-                    </div>
-                    <div className="stat-item">
-                      <span className="stat-label">{getTranslation('accuracy')}</span>
-                      <span className="stat-value">{percentage}%</span>
-                    </div>
-                    <div className="stat-item">
-                      <span className="stat-label">{getTranslation('efficiency')}</span>
-                      <span className="stat-value">{efficiency}%</span>
-                    </div>
-                    <div className="stat-item">
-                      <span className="stat-label">{getTranslation('completionRate')}</span>
-                      <span className="stat-value">100%</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Time Analysis Card */}
-              <div className="result-card time-analysis">
-                <div className="card-header">
-                  <FaClock className="card-icon" />
-                  <h3>{getTranslation('timeAnalysis')}</h3>
-                </div>
-                <div className="card-content">
-                  <div className="time-stats">
-                    <div className="time-item">
-                      <span className="time-label">{getTranslation('timeSpent')}</span>
-                      <span className="time-value">{formatTime(totalTimeSpent)}</span>
-                    </div>
-                    <div className="time-item">
-                      <span className="time-label">{getTranslation('averageTimePerQuestion')}</span>
-                      <span className="time-value">{averageTimePerQuestion}s</span>
-                    </div>
-                    {isExamMode && (
-                      <div className="time-item">
-                        <span className="time-label">{getTranslation('timeRemaining')}</span>
-                        <span className="time-value">{formatTime(timeLeft)}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              
-              {/* Session Information Card */}
-              <div className="result-card session-info">
-                <div className="card-header">
-                  <FaUser className="card-icon" />
-                  <h3>{getTranslation('sessionInfo')}</h3>
-                </div>
-                <div className="card-content">
-                  <div className="session-stats">
-                    <div className="session-item">
-                      <span className="session-label">{getTranslation('testType')}</span>
-                      <span className="session-value">{isExamMode ? getTranslation('expert') : getTranslation('practice')}</span>
-                    </div>
-                    <div className="session-item">
-                      <span className="session-label">{getTranslation('testDate')}</span>
-                      <span className="session-value">{new Date().toLocaleDateString()}</span>
-                    </div>
-                    <div className="session-item">
-                      <span className="session-label">{getTranslation('passingScore')}</span>
-                      <span className="session-value">70%</span>
-                    </div>
-                    <div className="session-item">
-                      <span className="session-label">{getTranslation('difficulty')}</span>
-                      <span className="session-value">{getTranslation('medium')}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Performance Insights Card */}
-              <div className="result-card performance-insights">
-                <div className="card-header">
-                  <FaLightbulb className="card-icon" />
-                  <h3>{getTranslation('recommendation')}</h3>
-                </div>
-                <div className="card-content">
-                  <div className="insights">
-                    {isPassed ? (
-                      <>
-                        <div className="insight-item success">
-                          <FaCheck className="insight-icon" />
-                          <span>{getTranslation('congratulationsYouPassed')}</span>
-                        </div>
-                        {percentage >= 95 && (
-                          <div className="insight-item">
-                            <FaStar className="insight-icon" />
-                            <span>{getTranslation('excellent')} {getTranslation('performance')}!</span>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <div className="insight-item warning">
-                          <FaTimes className="insight-icon" />
-                          <span>{getTranslation('testNotPassed')}</span>
-                        </div>
-                        <div className="insight-item">
-                          <FaHistory className="insight-icon" />
-                          <span>{getTranslation('retakeAdvice')}</span>
-                        </div>
-                      </>
-                    )}
-                    
-                    {incorrectCount > 0 && (
-                      <div className="insight-item">
-                        <FaExclamationTriangle className="insight-icon" />
-                        <span>{getTranslation('improvementAreas')}: {incorrectCount} {getTranslation('questionsIncorrect')}</span>
-                      </div>
-                    )}
-                    
-                    <div className="insight-item">
-                      <FaClock className="insight-icon" />
-                      <span>{getTranslation('averageTimePerQuestion')}: {averageTimePerQuestion}s</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Summary Card - Full Width */}
-              <div className="result-card summary-card full-width">
-                <div className="card-header">
-                  <FaChartBar className="card-icon" />
-                  <h3>{getTranslation('summary')}</h3>
-                </div>
-                <div className="card-content">
-                  <div className="summary-content">
-                    <div className="summary-text">
-                      {isPassed ? (
-                        <p style={{ color: 'var(--success)', fontWeight: '600' }}>
-                          🎉 {getTranslation('congratulationsYouPassed')} 
-                          {percentage >= 95 && " " + getTranslation('excellent') + " " + getTranslation('performance') + "!"}
-                        </p>
-                      ) : (
-                        <p style={{ color: 'var(--error)', fontWeight: '600' }}>
-                          📚 {getTranslation('testNotPassed')} {getTranslation('nextSteps')}: {getTranslation('studyRecommendations')}
-                        </p>
-                      )}
-                      
-                      <div className="final-breakdown">
-                        <span className="breakdown-item">
-                          ✅ {correctCount} {getTranslation('questionsCorrect')}
-                        </span>
-                        <span className="breakdown-item">
-                          ❌ {incorrectCount} {getTranslation('questionsIncorrect')}
-                        </span>
-                        <span className="breakdown-item">
-                          ⏱️ {formatTime(totalTimeSpent)} {getTranslation('timeSpent')}
-                        </span>
-                        <span className="breakdown-item">
-                          🎯 {percentage}% {getTranslation('accuracy')}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Action Button */}
-            <div className="results-actions">
-              <button className="btn btn-large btn-primary" onClick={handleReturnToDashboard}>
-                <FaStar />
-                {getTranslation('returnToDashboard')}
-              </button>
-            </div>
+            <div className="loading-text">Переход к результатам...</div>
           </div>
         </div>
       </div>
@@ -1307,19 +1180,40 @@ const TestPage = () => {
                         afterAnswerMediaType === 'video' ? (
                           <div className="media-container">
                             <div className="video-container">
-                              <video 
-                                ref={afterVideoRef}
-                                className="question-video"
-                                src={afterAnswerMedia}
-                                onError={() => {
-                                  console.error('After answer video failed to load:', afterAnswerMedia);
-                                  setAfterAnswerMedia(null);
-                                }}
-                                preload="metadata"
-                                playsInline
-                                muted
-                                loop
-                              />
+                                                      <video 
+                          ref={afterVideoRef}
+                          className="question-video"
+                          src={afterAnswerMedia}
+                                                     onError={(e) => {
+                             console.error('After answer video failed to load:', afterAnswerMedia);
+                             e.target.style.display = 'none';
+                             // Показываем заглушку вместо переключения на изображение
+                             const container = e.target.closest('.video-container');
+                             if (container && !container.querySelector('.no-media-placeholder')) {
+                               const noMediaDiv = document.createElement('div');
+                               noMediaDiv.className = 'no-media-placeholder';
+                               noMediaDiv.innerHTML = `
+                                 <div style="display: flex; align-items: center; justify-content: center; font-size: 16px; color: #666;">
+                                   <span style="margin-right: 8px;">🎥</span>
+                                   ВИДЕО НЕДОСТУПНО
+                                 </div>
+                               `;
+                               container.appendChild(noMediaDiv);
+                             }
+                           }}
+                           onLoadedData={() => {
+                             console.log('After answer video loaded successfully:', afterAnswerMedia);
+                             // Убираем заглушки об ошибках, если видео загрузилось
+                             const container = document.querySelector('.video-container .no-media-placeholder');
+                             if (container) {
+                               container.remove();
+                             }
+                           }}
+                          preload="metadata"
+                          playsInline
+                          muted
+                          loop
+                        />
                               {/* Video Progress Bar */}
                               <div className={`video-progress-container ${afterVideoLoading ? 'loading' : ''}`}>
                                 <div className="video-progress-bar">
@@ -1338,11 +1232,30 @@ const TestPage = () => {
                               alt="After Answer Media"
                               className="question-image"
                               onError={(e) => {
-                                console.error('After answer media failed to load as image, trying video:', afterAnswerMedia);
-                                setAfterAnswerMediaType('video');
+                                console.error('After answer image failed to load:', afterAnswerMedia);
+                                e.target.style.display = 'none';
+                                // Показываем заглушку вместо бесконечного переключения
+                                const container = e.target.parentElement;
+                                if (container && !container.querySelector('.no-media-placeholder')) {
+                                  const noMediaDiv = document.createElement('div');
+                                  noMediaDiv.className = 'no-media-placeholder';
+                                  noMediaDiv.innerHTML = `
+                                    <div style="display: flex; align-items: center; justify-content: center; font-size: 16px; color: #666;">
+                                      <span style="margin-right: 8px;">📷</span>
+                                      МЕДИА НЕДОСТУПНО
+                                    </div>
+                                  `;
+                                  container.appendChild(noMediaDiv);
+                                }
                               }}
-                              onLoad={() => {
+                              onLoad={(e) => {
                                 console.log('After answer image loaded successfully:', afterAnswerMedia);
+                                // Убираем любые заглушки об ошибках, если изображение загрузилось
+                                const container = e.target.parentElement;
+                                const placeholder = container?.querySelector('.no-media-placeholder');
+                                if (placeholder) {
+                                  placeholder.remove();
+                                }
                               }}
                             />
                           </div>
@@ -1367,7 +1280,14 @@ const TestPage = () => {
                                     ref={videoRef}
                                     className="question-video"
                                     src={currentQuestion.media_url}
-                                    onError={() => setVideoError(true)}
+                                    onError={(e) => {
+                                      console.error('Main video failed to load:', currentQuestion.media_url);
+                                      setVideoError(true);
+                                    }}
+                                    onLoadedData={() => {
+                                      console.log('Main video loaded successfully:', currentQuestion.media_url);
+                                      setVideoError(false);
+                                    }}
                                     preload="metadata"
                                     playsInline
                                     muted
@@ -1391,7 +1311,30 @@ const TestPage = () => {
                               alt="Question"
                               className="question-image"
                               onError={(e) => {
-                                e.target.parentNode.innerHTML = '<div class="no-media-placeholder">📷 NO IMAGE</div>';
+                                console.error('Main image failed to load:', currentQuestion.media_url);
+                                e.target.style.display = 'none';
+                                // Показываем заглушку NO IMAGE только если ее еще нет
+                                const container = e.target.parentElement;
+                                if (container && !container.querySelector('.no-media-placeholder')) {
+                                  const noMediaDiv = document.createElement('div');
+                                  noMediaDiv.className = 'no-media-placeholder';
+                                  noMediaDiv.innerHTML = `
+                                    <div style="display: flex; align-items: center; justify-content: center; font-size: 16px; color: #666;">
+                                      <span style="margin-right: 8px;">📷</span>
+                                      NO IMAGE
+                                    </div>
+                                  `;
+                                  container.appendChild(noMediaDiv);
+                                }
+                              }}
+                              onLoad={(e) => {
+                                console.log('Main image loaded successfully:', currentQuestion.media_url);
+                                // Убираем любые заглушки об ошибках, если изображение загрузилось
+                                const container = e.target.parentElement;
+                                const placeholder = container?.querySelector('.no-media-placeholder');
+                                if (placeholder) {
+                                  placeholder.remove();
+                                }
                               }}
                             />
                           )

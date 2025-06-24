@@ -5,7 +5,7 @@ from datetime import datetime
 class PromoCodeBase(BaseModel):
     code: Optional[constr(strip_whitespace=True, min_length=3, max_length=32)] = None
     subscription_type: Literal["economy", "vip", "royal", "school", "demo"]
-    duration_days: int = Field(..., gt=0, le=365)
+    duration_days: int = Field(..., gt=0, le=90)  # максимум 3 месяца
     is_active: bool = True
     created_by_user_id: Optional[str] = None
     expires_at: Optional[datetime] = None
@@ -27,7 +27,7 @@ class PromoCodeOut(PromoCodeBase):
 
 class PromoCodeAdminUpdate(BaseModel):
     subscription_type: Optional[Literal["economy", "vip", "royal", "school", "demo"]]
-    duration_days: Optional[int] = Field(None, gt=0, le=365)
+    duration_days: Optional[int] = Field(None, gt=0, le=90)  # максимум 3 месяца
     is_active: Optional[bool]
     expires_at: Optional[datetime]
     usage_limit: Optional[int] = Field(None, gt=0)
