@@ -1,3 +1,44 @@
+/* Custom scrollbar styles for recent tests */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #9CA3AF #E5E7EB;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: #E5E7EB;
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #9CA3AF;
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #6B7280;
+}
+
+/* Dark theme scrollbar */
+.dark .scrollbar-thin {
+  scrollbar-color: #4B5563 #374151;
+}
+
+.dark .scrollbar-thin::-webkit-scrollbar-track {
+  background: #374151;
+}
+
+.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #4B5563;
+}
+
+.dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #6B7280;
+}
+
 /* Fixes for subscription slider in mobile/vertical mode */
 @media (max-width: 768px) {
   /* Makes the slider more touch-friendly on mobile */

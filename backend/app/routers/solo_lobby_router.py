@@ -122,6 +122,27 @@ async def get_secure_lobby(
         # Serialize lobby data to handle datetime objects
         serialized_lobby = serialize_datetime(lobby)
         
+        # Add exam timer info if in exam mode
+        if lobby.get('exam_mode', False):
+            current_time = datetime.utcnow()
+            expires_at = lobby.get("exam_timer_expires_at")
+            
+            if expires_at:
+                # Calculate remaining time from expiration date
+                time_left = max(0, int((expires_at - current_time).total_seconds()))
+                serialized_lobby["exam_timer"] = {
+                    "time_left": time_left,
+                    "expires_at": expires_at.isoformat() if hasattr(expires_at, 'isoformat') else str(expires_at),
+                    "duration": lobby.get("exam_timer_duration", 40 * 60)
+                }
+            else:
+                # If no expiration date, assume full time
+                duration = lobby.get("exam_timer_duration", 40 * 60)
+                serialized_lobby["exam_timer"] = {
+                    "time_left": duration,
+                    "duration": duration
+                }
+        
         # Return secure lobby data
         return success(
             data={
@@ -478,9 +499,28 @@ async def get_secure_exam_timer(
         if not lobby.get('exam_mode', False):
             raise HTTPException(status_code=400, detail="Not in exam mode")
         
-        # Get timer info
-        exam_timer = lobby.get('exam_timer', {})
-        time_left = exam_timer.get('time_left', 0)
+        # Get timer info from expires_at field
+        current_time = datetime.utcnow()
+        expires_at = lobby.get("exam_timer_expires_at")
+        
+        if expires_at:
+            # Calculate remaining time from expiration date
+            time_left = max(0, int((expires_at - current_time).total_seconds()))
+        else:
+            # If no expiration date set, initialize it now
+            duration = lobby.get("exam_timer_duration", 40 * 60)  # 40 minutes default
+            expires_at = current_time + timedelta(seconds=duration)
+            time_left = duration
+            
+            # Update lobby with timer info
+            await db.lobbies.update_one(
+                {"_id": lobby_id},
+                {"$set": {
+                    "exam_timer_expires_at": expires_at,
+                    "exam_timer_started_at": current_time,
+                    "exam_timer_duration": duration
+                }}
+            )
         
         # Auto-close if time expired
         if time_left <= 0:
@@ -491,7 +531,7 @@ async def get_secure_exam_timer(
             log_security_event("EXAM_AUTO_CLOSED", user_id, lobby_id, {"time_left": time_left})
         
         return success(
-            data={"time_left": max(0, time_left)},
+            data={"time_left": time_left},
             message="Secure exam timer retrieved"
         )
         

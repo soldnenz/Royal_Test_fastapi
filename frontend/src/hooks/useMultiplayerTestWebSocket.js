@@ -26,6 +26,7 @@ const useMultiplayerTestWebSocket = (lobbyId, callbacks = {}) => {
   const [showParticipantAnswers, setShowParticipantAnswers] = useState(false);
   const [testFinished, setTestFinished] = useState(false);
   const [participantAnswers, setParticipantAnswers] = useState({});
+  const [myAnswers, setMyAnswers] = useState({});
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
   const [currentQuestionId, setCurrentQuestionId] = useState(null);
@@ -157,19 +158,33 @@ const useMultiplayerTestWebSocket = (lobbyId, callbacks = {}) => {
     console.log('Next question:', data);
     const { question_id, question_index } = data;
     
-    setCurrentQuestion({ question_id, question_index });
-    setCurrentQuestionIndex(question_index);
-    setShowCorrectAnswer(false); // Скрываем правильный ответ при переходе к новому вопросу
+    // Если question_index не передан, вычисляем его на основе текущего состояния
+    let newQuestionIndex = question_index;
+    if (typeof question_index !== 'number') {
+      newQuestionIndex = currentQuestionIndex + 1;
+      console.log(`Question index not provided, calculated as: ${newQuestionIndex}`);
+    }
+    
+    console.log(`Moving to question index ${newQuestionIndex} (ID: ${question_id})`);
+    
+    setCurrentQuestion({ question_id, question_index: newQuestionIndex });
+    setCurrentQuestionIndex(newQuestionIndex);
+    
+    // Сбрасываем состояние показа правильного ответа при переходе к новому вопросу
+    setShowCorrectAnswer(false);
     
     // Уведомление о переходе к следующему вопросу
-    notify.action(`${getTranslation('nextQuestion') || 'Next question'} ${(question_index || 0) + 1}`, {
+    notify.action(`${getTranslation('nextQuestion') || 'Next question'} ${newQuestionIndex + 1}`, {
       title: '📝 Следующий вопрос'
     });
     
     if (onNextQuestion) {
-      onNextQuestion(data);
+      onNextQuestion({
+        question_id,
+        question_index: newQuestionIndex
+      });
     }
-  }, [onNextQuestion]);
+  }, [onNextQuestion, currentQuestionIndex]);
 
   const handleCurrentQuestion = useCallback((data) => {
     console.log('Current question:', data);
@@ -246,12 +261,34 @@ const useMultiplayerTestWebSocket = (lobbyId, callbacks = {}) => {
 
   const handleSyncResponse = useCallback((data) => {
     console.log('Sync response received:', data);
-    const { current_question_index, current_question_id, lobby_status, participants, forced_sync } = data;
+    const { 
+      current_question_index, 
+      current_question_id, 
+      lobby_status, 
+      participants, 
+      forced_sync,
+      show_correct_answer,
+      show_participant_answers,
+      correct_answer_index,
+      explanation
+    } = data;
     
     if (typeof current_question_index === 'number' && current_question_index >= 0) {
       console.log(`Синхронизация через WebSocket: обновляем индекс на ${current_question_index}`);
       setCurrentQuestionIndex(current_question_index);
       setCurrentQuestionId(current_question_id);
+      
+      // Синхронизируем состояние показа правильного ответа
+      if (typeof show_correct_answer === 'boolean') {
+        setShowCorrectAnswer(show_correct_answer);
+        console.log(`Синхронизация: show_correct_answer = ${show_correct_answer}`);
+      }
+      
+      // Синхронизируем состояние показа ответов участников
+      if (typeof show_participant_answers === 'boolean') {
+        setShowParticipantAnswers(show_participant_answers);
+        console.log(`Синхронизация: show_participant_answers = ${show_participant_answers}`);
+      }
       
       // При принудительной синхронизации показываем уведомление
       if (forced_sync) {
@@ -271,7 +308,11 @@ const useMultiplayerTestWebSocket = (lobbyId, callbacks = {}) => {
         callbacks.onSync({
           question_index: current_question_index,
           question_id: current_question_id,
-          forced_sync
+          forced_sync,
+          show_correct_answer,
+          show_participant_answers,
+          correct_answer_index,
+          explanation
         });
       }
     }
@@ -406,6 +447,33 @@ const useMultiplayerTestWebSocket = (lobbyId, callbacks = {}) => {
     );
   }, [participantAnswers]);
 
+  // Функция для сохранения собственного ответа
+  const saveMyAnswer = useCallback((questionId, answerIndex) => {
+    console.log(`Saving my answer for question ${questionId}: ${answerIndex}`);
+    setMyAnswers(prev => ({
+      ...prev,
+      [questionId]: {
+        answer_index: answerIndex,
+        answered: true,
+        timestamp: new Date().toISOString()
+      }
+    }));
+  }, []);
+
+  // Функция для получения собственного ответа на вопрос
+  const getMyAnswer = useCallback((questionId) => {
+    if (!questionId || !myAnswers) return null;
+    const answer = myAnswers[questionId];
+    return answer && typeof answer.answer_index === 'number' ? answer.answer_index : null;
+  }, [myAnswers]);
+
+  // Функция для проверки, ответил ли я на вопрос
+  const hasMyAnswered = useCallback((questionId) => {
+    if (!questionId || !myAnswers) return false;
+    const answer = myAnswers[questionId];
+    return !!(answer && answer.answered === true);
+  }, [myAnswers]);
+
   const handleWebSocketMessage = useCallback((data, event, error) => {
     if (error) {
       console.error('Error parsing WebSocket message:', error);
@@ -434,6 +502,7 @@ const useMultiplayerTestWebSocket = (lobbyId, callbacks = {}) => {
         break;
       case 'next_question':
         console.log('Received next_question message:', data);
+        handleNextQuestion(data.data);
         if (onNextQuestion) {
           onNextQuestion(data.data);
         }
@@ -815,12 +884,16 @@ const useMultiplayerTestWebSocket = (lobbyId, callbacks = {}) => {
     showParticipantAnswers,
     testFinished,
     participantAnswers,
+    myAnswers,
     connect: initializeWebSocket,
     sendMessage,
     reconnect: manualReconnect,
     disconnect,
     getParticipantAnswerForQuestion,
-    hasParticipantAnswered
+    hasParticipantAnswered,
+    saveMyAnswer,
+    getMyAnswer,
+    hasMyAnswered
   };
 };
 

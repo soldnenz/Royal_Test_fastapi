@@ -27,10 +27,12 @@ from app.routers import authentication, user, reset_password, admin_router, test
 from app.admin.telegram_2fa import bot, router as telegram_routers
 from app.routers import lobby_router
 from app.routers.lobby_router import start_background_tasks
+from app.routers import global_lobby_router
 from app.routers import files_router
 from app.routers import solo_lobby_router
 from app.routers import solo_files_router
 from app.routers import websocket_router
+from app.routers import test_stats_router
 from app.websocket.lobby_ws import lobby_ws_endpoint, ws_manager
 from app.websocket.ping_task import ping_task
 from app.db.database import db
@@ -71,11 +73,13 @@ app.include_router(subscription_router.router, prefix="/subscriptions")
 app.include_router(referrals_router.router, prefix="/referrals")
 app.include_router(transaction_router.router, prefix="/transactions")
 app.include_router(lobby_router.router, prefix="/lobbies", tags=["lobbies"])
+app.include_router(global_lobby_router.router, tags=["global-lobby"])
 app.include_router(files_router.router, prefix="/files", tags=["files"])
 app.include_router(solo_lobby_router.router, prefix="/lobby_solo", tags=["solo-lobbies"])
 app.include_router(solo_files_router.router, prefix="/files_solo", tags=["solo-files"])
 app.include_router(websocket_router.router, prefix="/websocket_token", tags=["websocket"])
 app.include_router(admin_router.router, prefix="/admin_function", tags=["admin_function"])
+app.include_router(test_stats_router.router, prefix="/test-stats", tags=["test-stats"])
 # WebSocket endpoint для лобби
 @app.websocket("/ws/lobby/{lobby_id}")
 async def websocket_endpoint(

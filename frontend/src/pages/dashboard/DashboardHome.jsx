@@ -31,6 +31,61 @@ const DashboardHome = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
+  // Test statistics state
+  const [testStats, setTestStats] = useState({
+    completed_tests: 0,
+    average_score: 0
+  });
+  const [recentTests, setRecentTests] = useState([]);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [recentTestsLoading, setRecentTestsLoading] = useState(false);
+  
+  // Fetch test statistics
+  const fetchTestStats = async () => {
+    if (!profileData?.id) return;
+    
+    try {
+      setStatsLoading(true);
+      const response = await fetch(`/api/test-stats/user/${profileData.id}/simple-stats`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status === 'ok') {
+          setTestStats(data.data);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching test stats:', err);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  // Fetch recent tests
+  const fetchRecentTests = async () => {
+    if (!profileData?.id) return;
+    
+    try {
+      setRecentTestsLoading(true);
+      const response = await fetch(`/api/test-stats/user/${profileData.id}/recent-tests`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status === 'ok') {
+          setRecentTests(data.data);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching recent tests:', err);
+    } finally {
+      setRecentTestsLoading(false);
+    }
+  };
+
   // Fetch subscription info
   useEffect(() => {
     const fetchSubscription = async () => {
@@ -75,6 +130,14 @@ const DashboardHome = () => {
     
     fetchSubscription();
   }, []);
+
+  // Fetch test statistics and recent tests when profile data is available
+  useEffect(() => {
+    if (profileData?.id) {
+      fetchTestStats();
+      fetchRecentTests();
+    }
+  }, [profileData]);
   
   // Format money with thousand separators and tenge symbol
   const formatMoney = (amount) => {
@@ -175,7 +238,11 @@ const DashboardHome = () => {
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{t.testsCompleted}</p>
-                <h3 className="text-2xl font-bold text-gray-900 dark:text-white">0</h3>
+                {statsLoading ? (
+                  <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                ) : (
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{testStats.completed_tests}</h3>
+                )}
               </div>
               <div className="h-12 w-12 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-900/30 dark:to-primary-800/30 flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-600 dark:text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -193,7 +260,11 @@ const DashboardHome = () => {
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{t.averageScore}</p>
-                <h3 className="text-2xl font-bold text-gray-900 dark:text-white">0%</h3>
+                {statsLoading ? (
+                  <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                ) : (
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{testStats.average_score}%</h3>
+                )}
               </div>
               <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-100 to-indigo-200 dark:from-blue-900/30 dark:to-indigo-800/30 flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -263,20 +334,172 @@ const DashboardHome = () => {
           <div className="h-2 bg-gradient-to-r from-primary-400 to-primary-600"></div>
           <div className="p-6">
             <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">{t.recentTests}</h2>
-            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg overflow-hidden">
-              <div className="p-4 text-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-                <p className="text-gray-600 dark:text-gray-400">{t.noRecentTests}</p>
-                <button 
-                  onClick={() => navigate('/dashboard/tests')}
-                  className="mt-4 px-6 py-2.5 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
-                >
-                  {t.startFirstTest}
-                </button>
+            
+            {recentTestsLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 animate-pulse">
+                    <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-3/4 mb-2"></div>
+                    <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-1/2"></div>
+                  </div>
+                ))}
               </div>
-            </div>
+            ) : recentTests.length > 0 ? (
+              <div className={`space-y-3 ${recentTests.length > 3 ? 'max-h-80 overflow-y-auto pr-2 scrollbar-thin' : ''}`}>
+                {recentTests.map((test, index) => {
+                  // Функция для форматирования времени прохождения (получаем секунды с бекенда)
+                  const formatDuration = (durationSeconds) => {
+                    if (!durationSeconds || durationSeconds === 0) return `0 ${t.seconds}`;
+                    
+                    const hours = Math.floor(durationSeconds / 3600);
+                    const minutes = Math.floor((durationSeconds % 3600) / 60);
+                    const seconds = durationSeconds % 60;
+                    
+                    if (hours > 0) {
+                      return `${hours} ${t.hours} ${minutes} ${t.minutes}`;
+                    } else if (minutes > 0) {
+                      return `${minutes} ${t.minutes} ${seconds} ${t.seconds}`;
+                    } else {
+                      return `${seconds} ${t.seconds}`;
+                    }
+                  };
+
+                  // Функция для форматирования даты с учетом часового пояса пользователя
+                  const formatDate = (dateString) => {
+                    if (!dateString) return '';
+                    
+                    // Создаем дату из UTC строки
+                    let utcDate;
+                    if (dateString.includes('T')) {
+                      // Если строка содержит 'T', это ISO формат
+                      if (!dateString.endsWith('Z') && !dateString.includes('+') && !dateString.includes('-', 10)) {
+                        // Если нет указания часового пояса, добавляем 'Z' для UTC
+                        utcDate = new Date(dateString + 'Z');
+                      } else {
+                        utcDate = new Date(dateString);
+                      }
+                    } else {
+                      utcDate = new Date(dateString);
+                    }
+                    
+                    // Проверяем, что дата валидна
+                    if (isNaN(utcDate.getTime())) {
+                      return dateString; // Возвращаем исходную строку если не удалось распарсить
+                    }
+                    
+                    // Форматируем в локальном часовом поясе пользователя
+                    return utcDate.toLocaleDateString(language === 'ru' ? 'ru-RU' : language === 'kk' ? 'kk-KZ' : 'en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      timeZoneName: 'short'
+                    });
+                  };
+
+                  // Определяем статус прохождения теста
+                  const getTestStatus = () => {
+                    if (test.passed) {
+                      return {
+                        text: language === 'ru' ? 'Тест пройден' : language === 'kk' ? 'Тест өтті' : 'Test passed',
+                        color: 'text-green-600 dark:text-green-400'
+                      };
+                    } else {
+                      return {
+                        text: language === 'ru' ? 'Тест не пройден' : language === 'kk' ? 'Тест өтпеді' : 'Test failed',
+                        color: 'text-red-600 dark:text-red-400'
+                      };
+                    }
+                  };
+
+                  // Определяем тип теста
+                  const getTestType = () => {
+                    if (test.type === 'exam') {
+                      return {
+                        text: language === 'ru' ? 'Экзамен' : language === 'kk' ? 'Емтихан' : 'Exam',
+                        icon: '🎓',
+                        color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
+                      };
+                    } else {
+                      return {
+                        text: language === 'ru' ? 'Практика' : language === 'kk' ? 'Практика' : 'Practice',
+                        icon: '📚',
+                        color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                      };
+                    }
+                  };
+
+                  const testStatus = getTestStatus();
+                  const testType = getTestType();
+
+                  return (
+                    <div key={index} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          {/* Заголовок с типом теста и статусом */}
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center space-x-2">
+                              <span className={`px-2 py-1 text-xs rounded-full ${testType.color}`}>
+                                {testType.icon} {testType.text}
+                              </span>
+                              <span className={`text-sm font-medium ${testStatus.color}`}>
+                                {testStatus.text}
+                              </span>
+                            </div>
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              test.score >= 80 
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                : test.score >= 60
+                                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                            }`}>
+                              {test.score}%
+                            </span>
+                          </div>
+                          
+                          {/* Детали теста */}
+                          <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                            <div className="flex items-center space-x-4">
+                              <span className="flex items-center space-x-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>{formatDuration(test.duration)}</span>
+                              </span>
+                              <span className="flex items-center space-x-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                </svg>
+                                <span>{test.correct_answers}/{test.total_questions}</span>
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-500">
+                              {formatDate(test.completed_at)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg overflow-hidden">
+                <div className="p-4 text-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  <p className="text-gray-600 dark:text-gray-400">{t.noRecentTests}</p>
+                  <button 
+                    onClick={() => navigate('/dashboard/tests')}
+                    className="mt-4 px-6 py-2.5 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
+                  >
+                    {t.startFirstTest}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

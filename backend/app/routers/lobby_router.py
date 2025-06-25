@@ -2233,7 +2233,7 @@ async def next_question_multiplayer(
         next_question_id = lobby["question_ids"][new_index]
         
         # Отправляем WebSocket уведомление о переходе к следующему вопросу
-        await ws_manager.send_json(lobby_id, {
+        await ws_manager.send_json_parallel(lobby_id, {
             "type": "next_question",
             "data": {
                 "question_id": next_question_id,
@@ -3432,19 +3432,46 @@ async def sync_lobby_state(
         question_ids = lobby.get("question_ids", [])
         current_question_id = question_ids[current_index] if current_index < len(question_ids) else None
         
+        # Получаем информацию о показанных правильных ответах для текущего вопроса
+        shown_correct_answers = lobby.get("shown_correct_answers", {})
+        current_question_correct_shown = False
+        correct_answer_index = None
+        explanation = ""
+        
+        if current_question_id:
+            current_question_correct_shown = shown_correct_answers.get(str(current_question_id), False)
+            
+            # Если правильный ответ уже был показан, получаем его индекс и объяснение
+            if current_question_correct_shown:
+                try:
+                    question = await db.questions.find_one({"_id": ObjectId(current_question_id)})
+                    if question:
+                        correct_answer_index = question.get("correct_answer_index")
+                        explanation = question.get("explanation", "")
+                except Exception as e:
+                    logger.error(f"Error fetching correct answer for question {current_question_id}: {str(e)}")
+        
+        sync_data = {
+            "current_question_index": current_index,
+            "current_question_id": str(current_question_id) if current_question_id else None,
+            "lobby_status": lobby.get("status"),
+            "participants": lobby.get("participants", []),
+            "show_participant_answers": lobby.get("show_participant_answers", False),
+            "show_correct_answer": current_question_correct_shown,
+            "forced_sync": True,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Добавляем correct_answer_index и explanation если правильный ответ был показан
+        if correct_answer_index is not None:
+            sync_data["correct_answer_index"] = correct_answer_index
+            sync_data["explanation"] = explanation
+        
         # Отправляем синхронизацию через WebSocket всем участникам
         from app.websocket.lobby_ws import ws_manager
         await ws_manager.send_json_parallel(lobby_id, {
             "type": "sync_response",
-            "data": {
-                "current_question_index": current_index,
-                "current_question_id": str(current_question_id) if current_question_id else None,
-                "lobby_status": lobby.get("status"),
-                "participants": lobby.get("participants", []),
-                "show_participant_answers": lobby.get("show_participant_answers", False),
-                "forced_sync": True,
-                "timestamp": datetime.utcnow().isoformat()
-            }
+            "data": sync_data
         })
         
         logger.info(f"Состояние лобби {lobby_id} синхронизировано для всех участников")

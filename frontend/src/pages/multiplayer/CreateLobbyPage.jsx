@@ -259,7 +259,7 @@ const CreateLobbyPage = () => {
 
       console.log('Creating lobby with data:', lobbyData);
       
-      const response = await api.post('/lobbies/lobbies', lobbyData);
+              const response = await api.post('/global-lobby/lobbies', lobbyData);
       
       if (response.data.status === 'ok') {
         const lobbyId = response.data.data.lobby_id;

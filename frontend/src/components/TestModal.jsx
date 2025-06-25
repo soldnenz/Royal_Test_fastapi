@@ -65,7 +65,7 @@ const TestModal = ({ isOpen, onClose, category, subscription, translations: t, i
       try {
         setCheckingActiveLobby(true);
         console.log("Checking for active lobby");
-        const response = await api.get('/lobbies/active-lobby');
+        const response = await api.get('/global-lobby/active-lobby');
         
         console.log("Active lobby check response:", response.data);
         console.log("Response data object:", JSON.stringify(response.data.data, null, 2));
@@ -155,7 +155,7 @@ const TestModal = ({ isOpen, onClose, category, subscription, translations: t, i
     if (activeLobby && activeLobby.lobby_id) {
       try {
         // Get lobby info to determine if it's multiplayer
-        const response = await api.get(`/lobbies/lobbies/${activeLobby.lobby_id}`);
+        const response = await api.get(`/global-lobby/lobbies/${activeLobby.lobby_id}`);
         
         if (response.data.status === "ok") {
           const lobbyData = response.data.data;
@@ -225,7 +225,7 @@ const TestModal = ({ isOpen, onClose, category, subscription, translations: t, i
       });
 
       // Create lobby
-      const response = await api.post('/lobbies/lobbies', {
+      const response = await api.post('/global-lobby/lobbies', {
         mode: 'solo',
         categories: categories,
         pdd_section_uids: selectedSections.length > 0 ? selectedSections : null,

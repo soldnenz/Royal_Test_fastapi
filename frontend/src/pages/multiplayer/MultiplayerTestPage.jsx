@@ -755,47 +755,23 @@ const MultiplayerTestPage = () => {
              processCorrectAnswer(currentQuestions, currentIndex, currentUserAnswers, data);
     },
     onNextQuestion: (data) => {
-      console.log('Host moved to next question:', data);
-      const { question_index } = data;
-      
-      // Используем refs для получения актуального состояния
-      const currentQuestions = questionsRef.current;
-      const currentIndex = currentQuestionIndexRef.current;
-      const currentUserAnswers = userAnswersRef.current;
-      
-      // Если questions пустой, пытаемся восстановить из localStorage один раз
-      if (currentQuestions.length === 0) {
-        console.log('Questions array is empty in onNextQuestion, attempting to restore from localStorage');
-        const savedQuestions = localStorage.getItem(`questions_${lobbyId}`);
-        if (savedQuestions) {
-          try {
-            const parsedQuestions = JSON.parse(savedQuestions);
-            if (Array.isArray(parsedQuestions) && parsedQuestions.length > 0) {
-              console.log('Restored questions from localStorage for next question:', parsedQuestions.length);
-              setQuestions(parsedQuestions);
-              questionsRef.current = parsedQuestions;
-            }
-          } catch (e) {
-            console.error('Error parsing saved questions in onNextQuestion:', e);
-          }
-        }
-      }
-      
-      console.log('Next question sync:', {
-        receivedIndex: question_index,
-        currentIndex: currentIndex,
-        expectedNextIndex: currentIndex + 1,
-        needsUpdate: question_index !== currentIndex
-      });
+      console.log('Next question received:', data);
+      const { question_id, question_index } = data;
       
       if (typeof question_index === 'number' && question_index >= 0) {
-        console.log(`Moving to question index ${question_index} from ${currentIndex}`);
+        console.log(`Moving to question index ${question_index} from ${currentQuestionIndex}`);
         
-        setAnswerSubmitted(false);
-        setSelectedAnswer(null);
-        setCorrectAnswer(null);
-        setExplanation(null);
-        setAfterAnswerMedia(null);
+        // Только сбрасываем состояние если мы действительно переходим к НОВОМУ вопросу
+        if (question_index !== currentQuestionIndex) {
+          setAnswerSubmitted(false);
+          setSelectedAnswer(null);
+          setCorrectAnswer(null);
+          setExplanation(null);
+          setAfterAnswerMedia(null);
+          setVideoError(false);
+          setVideoProgress(0);
+        }
+        
         setCurrentQuestionIndex(question_index);
         localStorage.setItem(`currentQuestionIndex_${lobbyId}`, question_index.toString());
         
@@ -803,11 +779,19 @@ const MultiplayerTestPage = () => {
         const questionsToUse = questionsRef.current;
         if (questionsToUse.length > question_index) {
           const newQuestionId = String(questionsToUse[question_index]);
-          if (newQuestionId && currentUserAnswers[newQuestionId] !== undefined) {
-            console.log(`Restoring saved answer for question ${newQuestionId}: ${currentUserAnswers[newQuestionId]}`);
-            setSelectedAnswer(currentUserAnswers[newQuestionId]);
+          if (newQuestionId && userAnswers[newQuestionId] !== undefined) {
+            console.log(`Restoring saved answer for question ${newQuestionId}: ${userAnswers[newQuestionId]}`);
+            setSelectedAnswer(userAnswers[newQuestionId]);
             setAnswerSubmitted(true);
           }
+          
+          // Сразу загружаем новый вопрос для синхронизации
+          console.log('Immediately fetching new question after next_question message');
+          setTimeout(() => {
+            fetchCurrentQuestion().catch(err => {
+              console.error('Error fetching question after next_question:', err);
+            });
+          }, 100); // Небольшая задержка для обновления состояния
         }
       }
     },
@@ -816,26 +800,9 @@ const MultiplayerTestPage = () => {
       setTestCompleted(true);
       fetchTestResults();
     },
-    onSync: (data) => {
-      console.log('Received sync data:', data);
-      const { question_index, question_id, forced_sync } = data;
-      
-      // Проверяем, если questions пустой, пытаемся его восстановить
-      if (questions.length === 0) {
-        console.log('Questions array is empty, attempting to restore from localStorage');
-        const savedQuestions = localStorage.getItem(`questions_${lobbyId}`);
-        if (savedQuestions) {
-          try {
-            const parsedQuestions = JSON.parse(savedQuestions);
-            if (Array.isArray(parsedQuestions) && parsedQuestions.length > 0) {
-              console.log('Restoring questions from localStorage:', parsedQuestions);
-              setQuestions(parsedQuestions);
-            }
-          } catch (e) {
-            console.error('Error parsing saved questions:', e);
-          }
-        }
-      }
+    onSync: ({ question_index, question_id, forced_sync, show_correct_answer, show_participant_answers, correct_answer_index, explanation }) => {
+      console.log('Sync callback received:', { question_index, question_id, forced_sync, show_correct_answer, show_participant_answers, correct_answer_index, explanation });
+      setSyncing(false);
       
       console.log('Sync comparison:', {
         receivedIndex: question_index,
@@ -851,7 +818,8 @@ const MultiplayerTestPage = () => {
         
         setAnswerSubmitted(false);
         setSelectedAnswer(null);
-        setCorrectAnswer(null);
+        // НЕ сбрасываем correctAnswer автоматически при синхронизации
+        // setCorrectAnswer(null); 
         setExplanation(null);
         setAfterAnswerMedia(null);
         setVideoError(false);
@@ -869,6 +837,24 @@ const MultiplayerTestPage = () => {
         }
       } else if (question_index === currentQuestionIndex) {
         console.log('Question index already synchronized');
+        
+        // Если мы на том же вопросе, но получили информацию о показе правильного ответа,
+        // и правильный ответ еще не показан локально - устанавливаем его и объяснение
+        if (show_correct_answer && correctAnswer === null && typeof correct_answer_index === 'number') {
+          console.log('Sync indicates correct answer should be shown, setting correct answer index and explanation:', { correct_answer_index, explanation });
+          setCorrectAnswer(correct_answer_index);
+          if (explanation) {
+            setExplanation(explanation);
+          }
+          
+          // Проверяем, отвечал ли пользователь на этот вопрос
+          const currentQuestionId = String(question_id || questions[question_index]);
+          if (currentQuestionId && userAnswers[currentQuestionId] !== undefined) {
+            console.log(`Restoring answer submitted state for question ${currentQuestionId}: ${userAnswers[currentQuestionId]}`);
+            setSelectedAnswer(userAnswers[currentQuestionId]);
+            setAnswerSubmitted(true);
+          }
+        }
       }
     }
   });

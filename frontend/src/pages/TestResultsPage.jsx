@@ -80,7 +80,7 @@ const TestResultsPage = () => {
     const fetchResults = async () => {
       try {
         setLoading(true);
-        const response = await api.get(`/lobby_solo/${lobbyId}/secure/results`);
+        const response = await api.get(`/test-stats/${lobbyId}/secure/results`);
         
         if (response.data.status === "ok") {
           setResults(response.data.data);

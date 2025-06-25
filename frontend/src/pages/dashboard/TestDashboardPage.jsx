@@ -127,7 +127,7 @@ const TestDashboardPage = () => {
     try {
       setIsLoadingLobby(true);
       console.log("Checking for active lobby");
-      const response = await api.get('/lobbies/active-lobby');
+      const response = await api.get('/global-lobby/active-lobby');
       
       console.log("Active lobby check response:", response.data);
       console.log("Response data object:", JSON.stringify(response.data.data, null, 2));
@@ -329,7 +329,7 @@ const TestDashboardPage = () => {
   const fetchCategoriesStats = async () => {
     try {
       console.log("Fetching categories statistics");
-      const response = await api.get('/lobbies/categories/stats');
+      const response = await api.get('/global-lobby/categories/stats');
       
       if (response.data.status === "ok") {
         const statsData = response.data.data;

@@ -445,16 +445,44 @@ class LobbyConnectionManager:
                     question_ids = lobby.get("question_ids", [])
                     current_question_id = question_ids[current_index] if current_index < len(question_ids) else None
                     
+                    # Получаем информацию о показанных правильных ответах для текущего вопроса
+                    shown_correct_answers = lobby.get("shown_correct_answers", {})
+                    current_question_correct_shown = False
+                    correct_answer_index = None
+                    explanation = ""
+                    
+                    if current_question_id:
+                        current_question_correct_shown = shown_correct_answers.get(str(current_question_id), False)
+                        
+                        # Если правильный ответ уже был показан, получаем его индекс и объяснение
+                        if current_question_correct_shown:
+                            try:
+                                question = await db.questions.find_one({"_id": ObjectId(current_question_id)})
+                                if question:
+                                    correct_answer_index = question.get("correct_answer_index")
+                                    explanation = question.get("explanation", "")
+                            except Exception as e:
+                                logger.error(f"Error fetching correct answer for question {current_question_id}: {str(e)}")
+                    
+                    sync_data = {
+                        "current_question_index": current_index,
+                        "current_question_id": current_question_id,
+                        "lobby_status": lobby.get("status"),
+                        "show_correct_answer": current_question_correct_shown,
+                        "show_participant_answers": lobby.get("show_participant_answers", False),
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                    
+                    # Добавляем correct_answer_index и explanation если правильный ответ был показан
+                    if correct_answer_index is not None:
+                        sync_data["correct_answer_index"] = correct_answer_index
+                        sync_data["explanation"] = explanation
+                    
                     await self.send_to_user(lobby_id, user_id, {
                         "type": "sync_response",
-                        "data": {
-                            "current_question_index": current_index,
-                            "current_question_id": current_question_id,
-                            "lobby_status": lobby.get("status"),
-                            "timestamp": datetime.utcnow().isoformat()
-                        }
+                        "data": sync_data
                     })
-                    logger.info(f"Sent sync response to user {user_id}: index={current_index}, question_id={current_question_id}")
+                    logger.info(f"Sent sync response to user {user_id}: index={current_index}, question_id={current_question_id}, correct_shown={current_question_correct_shown}")
                         
             elif message_type == "request_lobby_status":
                 # Запрос статуса лобби
@@ -539,6 +567,19 @@ class LobbyConnectionManager:
                 # Получаем информацию о лобби для контекста
                 lobby = await db.lobbies.find_one({"_id": lobby_id})
                 if lobby and lobby.get("host_id") == user_id:
+                    # Сохраняем информацию о показанном правильном ответе
+                    question_id = data.get("question_id")
+                    if question_id:
+                        await db.lobbies.update_one(
+                            {"_id": lobby_id},
+                            {
+                                "$set": {
+                                    f"shown_correct_answers.{question_id}": True
+                                }
+                            }
+                        )
+                        logger.info(f"Marked correct answer as shown for question {question_id} in lobby {lobby_id}")
+                    
                     # Пересылаем сообщение с дополнительным контекстом
                     await self.broadcast_to_lobby(lobby_id, {
                         "type": "show_correct_answer",
@@ -875,7 +916,10 @@ async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Qu
                     next_question_id = lobby["question_ids"][new_index]
                     await ws_manager.broadcast_to_lobby(lobby_id, {
                         "type": "next_question", 
-                        "data": {"question_id": next_question_id}
+                        "data": {
+                            "question_id": next_question_id,
+                            "question_index": new_index
+                        }
                     })
                 else:
                     logger.info(f"Test finished in lobby {lobby_id}")

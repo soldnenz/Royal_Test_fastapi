@@ -396,9 +396,10 @@ const TestPage = () => {
             setTimeLeft(serverTimeLeft);
             localStorage.setItem(`exam_timer_${lobbyId}`, serverTimeLeft.toString());
             
-            // Security: Auto-close lobby after 40 minutes in exam mode
-            if (serverTimeLeft <= 0) {
-              console.log("[SECURITY] Exam time expired, auto-closing lobby");
+            // Only auto-close if time is significantly expired (more than 1 minute past)
+            // This prevents immediate finish on page load due to small time discrepancies
+            if (serverTimeLeft < -60) {
+              console.log("[SECURITY] Exam time significantly expired, auto-closing lobby");
               await api.post(`/lobby_solo/${lobbyId}/secure/auto-close-exam`);
               setTestCompleted(true);
               fetchTestResults();
@@ -564,9 +565,10 @@ const TestPage = () => {
             setTimeLeft(serverTimeLeft);
             localStorage.setItem(`exam_timer_${lobbyId}`, serverTimeLeft.toString());
             
-            // Security: Check if exam time expired
-            if (serverTimeLeft <= 0) {
-              console.log('[SECURITY] Exam time expired from server');
+            // Only auto-finish if time is significantly expired (more than 1 minute past)
+            // This prevents immediate finish on page load due to small time discrepancies
+            if (serverTimeLeft < -60) {
+              console.log('[SECURITY] Exam time significantly expired from server');
               finishTestSecure();
               return;
             }
@@ -575,7 +577,11 @@ const TestPage = () => {
           console.error('[SECURITY] Error fetching secure timer state:', err);
           const savedTimeLeft = localStorage.getItem(`exam_timer_${lobbyId}`);
           if (savedTimeLeft) {
-            setTimeLeft(parseInt(savedTimeLeft, 10));
+            const timeLeft = parseInt(savedTimeLeft, 10);
+            setTimeLeft(Math.max(0, timeLeft));
+          } else {
+            // Default to full exam time if no saved state
+            setTimeLeft(40 * 60);
           }
         }
       };
