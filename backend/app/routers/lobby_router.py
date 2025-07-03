@@ -11,7 +11,7 @@ from bson import ObjectId
 from bson.errors import InvalidId
 import json
 from pydantic import BaseModel, validator
-import logging
+from app.logging import get_logger, LogSection, LogSubsection
 import asyncio
 from app.core.gridfs_utils import get_media_file
 import base64
@@ -23,12 +23,20 @@ from typing import Optional, List, Dict, Any, Union
 import time
 
 # Настройка логгера
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 def generate_safe_filename(original_filename: str, file_extension: str = None) -> str:
     """
     Генерирует безопасное ASCII имя файла из случайных символов
     """
+    # Логируем подозрительные имена файлов
+    if original_filename and (len(original_filename) > 255 or '..' in original_filename or '/' in original_filename or '\\' in original_filename):
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.VALIDATION,
+            message=f"Подозрительное имя файла: {original_filename[:100]}, длина {len(original_filename)}"
+        )
+    
     # Генерируем случайную строку из 8 символов (цифры и буквы)
     random_name = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
     
@@ -40,12 +48,22 @@ def generate_safe_filename(original_filename: str, file_extension: str = None) -
             try:
                 file_extension.encode('ascii')
             except UnicodeEncodeError:
+                logger.warning(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.VALIDATION,
+                    message=f"Небезопасное расширение файла с non-ASCII символами: {file_extension[:20]}, использовано 'bin'"
+                )
                 file_extension = 'bin'  # Используем безопасное расширение
         else:
             file_extension = 'bin'
     
     # Ограничиваем длину расширения для безопасности
     if len(file_extension) > 10:
+        logger.warning(
+            section=LogSection.FILES,
+            subsection=LogSubsection.FILES.VALIDATION,
+            message=f"Слишком длинное расширение файла: {file_extension[:20]}, длина {len(file_extension)}, использовано 'bin'"
+        )
         file_extension = 'bin'
     
     return f"{random_name}.{file_extension}"
@@ -62,7 +80,11 @@ class LobbyCache:
         self.lobbies: Dict[str, dict] = {}  # Кэш лобби
         self.user_subscriptions: Dict[str, dict] = {}  # Кэш подписок
         self.lobby_access_cache: Dict[str, dict] = {}  # Кэш доступа к лобби
-        logger.info("LobbyCache initialized")
+        logger.info(
+            section=LogSection.SYSTEM,
+            subsection=LogSubsection.SYSTEM.INITIALIZATION,
+            message="Кэш лобби инициализирован: создан LobbyCache с пустыми хэш-таблицами для лобби, подписок и доступа"
+        )
     
     async def get_lobby(self, lobby_id: str, force_refresh: bool = False):
         """Получить лобби с кэшированием"""
@@ -154,6 +176,11 @@ class SimpleRateLimiter:
                            if now - req_time < timedelta(seconds=self.time_window)]
         
         if len(user_requests) >= self.max_requests:
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.RATE_LIMIT,
+                message=f"Превышение лимита запросов: пользователь {user_id} заблокирован, {len(user_requests)} запросов за {self.time_window} секунд (лимит {self.max_requests})"
+            )
             return False
             
         user_requests.append(now)
@@ -168,9 +195,20 @@ async def validate_lobby_access(lobby_id: str, user_id: str, required_status: st
     """
     cache_key = f"{lobby_id}:{user_id}"
     
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.SECURITY,
+        message=f"Проверка доступа к лобби: пользователь {user_id}, лобби {lobby_id}, требуемый статус {required_status or 'любой'}, гость {is_guest}"
+    )
+    
     # Получаем лобби из кэша
     lobby = await lobby_cache.get_lobby(lobby_id)
     if not lobby:
+        logger.warning(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.SECURITY,
+            message=f"Доступ запрещён: лобби {lobby_id} не найдено для пользователя {user_id}"
+        )
         raise HTTPException(status_code=404, detail="Лобби не найдено")
     
     # Проверяем статус лобби
@@ -178,6 +216,11 @@ async def validate_lobby_access(lobby_id: str, user_id: str, required_status: st
         # Попробуем обновить кеш и проверить еще раз
         lobby = await lobby_cache.get_lobby(lobby_id, force_refresh=True)
         if lobby and lobby["status"] != required_status:
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.SECURITY,
+                message=f"Доступ запрещён по статусу: лобби {lobby_id}, требуемый статус {required_status}, текущий {lobby['status']}, пользователь {user_id}"
+            )
             raise HTTPException(
                 status_code=400, 
                 detail=f"Неверный статус лобби. Требуется: {required_status}, текущий: {lobby['status']}"
@@ -185,6 +228,11 @@ async def validate_lobby_access(lobby_id: str, user_id: str, required_status: st
     
     # Проверяем участие пользователя
     if user_id not in lobby["participants"]:
+        logger.warning(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.SECURITY,
+            message=f"Доступ запрещён: пользователь {user_id} не является участником лобби {lobby_id}, участники: {len(lobby.get('participants', []))}"
+        )
         raise HTTPException(status_code=403, detail="Вы не являетесь участником этого лобби")
     
     is_host = user_id == lobby.get("host_id")
@@ -197,6 +245,12 @@ async def validate_lobby_access(lobby_id: str, user_id: str, required_status: st
         # Получаем тип подписки из кэша для обычных пользователей
         subscription = await lobby_cache.get_user_subscription(user_id)
         subscription_type = subscription["subscription_type"] if subscription else "Demo"
+    
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.SECURITY,
+        message=f"Доступ разрешён: пользователь {user_id}, лобби {lobby_id}, хост {is_host}, подписка {subscription_type}"
+    )
     
     return lobby, is_host, subscription_type
 
@@ -226,13 +280,45 @@ class KickParticipantRequest(BaseModel):
     @validator('target_user_id')
     def validate_user_id(cls, v):
         if not v or len(v) < 3:
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.VALIDATION,
+                message=f"Попытка использования слишком короткого user_id для исключения: длина {len(v) if v else 0}"
+            )
             raise ValueError('Invalid user ID')
         # Проверка на инъекции и другие атаки
         if re.search(r'[<>"\';]', v):
+            logger.error(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.INJECTION,
+                message=f"Попытка SQL/XSS инъекции в target_user_id: {v[:50]}"
+            )
             raise ValueError('Invalid characters in user ID')
         return v
 
 router = APIRouter()
+
+def convert_answer_to_index(correct_answer_raw):
+    """Convert letter answer (A, B, C, D) to numeric index (0, 1, 2, 3)"""
+    if isinstance(correct_answer_raw, str):
+        letter_to_index = {'A': 0, 'B': 1, 'C': 2, 'D': 3}
+        result = letter_to_index.get(correct_answer_raw.upper(), 0)
+        if correct_answer_raw.upper() not in letter_to_index:
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.VALIDATION,
+                message=f"Неизвестный буквенный ответ при конвертации: {correct_answer_raw}, использован индекс 0 по умолчанию"
+            )
+        return result
+    else:
+        if correct_answer_raw is None:
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.VALIDATION,
+                message="Получен None при конвертации ответа, использован индекс 0 по умолчанию"
+            )
+            return 0
+        return correct_answer_raw
 
 def validate_object_id(id_string: str) -> bool:
     """Проверка валидности ObjectId"""
@@ -240,6 +326,11 @@ def validate_object_id(id_string: str) -> bool:
         ObjectId(id_string)
         return True
     except (InvalidId, TypeError):
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.VALIDATION,
+            message=f"Попытка использования невалидного ObjectId: {id_string[:50] if id_string else 'None'}"
+        )
         return False
 
 async def validate_answer_integrity(lobby_id: str, question_id: str, answer_index: int) -> bool:
@@ -248,13 +339,21 @@ async def validate_answer_integrity(lobby_id: str, question_id: str, answer_inde
         # Получаем лобби
         lobby = await db.lobbies.find_one({"_id": lobby_id})
         if not lobby or question_id not in lobby.get("question_ids", []):
-            logger.error(f"Question {question_id} not in lobby {lobby_id}")
+            logger.error(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.SECURITY,
+                message=f"Нарушение целостности: вопрос {question_id} не принадлежит лобби {lobby_id}"
+            )
             return False
         
         # Получаем вопрос напрямую из базы данных
         question = await db.questions.find_one({"_id": ObjectId(question_id)})
         if not question:
-            logger.error(f"Question {question_id} not found in database")
+            logger.error(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.SECURITY,
+                message=f"Нарушение целостности: вопрос {question_id} не найден в базе данных"
+            )
             return False
         
         # Проверяем, что индекс ответа валиден
@@ -264,17 +363,33 @@ async def validate_answer_integrity(lobby_id: str, question_id: str, answer_inde
         elif "answers" in question:
             options_count = len(question["answers"])
         else:
-            logger.error(f"Question {question_id} has no options or answers")
+            logger.error(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.SECURITY,
+                message=f"Нарушение целостности: вопрос {question_id} не содержит вариантов ответов"
+            )
             return False
             
         if answer_index < 0 or answer_index >= options_count:
-            logger.error(f"Invalid answer index {answer_index} for question {question_id}. Available options: {options_count}")
+            logger.error(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.SECURITY,
+                message=f"Нарушение целостности: недопустимый индекс ответа {answer_index} для вопроса {question_id}, доступно вариантов {options_count}"
+            )
             return False
             
-        logger.info(f"Answer validation passed for question {question_id}, index {answer_index}, options available: {options_count}")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.VALIDATION,
+            message=f"Проверка целостности пройдена: вопрос {question_id}, индекс ответа {answer_index}, доступно вариантов {options_count}"
+        )
         return True
     except Exception as e:
-        logger.error(f"Error validating answer integrity: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка проверки целостности ответа: лобби {lobby_id}, вопрос {question_id}, ошибка {str(e)}"
+        )
         return False
 
 def get_user_id(current_user):
@@ -307,7 +422,11 @@ async def auto_finish_expired_lobbies():
             }).to_list(None)
             
             for lobby in expired_lobbies:
-                logger.info(f"Auto-finishing expired lobby {lobby['_id']} (created at {lobby['created_at']})")
+                logger.info(
+                    section=LogSection.LOBBY,
+                    subsection=LogSubsection.LOBBY.LIFECYCLE,
+                    message=f"Автозакрытие просроченного лобби: лобби {lobby['_id']} создано {lobby['created_at']}, превышен лимит {MAX_LOBBY_LIFETIME} секунд"
+                )
                 
                 # Set the lobby as finished
                 await db.lobbies.update_one(
@@ -330,7 +449,11 @@ async def auto_finish_expired_lobbies():
                         "data": {"auto_finished": True, "reason": "Time limit exceeded (4 hours)"}
                     })
                 except Exception as e:
-                    logger.error(f"Error sending WebSocket notification: {str(e)}")
+                    logger.error(
+                        section=LogSection.WEBSOCKET,
+                        subsection=LogSubsection.WEBSOCKET.ERROR,
+                        message=f"Ошибка отправки WS уведомления об автозакрытии: лобби {lobby['_id']}, ошибка {str(e)}"
+                    )
             
             # Check exam mode timers
             exam_lobbies = await db.lobbies.find({
@@ -340,7 +463,11 @@ async def auto_finish_expired_lobbies():
             }).to_list(None)
             
             for lobby in exam_lobbies:
-                logger.info(f"Auto-finishing exam lobby {lobby['_id']} due to timer expiration")
+                logger.info(
+                    section=LogSection.LOBBY,
+                    subsection=LogSubsection.LOBBY.EXAM,
+                    message=f"Автозакрытие экзаменационного лобби: лобби {lobby['_id']} завершён по истечении таймера экзамена"
+                )
                 
                 # Calculate duration
                 duration = (current_time - lobby.get("created_at", current_time)).total_seconds()
@@ -393,23 +520,40 @@ async def auto_finish_expired_lobbies():
                         }
                     })
                 except Exception as e:
-                    logger.error(f"Error sending WebSocket notification: {str(e)}")
+                    logger.error(
+                        section=LogSection.WEBSOCKET,
+                        subsection=LogSubsection.WEBSOCKET.ERROR,
+                        message=f"Ошибка отправки WS уведомления об истечении таймера экзамена: лобби {lobby['_id']}, ошибка {str(e)}"
+                    )
             
             # Очистка кэша каждые 5 минут (300 секунд / 60 = 5 итераций)
             cleanup_counter += 1
             if cleanup_counter >= 5:
                 lobby_cache.cleanup_old_cache()
                 cleanup_counter = 0
-                logger.info("Cache cleanup performed")
+                logger.info(
+                    section=LogSection.SYSTEM,
+                    subsection=LogSubsection.SYSTEM.MAINTENANCE,
+                    message="Очистка кэша выполнена: удалены устаревшие записи лобби и подписок"
+                )
             
             # Check every minute
             await asyncio.sleep(60)
         except Exception as e:
-            logger.error(f"Error in auto_finish_expired_lobbies: {str(e)}")
+            logger.error(
+                section=LogSection.SYSTEM,
+                subsection=LogSubsection.SYSTEM.ERROR,
+                message=f"Ошибка в фоновой задаче автозакрытия лобби: {str(e)}"
+            )
             await asyncio.sleep(60)  # Still wait before retrying
 
 # Create a function to start background tasks that will be registered in main.py
 async def start_background_tasks():
+    logger.info(
+        section=LogSection.SYSTEM,
+        subsection=LogSubsection.SYSTEM.INITIALIZATION,
+        message="Запуск фоновых задач: инициализация задачи автозавершения просроченных лобби"
+    )
     asyncio.create_task(auto_finish_expired_lobbies())
 
 @router.post("/lobbies", summary="Создать новое лобби")
@@ -427,7 +571,11 @@ async def create_lobby(
     - В solo режиме тест запускается автоматически
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Запрос на создание лобби от пользователя: {user_id}, режим: {lobby_data.mode}")
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.CREATION,
+        message=f"Запрос создания лобби: пользователь {user_id} создаёт {lobby_data.mode}-лобби на {lobby_data.questions_count} вопросов"
+    )
     
     try:
         # Используем количество вопросов из запроса
@@ -457,10 +605,18 @@ async def create_lobby(
                             "auto_finished": True
                         }}
                     )
-                    logger.info(f"Автоматически завершен просроченный тест {active_lobby['_id']} для пользователя {user_id}")
+                    logger.info(
+                        section=LogSection.LOBBY,
+                        subsection=LogSubsection.LOBBY.LIFECYCLE,
+                        message=f"Автозавершение просроченного лобби: лобби {active_lobby['_id']} пользователя {user_id} закрыто по таймауту {MAX_LOBBY_LIFETIME} секунд"
+                    )
                 else:
                     # Lobby is still active and not expired
-                    logger.warning(f"Пользователь {user_id} уже имеет активный тест: {active_lobby['_id']}")
+                    logger.warning(
+                        section=LogSection.LOBBY,
+                        subsection=LogSubsection.LOBBY.SECURITY,
+                        message=f"Блокировка создания лобби: пользователь {user_id} имеет активное лобби {active_lobby['_id']}, осталось {MAX_LOBBY_LIFETIME - lobby_age:.0f} секунд"
+                    )
                     remaining_seconds = MAX_LOBBY_LIFETIME - lobby_age
                     raise HTTPException(
                         status_code=400, 
@@ -472,7 +628,11 @@ async def create_lobby(
                     )
             else:
                 # If created_at is missing for some reason, just report the lobby as active
-                logger.warning(f"Пользователь {user_id} уже имеет активный тест: {active_lobby['_id']}")
+                logger.warning(
+                    section=LogSection.LOBBY,
+                    subsection=LogSubsection.LOBBY.SECURITY,
+                    message=f"Блокировка создания лобби: пользователь {user_id} имеет активное лобби {active_lobby['_id']} без времени создания"
+                )
                 raise HTTPException(
                     status_code=400, 
                     detail={
@@ -484,14 +644,26 @@ async def create_lobby(
         if not subscription:
             # Демо-режим или бесплатный доступ
             subscription_type = "Demo"
-            logger.info(f"Пользователь {user_id} без подписки, установлен demo-режим")
+            logger.info(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.SUBSCRIPTION,
+                message=f"Подписка не найдена: пользователь {user_id} работает в Demo-режиме"
+            )
         else:
             subscription_type = subscription["subscription_type"]
-            logger.info(f"Пользователь {user_id} с подпиской: {subscription_type}")
+            logger.info(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.SUBSCRIPTION,
+                message=f"Подписка найдена: пользователь {user_id} имеет подписку {subscription_type}"
+            )
         
         # Проверка прав на создание лобби
         if lobby_data.mode == "multi" and subscription_type not in ["Royal", "School"]:
-            logger.warning(f"Отказ в создании multi-лобби пользователю {user_id} с подпиской {subscription_type}")
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.SECURITY,
+                message=f"Отказ в мультиплеере: пользователь {user_id} с подпиской {subscription_type} не может создать multi-лобби, требуется Royal или School"
+            )
             raise HTTPException(
                 status_code=403, 
                 detail="Для создания многопользовательского лобби требуется подписка Royal или School"
@@ -499,7 +671,11 @@ async def create_lobby(
         
         # Обрабатываем разделы ПДД (доступно для VIP, Royal и School)
         if lobby_data.pdd_section_uids is not None and subscription_type.lower() not in ["vip", "royal", "school"]:
-            logger.warning(f"Отказ в выборе разделов ПДД пользователю {user_id} с подпиской {subscription_type}")
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.SECURITY,
+                message=f"Отказ в выборе разделов ПДД: пользователь {user_id} с подпиской {subscription_type} не может выбирать разделы, требуется VIP/Royal/School"
+            )
             raise HTTPException(
                 status_code=403,
                 detail="Выбор разделов ПДД доступен только для подписок VIP, Royal и School"
@@ -509,7 +685,11 @@ async def create_lobby(
         if subscription_type == "Economy":
             allowed_categories = ["A1", "A", "B1", "B", "BE"]
             if lobby_data.categories and not all(cat in allowed_categories for cat in lobby_data.categories):
-                logger.warning(f"Отказ в выборе категории пользователю {user_id} с подпиской Economy")
+                logger.warning(
+                    section=LogSection.LOBBY,
+                    subsection=LogSubsection.LOBBY.SECURITY,
+                    message=f"Отказ в выборе категорий: пользователь {user_id} с подпиской {subscription_type} пытался выбрать {lobby_data.categories}, разрешены {allowed_categories}"
+                )
                 raise HTTPException(status_code=403, detail="Ваша подписка не даёт доступа к выбранным категориям")
             
             # Для Economy нельзя выбирать разделы
@@ -522,11 +702,19 @@ async def create_lobby(
                 category_group = ["B", "BE"]
             
             lobby_data.categories = category_group
-            logger.info(f"Установлены категории для Economy: {lobby_data.categories}")
+            logger.info(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.VALIDATION,
+                message=f"Автоматический выбор категорий: для подписки {subscription_type} установлены категории {lobby_data.categories}"
+            )
             
         elif subscription_type == "Vip":
             # Vip может выбирать любые категории и разделы ПДД
-            logger.info(f"VIP подписка, разрешены все категории и разделы ПДД")
+            logger.info(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.VALIDATION,
+                message=f"VIP подписка: пользователь {user_id} получил доступ ко всем категориям и разделам ПДД"
+            )
             
         # Построение фильтра для запроса вопросов
         query = {"deleted": False}
@@ -537,12 +725,20 @@ async def create_lobby(
         if lobby_data.pdd_section_uids and subscription_type.lower() in ["vip", "royal", "school"]:
             query["pdd_section_uids"] = {"$in": lobby_data.pdd_section_uids}
         
-        logger.info(f"Фильтр для вопросов: {query}")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.QUESTIONS,
+            message=f"Фильтр для поиска вопросов: {query}"
+        )
         
         # Выбор случайных вопросов из коллекции вопросов
         total_questions = await db.questions.count_documents(query)
         if total_questions == 0:
-            logger.error(f"Не найдено вопросов для фильтра: {query}")
+            logger.error(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.QUESTIONS,
+                message=f"Вопросы не найдены: для фильтра {query} не найдено ни одного вопроса"
+            )
             raise HTTPException(
                 status_code=404, 
                 detail="Не найдено вопросов для выбранных категорий и разделов"
@@ -554,7 +750,11 @@ async def create_lobby(
         # Убедимся, что не больше 40 вопросов
         questions_count = min(questions_count, 40)
         
-        logger.info(f"Будет выбрано {questions_count} вопросов из {total_questions} доступных")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.QUESTIONS,
+            message=f"Выборка вопросов: будет выбрано {questions_count} вопросов из {total_questions} доступных"
+        )
         
         # Получаем случайную выборку вопросов из БД
         questions_cursor = db.questions.aggregate([
@@ -564,7 +764,11 @@ async def create_lobby(
         questions = await questions_cursor.to_list(length=questions_count)
         question_ids = [str(q["_id"]) for q in questions]
         
-        logger.info(f"Выбрано {len(question_ids)} вопросов")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.QUESTIONS,
+            message=f"Вопросы успешно выбраны: получено {len(question_ids)} вопросов для лобби"
+        )
         
         # Составляем словарь правильных ответов для выбранных вопросов
         correct_answers_map = {}
@@ -600,11 +804,19 @@ async def create_lobby(
 
         # Генерируем уникальный ID лобби
         lobby_id = await generate_unique_lobby_id()
-        logger.info(f"Сгенерирован ID лобби: {lobby_id}")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.CREATION,
+            message=f"ID лобби сгенерирован: создано уникальное лобби {lobby_id}"
+        )
         
         # Определяем начальный статус - для solo сразу in_progress, для multi/multiplayer - waiting
         initial_status = "waiting" if lobby_data.mode in ["multi", "multiplayer"] else "in_progress"
-        logger.info(f"Установлен начальный статус лобби: {initial_status}")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.LIFECYCLE,
+            message=f"Статус лобби установлен: лобби {lobby_id} получило статус {initial_status} для режима {lobby_data.mode}"
+        )
         
         # Подготавливаем данные лобби
         current_time = datetime.utcnow()
@@ -633,11 +845,19 @@ async def create_lobby(
             lobby_doc["exam_timer_duration"] = EXAM_TIMER_DURATION
             lobby_doc["exam_timer_expires_at"] = current_time + timedelta(seconds=EXAM_TIMER_DURATION)
             lobby_doc["exam_timer_started_at"] = current_time
-            logger.info(f"Установлен таймер экзамена на {EXAM_TIMER_DURATION} секунд для лобби {lobby_id}")
+            logger.info(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.EXAM,
+                message=f"Таймер экзамена установлен: лобби {lobby_id} получило таймер на {EXAM_TIMER_DURATION} секунд до {lobby_doc['exam_timer_expires_at']}"
+            )
         
         try:
             await db.lobbies.insert_one(lobby_doc)
-            logger.info(f"Лобби {lobby_id} успешно создано в базе данных")
+            logger.info(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.DATABASE,
+                message=f"Лобби сохранено в БД: лобби {lobby_id} успешно создано с {questions_count} вопросами в режиме {lobby_data.mode}"
+            )
             
             # Если solo режим, отправляем WebSocket сообщение о начале теста
             if lobby_data.mode not in ["multi", "multiplayer"]:
@@ -645,14 +865,22 @@ async def create_lobby(
                 if first_question_id:
                     try:
                         # Отправляем событие START и ID первого вопроса
-                        logger.info(f"Отправка WS-сообщения start, вопрос: {first_question_id} для solo режима")
+                        logger.info(
+                            section=LogSection.WEBSOCKET,
+                            subsection=LogSubsection.WEBSOCKET.MESSAGE_SEND,
+                            message=f"Отправка WS старта: лобби {lobby_id} solo-режим, отправляется start с вопросом {first_question_id}"
+                        )
                         await ws_manager.send_json(lobby_id, {
                             "type": "start",
                             "data": {"question_id": first_question_id}
                         })
 
                     except Exception as e:
-                        logger.error(f"Ошибка при отправке WebSocket сообщения: {str(e)}")
+                        logger.error(
+                            section=LogSection.WEBSOCKET,
+                            subsection=LogSubsection.WEBSOCKET.ERROR,
+                            message=f"Ошибка отправки WS сообщения: лобби {lobby_id}, ошибка {str(e)}"
+                        )
             
             response_data = {
                 "lobby_id": lobby_id, 
@@ -672,17 +900,23 @@ async def create_lobby(
             return success(data=response_data)
         except Exception as e:
             # Логируем ошибку
-            logger.error(f"Ошибка при создании лобби: {str(e)}")
+            logger.error(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.DATABASE,
+                message=f"Ошибка сохранения лобби: лобби {lobby_id}, ошибка {str(e)}"
+            )
             raise HTTPException(status_code=500, detail=f"Ошибка при создании лобби: {str(e)}")
     except HTTPException:
         # Пропускаем HTTP исключения дальше
         raise
     except Exception as e:
         # Логируем и обрабатываем неожиданные ошибки
-        logger.error(f"Непредвиденная ошибка при создании лобби: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Критическая ошибка создания лобби: пользователь {user_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
-
-
 
 @router.post("/lobbies/{lobby_id}/join", summary="Присоединиться к лобби")
 async def join_lobby(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
@@ -691,30 +925,50 @@ async def join_lobby(lobby_id: str, request: Request = None, current_user: dict 
     Проверяет, что лобби существует, не заполнено и пользователь не в черном списке.
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Пользователь {user_id} пытается присоединиться к лобби {lobby_id}")
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.ACCESS,
+        message=f"Попытка присоединения к лобби: пользователь {user_id} пытается присоединиться к лобби {lobby_id}"
+    )
     
     try:
         # Получаем информацию о лобби
         lobby = await db.lobbies.find_one({"_id": lobby_id})
         if not lobby:
-            logger.warning(f"Лобби {lobby_id} не найдено")
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.ACCESS,
+                message=f"Лобби не найдено: пользователь {user_id} пытается присоединиться к несуществующему лобби {lobby_id}"
+            )
             raise HTTPException(status_code=404, detail="Лобби не найдено")
         
         # Проверяем, что пользователь не в черном списке
         blacklisted_users = lobby.get("blacklisted_users", [])
         if user_id in blacklisted_users:
-            logger.warning(f"Пользователь {user_id} в черном списке лобби {lobby_id}")
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.SECURITY,
+                message=f"Заблокированный пользователь: пользователь {user_id} в чёрном списке лобби {lobby_id}"
+            )
             raise HTTPException(status_code=403, detail="Вы были исключены из этого лобби и не можете присоединиться снова")
         
         # Проверяем статус лобби
         if lobby["status"] == "finished":
-            logger.warning(f"Лобби {lobby_id} уже завершено")
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.ACCESS,
+                message=f"Попытка присоединения к завершённому лобби: пользователь {user_id}, лобби {lobby_id} статус finished"
+            )
             raise HTTPException(status_code=400, detail="Лобби уже завершено")
         
         # Если лобби уже запущено, перенаправляем на страницу теста
         if lobby["status"] == "in_progress":
             if user_id in lobby.get("participants", []):
-                logger.info(f"Пользователь {user_id} пытается присоединиться к уже запущенному лобби {lobby_id}, в котором участвует")
+                logger.info(
+                    section=LogSection.LOBBY,
+                    subsection=LogSubsection.LOBBY.ACCESS,
+                    message=f"Переподключение к активному тесту: пользователь {user_id} переподключается к запущенному лобби {lobby_id}"
+                )
                 return success(data={
                     "message": "Перенаправление на активный тест",
                     "redirect": f"/multiplayer/test/{lobby_id}",
@@ -725,7 +979,11 @@ async def join_lobby(lobby_id: str, request: Request = None, current_user: dict 
         
         # Проверяем, что пользователь еще не участник
         if user_id in lobby.get("participants", []):
-            logger.info(f"Пользователь {user_id} уже участник лобби {lobby_id}")
+            logger.info(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.ACCESS,
+                message=f"Пользователь уже участник: пользователь {user_id} уже участвует в лобби {lobby_id}"
+            )
             return success(data={
                 "message": "Вы уже участник этого лобби",
                 "lobby_id": lobby_id,
@@ -737,7 +995,11 @@ async def join_lobby(lobby_id: str, request: Request = None, current_user: dict 
         max_participants = lobby.get("max_participants", 8)
         
         if current_participants >= max_participants:
-            logger.warning(f"Лобби {lobby_id} заполнено ({current_participants}/{max_participants})")
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.ACCESS,
+                message=f"Лобби переполнено: лобби {lobby_id} заполнено {current_participants}/{max_participants}, отказ пользователю {user_id}"
+            )
             raise HTTPException(status_code=400, detail=f"Лобби заполнено ({current_participants}/{max_participants})")
         
         # Получаем информацию о пользователе для WebSocket уведомления
@@ -753,7 +1015,11 @@ async def join_lobby(lobby_id: str, request: Request = None, current_user: dict 
                 if user_data:
                     user_name = user_data.get("full_name", "Unknown User")
             except Exception as e:
-                logger.warning(f"Could not fetch user data for {user_id}: {str(e)}")
+                logger.warning(
+                    section=LogSection.LOBBY,
+                    subsection=LogSubsection.LOBBY.DATABASE,
+                    message=f"Не удалось получить данные пользователя: пользователь {user_id}, ошибка {str(e)}"
+                )
         
         # Добавляем пользователя к участникам лобби
         await db.lobbies.update_one(
@@ -764,7 +1030,11 @@ async def join_lobby(lobby_id: str, request: Request = None, current_user: dict 
         # Инвалидируем кэш лобби
         lobby_cache.invalidate_lobby(lobby_id)
         
-        logger.info(f"Пользователь {user_id} ({user_name}) успешно присоединился к лобби {lobby_id}")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ACCESS,
+            message=f"Успешное присоединение: пользователь {user_id} ({user_name}) присоединился к лобби {lobby_id}, участников {current_participants + 1}/{max_participants}"
+        )
         
         # Отправляем WebSocket уведомление о присоединении пользователя
         try:
@@ -778,7 +1048,11 @@ async def join_lobby(lobby_id: str, request: Request = None, current_user: dict 
                 }
             })
         except Exception as e:
-            logger.error(f"Ошибка при отправке WebSocket уведомления: {str(e)}")
+            logger.error(
+                section=LogSection.WEBSOCKET,
+                subsection=LogSubsection.WEBSOCKET.ERROR,
+                message=f"Ошибка отправки WS уведомления о присоединении: лобби {lobby_id}, пользователь {user_id}, ошибка {str(e)}"
+            )
         
         return success(data={
             "message": "Успешно присоединились к лобби",
@@ -791,7 +1065,11 @@ async def join_lobby(lobby_id: str, request: Request = None, current_user: dict 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Ошибка при присоединении к лобби: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка присоединения к лобби: пользователь {user_id}, лобби {lobby_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Ошибка при присоединении к лобби")
 
 @router.post("/lobbies/{lobby_id}/start", summary="Начать тест")
@@ -800,24 +1078,44 @@ async def start_test(lobby_id: str, request: Request = None, current_user: dict 
     Начинает тест в лобби. Только создатель лобби может начать тест.
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Пользователь {user_id} пытается начать тест в лобби {lobby_id}")
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.LIFECYCLE,
+        message=f"Попытка запуска теста: пользователь {user_id} пытается начать тест в лобби {lobby_id}"
+    )
     
     try:
         lobby = await db.lobbies.find_one({"_id": lobby_id})
         if not lobby:
-            logger.error(f"Лобби {lobby_id} не найдено")
+            logger.error(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.ACCESS,
+                message=f"Лобби не найдено для запуска: пользователь {user_id} пытается запустить несуществующее лобби {lobby_id}"
+            )
             raise HTTPException(status_code=404, detail="Лобби не найдено")
         
         if lobby["host_id"] != user_id:
-            logger.warning(f"Пользователь {user_id} пытается начать тест в чужом лобби {lobby_id}")
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.SECURITY,
+                message=f"Нет прав на запуск: пользователь {user_id} пытается запустить чужое лобби {lobby_id}, хост {lobby['host_id']}"
+            )
             raise HTTPException(status_code=403, detail="Только создатель лобби может начать тест")
         
         if lobby["status"] != "waiting":
-            logger.warning(f"Попытка начать тест в лобби {lobby_id} со статусом {lobby['status']}")
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.LIFECYCLE,
+                message=f"Неверный статус для запуска: лобби {lobby_id} имеет статус {lobby['status']}, ожидается waiting"
+            )
             raise HTTPException(status_code=400, detail="Тест уже начат или завершен")
         
         if len(lobby["participants"]) < 2:
-            logger.warning(f"Попытка начать тест в лобби {lobby_id} с недостаточным количеством участников")
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.VALIDATION,
+                message=f"Недостаточно участников: лобби {lobby_id} имеет {len(lobby['participants'])} участников, требуется минимум 2"
+            )
             raise HTTPException(status_code=400, detail="Необходимо минимум 2 участника для начала теста")
         
         # Обновляем статус лобби
@@ -829,7 +1127,11 @@ async def start_test(lobby_id: str, request: Request = None, current_user: dict 
         # Инвалидируем кэш лобби после изменения статуса
         lobby_cache.invalidate_lobby(lobby_id)
         
-        logger.info(f"Тест в лобби {lobby_id} успешно начат")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.LIFECYCLE,
+            message=f"Тест успешно запущен: лобби {lobby_id} переведено в статус in_progress, участников {len(lobby['participants'])}"
+        )
         
         # Отправляем WebSocket сообщение о начале теста
         try:
@@ -841,16 +1143,22 @@ async def start_test(lobby_id: str, request: Request = None, current_user: dict 
                 }
             })
         except Exception as e:
-            logger.error(f"Ошибка при отправке WebSocket сообщения о начале теста: {str(e)}")
+            logger.error(
+                section=LogSection.WEBSOCKET,
+                subsection=LogSubsection.WEBSOCKET.ERROR,
+                message=f"Ошибка отправки WS уведомления о запуске теста: лобби {lobby_id}, ошибка {str(e)}"
+            )
         
         return success(data={"message": "Тест успешно начат"})
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Ошибка при начале теста: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка запуска теста: лобби {lobby_id}, пользователь {user_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Ошибка при начале теста")
-
-
 
 @router.get("/lobbies/{lobby_id}/questions/{question_id}", summary="Получить данные вопроса")
 async def get_question(lobby_id: str, question_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
@@ -865,7 +1173,11 @@ async def get_question(lobby_id: str, question_id: str, request: Request = None,
     - Запрашиваемый вопрос должен быть текущим или уже отвеченным
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Пользователь {user_id} запрашивает вопрос {question_id} в лобби {lobby_id}")
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.ACCESS,
+        message=f"Запрос вопроса: пользователь {user_id} запрашивает вопрос {question_id} в лобби {lobby_id}"
+    )
     
     try:
         # Используем централизованную валидацию с кэшированием
@@ -873,14 +1185,22 @@ async def get_question(lobby_id: str, question_id: str, request: Request = None,
         
         # Проверяем, что запрашиваемый вопрос входит в список вопросов лобби
         if question_id not in lobby["question_ids"]:
-            logger.warning(f"Запрашиваемый вопрос {question_id} не входит в список вопросов лобби {lobby_id}")
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.SECURITY,
+                message=f"Нарушение безопасности: пользователь {user_id} пытается получить вопрос {question_id}, не принадлежащий лобби {lobby_id}"
+            )
             raise HTTPException(status_code=403, detail="Запрашиваемый вопрос не является частью этого теста")
 
         # Проверяем, является ли этот вопрос текущим или уже отвеченным
         current_index = lobby.get("current_index", 0)
         
         if current_index >= len(lobby["question_ids"]):
-            logger.error(f"Некорректный индекс текущего вопроса в лобби {lobby_id}: {current_index}")
+            logger.error(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.VALIDATION,
+                message=f"Некорректный индекс вопроса: лобби {lobby_id} имеет индекс {current_index} при {len(lobby['question_ids'])} вопросах"
+            )
             raise HTTPException(status_code=500, detail="Некорректный индекс текущего вопроса")
             
         current_question_id = lobby["question_ids"][current_index]
@@ -892,13 +1212,21 @@ async def get_question(lobby_id: str, question_id: str, request: Request = None,
             # В мультиплеере разрешаем доступ к текущему и предыдущим вопросам
             # Запрещаем только доступ к будущим вопросам
             if question_index > current_index:
-                logger.warning(f"Пользователь {user_id} пытается получить доступ к будущему вопросу {question_id} (индекс {question_index}, текущий индекс {current_index})")
+                logger.warning(
+                    section=LogSection.LOBBY,
+                    subsection=LogSubsection.LOBBY.SECURITY,
+                    message=f"Попытка доступа к будущему вопросу: пользователь {user_id} пытается получить вопрос {question_id} (индекс {question_index}), текущий индекс {current_index}"
+                )
                 raise HTTPException(status_code=403, detail="Доступ к этому вопросу пока не разрешен")
 
         # Запрашиваем вопрос из коллекции вопросов
         question = await db.questions.find_one({"_id": ObjectId(question_id)})
         if not question:
-            logger.error(f"Вопрос {question_id} не найден в базе данных")
+            logger.error(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.QUESTIONS,
+                message=f"Вопрос не найден в БД: вопрос {question_id} не найден в коллекции questions"
+            )
             raise HTTPException(status_code=404, detail="Вопрос не найден")
         
         # Проверяем, отвечал ли уже пользователь на этот вопрос
@@ -928,12 +1256,20 @@ async def get_question(lobby_id: str, question_id: str, request: Request = None,
         else:
             question_out["explanation"] = None  # Объяснение будет доступно только после ответа
         
-        logger.info(f"Успешно возвращен вопрос {question_id} для пользователя {user_id} в лобби {lobby_id}")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ACCESS,
+            message=f"Вопрос успешно возвращён: пользователь {user_id} получил вопрос {question_id} в лобби {lobby_id}, уже отвечал: {has_answered}"
+        )
         return success(data=question_out)
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Ошибка при получении вопроса {question_id} в лобби {lobby_id}: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка получения вопроса: лобби {lobby_id}, вопрос {question_id}, пользователь {user_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
 
 @router.get("/files/media/{question_id}", summary="Получить медиа-файл вопроса")
@@ -949,13 +1285,21 @@ async def get_question_media(
     - Проверяет, что вопрос является текущим или уже отвеченным
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Пользователь {user_id} запрашивает медиа для вопроса {question_id}")
+    logger.info(
+        section=LogSection.FILES,
+        subsection=LogSubsection.FILES.ACCESS,
+        message=f"Запрос медиа файла: пользователь {user_id} запрашивает медиа для вопроса {question_id}"
+    )
     
     try:
         # Находим вопрос в базе данных
         question = await db.questions.find_one({"_id": ObjectId(question_id)})
         if not question:
-            logger.warning(f"Вопрос {question_id} не найден")
+            logger.warning(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.VALIDATION,
+                message=f"Вопрос не найден: пользователь {user_id} запрашивает медиа для несуществующего вопроса {question_id}"
+            )
             return StreamingResponse(
                 iter([b'']),
                 media_type='image/svg+xml',
@@ -965,7 +1309,11 @@ async def get_question_media(
         # Проверяем наличие медиа-файла
         media_file_id = question.get("media_file_id")
         if not media_file_id:
-            logger.warning(f"У вопроса {question_id} нет media_file_id")
+            logger.warning(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.VALIDATION,
+                message=f"Медиа файл отсутствует: вопрос {question_id} не имеет media_file_id"
+            )
             return StreamingResponse(
                 iter([b'']),
                 media_type='image/svg+xml',
@@ -980,7 +1328,11 @@ async def get_question_media(
             "status": "in_progress"
         }).to_list(None)
         
-        logger.info(f"Найдено {len(active_lobbies)} активных лобби для пользователя {user_id} с вопросом {question_id}")
+        logger.info(
+            section=LogSection.FILES,
+            subsection=LogSubsection.FILES.ACCESS,
+            message=f"Поиск медиа доступа: найдено {len(active_lobbies)} активных лобби для пользователя {user_id} с вопросом {question_id}"
+        )
         
         if not active_lobbies:
             # Дополнительная проверка - может быть лобби в другом статусе
@@ -989,11 +1341,25 @@ async def get_question_media(
                 "question_ids": question_id
             }).to_list(None)
             
-            logger.warning(f"Пользователь {user_id} запрашивает медиа для вопроса {question_id}. Активных лобби: 0, всего лобби с этим вопросом: {len(all_user_lobbies)}")
+            logger.warning(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.ACCESS,
+                message=f"Нет активных лобби: пользователь {user_id} запрашивает медиа для вопроса {question_id}, активных лобби 0, всего лобби с вопросом {len(all_user_lobbies)}"
+            )
             
             if all_user_lobbies:
                 for lobby in all_user_lobbies:
-                    logger.info(f"Лобби {lobby['_id']}: статус={lobby.get('status')}, участники={len(lobby.get('participants', []))}")
+                    logger.info(
+                        section=LogSection.FILES,
+                        subsection=LogSubsection.FILES.ACCESS,
+                        message=f"Анализ лобби доступа: лобби {lobby['_id']}, статус {lobby.get('status')}, участников {len(lobby.get('participants', []))}"
+                    )
+            
+            logger.warning(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.SECURITY,
+                message=f"Нет доступа к медиа: пользователь {user_id} запрашивает медиа для вопроса {question_id}, но нет активных лобби с этим вопросом"
+            )
             
             return StreamingResponse(
                 iter([b'']),
@@ -1013,16 +1379,28 @@ async def get_question_media(
             is_current = question_id == current_question_id
             is_answered = question_id in user_answers
             
-            logger.info(f"Проверка доступа в лобби {lobby['_id']}: is_host={is_host}, is_current={is_current} (current_q={current_question_id}), is_answered={is_answered}")
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.SECURITY,
+                message=f"Проверка доступа к медиа: лобби {lobby['_id']}, хост {is_host}, текущий {is_current} (current_q={current_question_id}), отвечен {is_answered}"
+            )
             
             if is_host or is_current or is_answered:
                 has_access = True
                 active_lobby = lobby
-                logger.info(f"Доступ разрешен в лобби {lobby['_id']}")
+                logger.info(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.ACCESS,
+                    message=f"Доступ к медиа разрешён: лобби {lobby['_id']}, пользователь {user_id}"
+                )
                 break
                 
         if not has_access:
-            logger.warning(f"Пользователь {user_id} не имеет доступа к медиа для вопроса {question_id}")
+            logger.warning(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.SECURITY,
+                message=f"Доступ к медиа запрещён: пользователь {user_id} не имеет доступа к вопросу {question_id}"
+            )
             
             # ВРЕМЕННОЕ РЕШЕНИЕ: Разрешаем доступ к медиа если файл существует и пользователь участник любого лобби с этим вопросом
             any_lobby_with_question = await db.lobbies.find_one({
@@ -1031,7 +1409,11 @@ async def get_question_media(
             })
             
             if any_lobby_with_question:
-                logger.info(f"ВРЕМЕННЫЙ ДОСТУП: Разрешаем доступ к медиа для пользователя {user_id} в лобби {any_lobby_with_question['_id']}")
+                logger.info(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.ACCESS,
+                    message=f"Временный доступ к медиа: разрешён доступ пользователю {user_id} в лобби {any_lobby_with_question['_id']}"
+                )
                 active_lobby = any_lobby_with_question
                 has_access = True
             else:
@@ -1043,23 +1425,39 @@ async def get_question_media(
             
         # Получаем медиа-файл из GridFS
         try:
-            logger.info(f"Получение медиа-файла с ID {media_file_id} для вопроса {question_id}")
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.GRIDFS,
+                message=f"Получение медиа из GridFS: запрашивается файл {media_file_id} для вопроса {question_id}"
+            )
             
             # Проверяем существование файла в GridFS перед попыткой получения
             file_exists = await db.fs.files.find_one({"_id": ObjectId(media_file_id)})
             if not file_exists:
-                logger.error(f"Медиа-файл {media_file_id} не найден в fs.files коллекции")
+                logger.error(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.GRIDFS,
+                    message=f"Медиа файл не найден в GridFS: файл {media_file_id} отсутствует в fs.files"
+                )
                 return StreamingResponse(
                     iter([b'']),
                     media_type='image/svg+xml',
                     headers={'Content-Disposition': 'inline; filename=not_found.svg'}
                 )
             
-            logger.info(f"Файл найден в fs.files: {file_exists.get('filename', 'unknown')} размер: {file_exists.get('length', 0)} байт")
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.GRIDFS,
+                message=f"Медиа файл найден в GridFS: файл {file_exists.get('filename', 'unknown')} размером {file_exists.get('length', 0)} байт"
+            )
             
             media_data = await get_media_file(str(media_file_id), db)
             if not media_data:
-                logger.error(f"Медиа-файл {media_file_id} не найден в GridFS или пуст")
+                logger.error(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.GRIDFS,
+                    message=f"Медиа файл пуст или повреждён: файл {media_file_id} не загружается из GridFS"
+                )
                 return StreamingResponse(
                     iter([b'']),
                     media_type='image/svg+xml',
@@ -1069,7 +1467,11 @@ async def get_question_media(
             # Получение информации о файле (content type)
             file_info = await db.fs.files.find_one({"_id": ObjectId(media_file_id)})
             if not file_info:
-                logger.error(f"Информация о файле {media_file_id} не найдена в GridFS")
+                logger.error(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.GRIDFS,
+                    message=f"Медиа файл не найден: информация о файле {media_file_id} отсутствует в GridFS"
+                )
                 content_type = "application/octet-stream"
                 filename = "media_file"
             else:
@@ -1096,14 +1498,22 @@ async def get_question_media(
                     elif lower_filename.endswith('.mov'):
                         content_type = "video/quicktime"
             
-            logger.info(f"Тип содержимого медиа-файла: {content_type}")
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.ACCESS,
+                message=f"Определён тип медиа: файл {media_file_id}, тип содержимого {content_type}"
+            )
             
             # Проверяем, является ли это видеофайлом
             is_video = content_type.startswith("video/")
             
             # Добавляем эту информацию в вопрос, если has_media не установлен
             if not question.get("has_media") and media_data:
-                logger.info(f"Обновляем информацию о медиа для вопроса {question_id}")
+                logger.info(
+                    section=LogSection.DATABASE,
+                    subsection=LogSubsection.DATABASE.UPDATE,
+                    message=f"Обновление метаданных медиа: вопрос {question_id}, добавлена информация о наличии медиа"
+                )
                 await db.questions.update_one(
                     {"_id": ObjectId(question_id)},
                     {"$set": {
@@ -1114,7 +1524,11 @@ async def get_question_media(
                 
                 # Также обновляем кэшированную информацию в лобби
                 if active_lobby and active_lobby.get("questions_data") and active_lobby["questions_data"].get(question_id):
-                    logger.info(f"Обновляем кэшированную информацию о медиа в лобби {active_lobby['_id']}")
+                    logger.info(
+                        section=LogSection.DATABASE,
+                        subsection=LogSubsection.DATABASE.UPDATE,
+                        message=f"Обновление кэша медиа: лобби {active_lobby['_id']}, вопрос {question_id}"
+                    )
                     await db.lobbies.update_one(
                         {"_id": active_lobby["_id"]},
                         {"$set": {
@@ -1131,14 +1545,22 @@ async def get_question_media(
             except UnicodeEncodeError:
                 # Только если есть кириллица - генерируем случайное имя
                 safe_filename = generate_safe_filename(filename)
-                logger.info(f"Основной файл с кириллическим именем переименован: {filename} -> {safe_filename}")
+                logger.info(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.ACCESS,
+                    message=f"Переименование медиа файла: {filename} -> {safe_filename} для безопасности HTTP заголовка"
+                )
             
             content_disposition = f"inline; filename={safe_filename}"
             
             # Return streaming response similar to the admin endpoint
             # Безопасное логирование заголовка
             safe_content_disposition = content_disposition.encode('ascii', errors='ignore').decode('ascii')
-            logger.info(f"Возвращаем StreamingResponse с заголовком: Content-Disposition: {safe_content_disposition}")
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.ACCESS,
+                message=f"Возврат медиа потока: Content-Disposition {safe_content_disposition}"
+            )
             try:
                 response = StreamingResponse(
                     iter([media_data]),
@@ -1149,14 +1571,26 @@ async def get_question_media(
                     }
                 )
                 safe_filename = filename.encode('ascii', errors='ignore').decode('ascii')
-                logger.info(f"StreamingResponse успешно создан для основного медиа файла {safe_filename}")
+                logger.info(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.ACCESS,
+                    message=f"Медиа поток создан успешно: файл {safe_filename}, размер {len(media_data)} байт"
+                )
                 return response
             except Exception as stream_error:
-                logger.error(f"Ошибка при создании StreamingResponse для основного медиа: {str(stream_error)}")
+                logger.error(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.ERROR,
+                    message=f"Ошибка создания медиа потока: файл {media_file_id}, ошибка {str(stream_error)}"
+                )
                 raise stream_error
             
         except Exception as e:
-            logger.error(f"Ошибка при получении медиа-файла для вопроса {question_id}: {str(e)}")
+            logger.error(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.ERROR,
+                message=f"Ошибка получения медиа: вопрос {question_id}, файл {media_file_id}, ошибка {str(e)}"
+            )
             return StreamingResponse(
                 iter([b'']),
                 media_type='image/svg+xml',
@@ -1166,9 +1600,11 @@ async def get_question_media(
     except HTTPException:
         raise
     except Exception as e:
-        # Безопасное логирование ошибки без кириллических символов
-        error_msg = str(e).encode('ascii', errors='ignore').decode('ascii')
-        logger.error(f"Непредвиденная ошибка при получении медиа для вопроса {question_id}: {error_msg}")
+        logger.error(
+            section=LogSection.FILES,
+            subsection=LogSubsection.FILES.ERROR,
+            message=f"Критическая ошибка получения медиа: вопрос {question_id}, пользователь {user_id}, ошибка {str(e)}"
+        )
         return StreamingResponse(
             iter([b'']),
             media_type='image/svg+xml',
@@ -1190,13 +1626,21 @@ async def get_after_answer_media(
     - Не позволяет получить медиа, если пользователь не ответил на вопрос
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Пользователь {user_id} запрашивает медиа после ответа для вопроса {question_id} в лобби {lobby_id or 'любом'}")
+    logger.info(
+        section=LogSection.FILES,
+        subsection=LogSubsection.FILES.ACCESS,
+        message=f"Запрос медиа после ответа: пользователь {user_id}, вопрос {question_id}, лобби {lobby_id or 'любое'}"
+    )
     
     try:
         # Находим вопрос в базе данных
         question = await db.questions.find_one({"_id": ObjectId(question_id)})
         if not question:
-            logger.warning(f"Вопрос {question_id} не найден")
+            logger.warning(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.VALIDATION,
+                message=f"Вопрос не найден: запрашиваемый вопрос {question_id} отсутствует в базе данных"
+            )
             return StreamingResponse(
                 iter([b'']),
                 media_type='image/svg+xml',
@@ -1206,7 +1650,11 @@ async def get_after_answer_media(
         # Проверяем наличие дополнительного медиа-файла
         after_answer_media_id = question.get("after_answer_media_file_id") or question.get("after_answer_media_id")
         if not after_answer_media_id:
-            logger.warning(f"У вопроса {question_id} нет дополнительного медиа-файла")
+            logger.warning(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.VALIDATION,
+                message=f"Нет дополнительного медиа: вопрос {question_id} не содержит after_answer_media_file_id"
+            )
             return StreamingResponse(
                 iter([b'']),
                 media_type='image/svg+xml',
@@ -1220,7 +1668,11 @@ async def get_after_answer_media(
             # Проверяем конкретное лобби
             lobby = await db.lobbies.find_one({"_id": lobby_id, "participants": user_id})
             if not lobby:
-                logger.warning(f"Лобби {lobby_id} не найдено или пользователь {user_id} не является его участником")
+                logger.warning(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.SECURITY,
+                    message=f"Доступ запрещён: лобби {lobby_id} не найдено или пользователь {user_id} не является участником"
+                )
                 return StreamingResponse(
                     iter([b'']),
                     media_type='image/svg+xml',
@@ -1229,7 +1681,11 @@ async def get_after_answer_media(
                 
             # Проверяем, входит ли вопрос в это лобби
             if question_id not in lobby.get("question_ids", []):
-                logger.warning(f"Вопрос {question_id} не входит в лобби {lobby_id}")
+                logger.warning(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.SECURITY,
+                    message=f"Вопрос не в лобби: вопрос {question_id} не входит в состав лобби {lobby_id}"
+                )
                 return StreamingResponse(
                     iter([b'']),
                     media_type='image/svg+xml',
@@ -1240,7 +1696,11 @@ async def get_after_answer_media(
             participant_answers = lobby.get("participants_answers", {}).get(user_id, {})
             has_answered = question_id in participant_answers
             
-            logger.info(f"Проверка ответа в лобби {lobby_id}: пользователь {user_id}, ответы: {list(participant_answers.keys())}, искомый вопрос: {question_id}, has_answered: {has_answered}")
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.VALIDATION,
+                message=f"Проверка ответа для медиа: лобби {lobby_id}, пользователь {user_id}, ответов {len(participant_answers)}, вопрос {question_id}, отвечен {has_answered}"
+            )
             
 
             
@@ -1258,13 +1718,21 @@ async def get_after_answer_media(
                     break
         
         if not has_answered:
-            logger.warning(f"Пользователь {user_id} пытается получить медиа после ответа, не ответив на вопрос {question_id}")
+            logger.warning(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.SECURITY,
+                message=f"Попытка доступа без ответа: пользователь {user_id} запрашивает медиа после ответа на вопрос {question_id}, не дав ответ"
+            )
             
             # ВРЕМЕННОЕ РЕШЕНИЕ: Разрешаем доступ к медиа после ответа если пользователь участник лобби с этим вопросом
             if lobby_id:
                 lobby = await db.lobbies.find_one({"_id": lobby_id, "participants": user_id, "question_ids": question_id})
                 if lobby:
-                    logger.info(f"ВРЕМЕННЫЙ ДОСТУП: Разрешаем доступ к медиа после ответа для пользователя {user_id} в лобби {lobby_id}")
+                    logger.info(
+                        section=LogSection.FILES,
+                        subsection=LogSubsection.FILES.ACCESS,
+                        message=f"Временный доступ после ответа: разрешён доступ пользователю {user_id} в лобби {lobby_id}"
+                    )
                     has_answered = True
                 else:
                     return StreamingResponse(
@@ -1283,7 +1751,11 @@ async def get_after_answer_media(
         if lobby_id:
             lobby = await db.lobbies.find_one({"_id": lobby_id})
             if lobby and lobby.get("exam_mode", False) and lobby["status"] != "finished":
-                logger.warning(f"Пользователь {user_id} пытается получить медиа после ответа в экзаменационном режиме до завершения теста")
+                logger.warning(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.SECURITY,
+                    message=f"Блокировка экзаменационного режима: пользователь {user_id} пытается получить медиа после ответа до завершения экзамена"
+                )
                 return StreamingResponse(
                     iter([b'']),
                     media_type='image/svg+xml',
@@ -1292,23 +1764,39 @@ async def get_after_answer_media(
         
         # Получаем медиа-файл из GridFS
         try:
-            logger.info(f"Получение дополнительного медиа-файла с ID {after_answer_media_id} для вопроса {question_id}")
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.GRIDFS,
+                message=f"Получение дополнительного медиа: файл {after_answer_media_id} для вопроса {question_id}"
+            )
             
             # Проверяем существование файла в GridFS перед попыткой получения
             file_exists = await db.fs.files.find_one({"_id": ObjectId(after_answer_media_id)})
             if not file_exists:
-                logger.error(f"Дополнительный медиа-файл {after_answer_media_id} не найден в fs.files коллекции")
+                logger.error(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.GRIDFS,
+                    message=f"Дополнительный медиа файл не найден: файл {after_answer_media_id} отсутствует в fs.files коллекции"
+                )
                 return StreamingResponse(
                     iter([b'']),
                     media_type='image/svg+xml',
                     headers={'Content-Disposition': 'inline; filename=not_found.svg'}
                 )
             
-            logger.info(f"Дополнительный файл найден в fs.files: {file_exists.get('filename', 'unknown')} размер: {file_exists.get('length', 0)} байт")
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.GRIDFS,
+                message=f"Дополнительный медиа найден: файл {file_exists.get('filename', 'unknown')}, размер {file_exists.get('length', 0)} байт"
+            )
             
             media_data = await get_media_file(str(after_answer_media_id), db)
             if not media_data:
-                logger.error(f"Дополнительный медиа-файл {after_answer_media_id} не найден в GridFS или пуст")
+                logger.error(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.GRIDFS,
+                    message=f"Дополнительный медиа файл пуст: файл {after_answer_media_id} не загружается из GridFS или содержит 0 байт"
+                )
                 return StreamingResponse(
                     iter([b'']),
                     media_type='image/svg+xml',
@@ -1344,7 +1832,11 @@ async def get_after_answer_media(
                     elif lower_filename.endswith('.mov'):
                         content_type = "video/quicktime"
             
-            logger.info(f"Тип содержимого после-ответного медиа-файла: {content_type}")
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.ACCESS,
+                message=f"Определён тип дополнительного медиа: файл {after_answer_media_id}, тип содержимого {content_type}"
+            )
             
             # Генерируем безопасное случайное имя файла для HTTP заголовка
             try:
@@ -1354,14 +1846,22 @@ async def get_after_answer_media(
             except UnicodeEncodeError:
                 # Только если есть кириллица - генерируем случайное имя
                 safe_filename = generate_safe_filename(filename)
-                logger.info(f"Дополнительный файл с кириллическим именем переименован: {filename} -> {safe_filename}")
+                logger.info(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.ACCESS,
+                    message=f"Переименование дополнительного медиа: {filename} -> {safe_filename} для безопасности HTTP заголовка"
+                )
             
             content_disposition = f"inline; filename={safe_filename}"
             
             # Return streaming response for after-answer media
             # Безопасное логирование заголовка
             safe_content_disposition = content_disposition.encode('ascii', errors='ignore').decode('ascii')
-            logger.info(f"Возвращаем StreamingResponse с заголовком: Content-Disposition: {safe_content_disposition}")
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.ACCESS,
+                message=f"Возврат дополнительного медиа потока: Content-Disposition {safe_content_disposition}"
+            )
             try:
                 response = StreamingResponse(
                     iter([media_data]),
@@ -1372,16 +1872,28 @@ async def get_after_answer_media(
                     }
                 )
                 safe_filename = filename.encode('ascii', errors='ignore').decode('ascii')
-                logger.info(f"StreamingResponse успешно создан для файла {safe_filename}")
+                logger.info(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.ACCESS,
+                    message=f"Дополнительный медиа поток создан успешно: файл {safe_filename}, размер {len(media_data)} байт"
+                )
                 return response
             except Exception as stream_error:
-                logger.error(f"Ошибка при создании StreamingResponse: {str(stream_error)}")
+                logger.error(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.ERROR,
+                    message=f"Ошибка создания дополнительного медиа потока: файл {after_answer_media_id}, ошибка {str(stream_error)}"
+                )
                 raise stream_error
             
         except Exception as e:
             # Безопасное логирование ошибки без кириллических символов
             error_msg = str(e).encode('ascii', errors='ignore').decode('ascii')
-            logger.error(f"Ошибка при получении дополнительного медиа-файла для вопроса {question_id}: {error_msg}")
+            logger.error(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.ERROR,
+                message=f"Ошибка получения дополнительного медиа: вопрос {question_id}, файл {after_answer_media_id}, ошибка {error_msg}"
+            )
             return StreamingResponse(
                 iter([b'']),
                 media_type='image/svg+xml',
@@ -1393,7 +1905,11 @@ async def get_after_answer_media(
     except Exception as e:
         # Безопасное логирование ошибки без кириллических символов
         error_msg = str(e).encode('ascii', errors='ignore').decode('ascii')
-        logger.error(f"Непредвиденная ошибка при получении дополнительного медиа для вопроса {question_id}: {error_msg}")
+        logger.error(
+            section=LogSection.FILES,
+            subsection=LogSubsection.FILES.ERROR,
+            message=f"Критическая ошибка получения дополнительного медиа: вопрос {question_id}, пользователь {user_id}, ошибка {error_msg}"
+        )
         return StreamingResponse(
             iter([b'']),
             media_type='image/svg+xml',
@@ -1416,7 +1932,11 @@ async def get_correct_answer(
     Доступно только участникам лобби после того, как они ответили на вопрос.
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Запрос правильного ответа на вопрос {question_id} от пользователя {user_id} в лобби {lobby_id}")
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.ACCESS,
+        message=f"Запрос правильного ответа: пользователь {user_id}, вопрос {question_id}, лобби {lobby_id}"
+    )
     
     try:
         # Проверяем доступ к лобби
@@ -1434,7 +1954,11 @@ async def get_correct_answer(
         # Получаем правильный ответ из лобби
         correct_answers = lobby.get("correct_answers", {})
         if question_id not in correct_answers:
-            logger.error(f"Correct answer for question {question_id} not found in lobby {lobby_id}")
+            logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.VALIDATION,
+            message=f"Правильный ответ не найден: вопрос {question_id} отсутствует в лобби {lobby_id}"
+        )
             raise HTTPException(status_code=404, detail="Правильный ответ не найден")
         
         correct_answer_index = correct_answers[question_id]
@@ -1464,7 +1988,11 @@ async def get_correct_answer(
             question = await db.questions.find_one({"_id": ObjectId(question_id)})
             if question:
                 explanation = question.get("explanation", {})
-                logger.info(f"Got explanation from database for question {question_id}: {type(explanation)} - {str(explanation)[:100] if explanation else 'empty'}")
+                logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.QUESTIONS,
+            message=f"Получено объяснение из БД: вопрос {question_id}, тип {type(explanation)}, содержимое {str(explanation)[:100] if explanation else 'пусто'}"
+        )
         
         # Проверяем наличие медиа после ответа
         has_after_media = bool(
@@ -1492,7 +2020,11 @@ async def get_correct_answer(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Ошибка при получении правильного ответа: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка получения правильного ответа: лобби {lobby_id}, вопрос {question_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Ошибка при получении правильного ответа")
 
 @router.post("/lobbies/{lobby_id}/answer", summary="Отправить ответ на вопрос")
@@ -1526,50 +2058,90 @@ async def submit_answer(
     question_id = payload.question_id
     answer_index = payload.answer_index
     
-    logger.info(f"Processing answer submission: user_id={user_id}, lobby_id={lobby_id}, question_id={question_id}, answer_index={answer_index}")
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.ACCESS,
+        message=f"Получен ответ на вопрос: пользователь {user_id} отвечает на вопрос {question_id} в лобби {lobby_id}, ответ {answer_index}"
+    )
     
     # Валидация входных данных
     if not validate_object_id(question_id):
-        logger.error(f"Invalid question ID format: {question_id}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.VALIDATION,
+            message=f"Некорректный формат ID вопроса: пользователь {user_id} передал неверный ID {question_id}"
+        )
         raise HTTPException(status_code=400, detail="Invalid question ID format")
     
     if not isinstance(answer_index, int) or answer_index < 0:
-        logger.error(f"Invalid answer index: {answer_index} (type: {type(answer_index)})")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.VALIDATION,
+            message=f"Некорректный индекс ответа: пользователь {user_id} передал {answer_index} типа {type(answer_index)}"
+        )
         raise HTTPException(status_code=400, detail="Invalid answer index")
     
-    logger.info(f"Input validation passed for user {user_id}, question {question_id}, answer {answer_index}")
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.VALIDATION,
+        message=f"Валидация входных данных пройдена: пользователь {user_id}, вопрос {question_id}, ответ {answer_index}"
+    )
     
     # Проверка целостности данных
     if not await validate_answer_integrity(lobby_id, question_id, answer_index):
-        logger.error(f"Answer integrity validation failed for user {user_id}, lobby {lobby_id}, question {question_id}, answer {answer_index}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.SECURITY,
+            message=f"Нарушение целостности ответа: пользователь {user_id}, лобби {lobby_id}, вопрос {question_id}, ответ {answer_index} не прошёл проверку"
+        )
         raise HTTPException(status_code=400, detail="Invalid answer data")
     
     try:
         # Получаем информацию о лобби
         lobby = await db.lobbies.find_one({"_id": lobby_id})
         if not lobby:
-            logger.warning(f"Лобби {lobby_id} не найдено")
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.ACCESS,
+                message=f"Лобби не найдено: пользователь {user_id} пытается ответить в несуществующее лобби {lobby_id}"
+            )
             raise HTTPException(status_code=404, detail="Лобби не найдено")
             
         # Проверяем, является ли пользователь участником лобби
         if user_id not in lobby["participants"]:
-            logger.warning(f"Пользователь {user_id} не является участником лобби {lobby_id}")
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.SECURITY,
+                message=f"Нет доступа к лобби: пользователь {user_id} не является участником лобби {lobby_id}"
+            )
             raise HTTPException(status_code=403, detail="Вы не участник данного лобби")
             
         # Проверяем, относится ли вопрос к данному лобби
         if question_id not in lobby.get("question_ids", []):
-            logger.warning(f"Вопрос {question_id} не относится к лобби {lobby_id}")
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.SECURITY,
+                message=f"Вопрос не принадлежит лобби: пользователь {user_id} пытается ответить на вопрос {question_id}, не принадлежащий лобби {lobby_id}"
+            )
             raise HTTPException(status_code=403, detail="Вопрос не относится к данному лобби")
             
         # Проверяем статус лобби
         if lobby["status"] != "in_progress":
-            logger.warning(f"Лобби {lobby_id} не в статусе 'in_progress', текущий статус: {lobby['status']}")
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.LIFECYCLE,
+                message=f"Неверный статус лобби: лобби {lobby_id} имеет статус {lobby['status']}, ожидается in_progress для ответа"
+            )
             raise HTTPException(status_code=400, detail="Лобби не активно")
         
         # Проверяем, не отвечал ли пользователь уже на этот вопрос
         user_answers = lobby.get("participants_answers", {}).get(user_id, {})
         if question_id in user_answers:
-            logger.warning(f"Пользователь {user_id} пытается повторно ответить на вопрос {question_id}")
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.SECURITY,
+                message=f"Попытка повторного ответа: пользователь {user_id} уже отвечал на вопрос {question_id} в лобби {lobby_id}"
+            )
             raise HTTPException(status_code=400, detail="Вы уже ответили на этот вопрос")
         
         # Получаем информацию о текущем вопросе и индексе в последовательности
@@ -1581,7 +2153,11 @@ async def submit_answer(
         try:
             question_index = question_ids.index(question_id)
         except ValueError:
-            logger.error(f"Вопрос {question_id} не найден в списке вопросов лобби {lobby_id}")
+            logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.VALIDATION,
+            message=f"Вопрос не в лобби: вопрос {question_id} отсутствует в списке вопросов лобби {lobby_id}"
+        )
             raise HTTPException(status_code=400, detail="Вопрос не найден в списке вопросов")
         
         # Хост может отвечать на любой вопрос
@@ -1591,7 +2167,11 @@ async def submit_answer(
         if not is_host:
             # Проверяем, что это не вопрос из будущего
             if question_index > current_index:
-                logger.warning(f"Пользователь {user_id} пытается ответить на вопрос {question_id} раньше времени")
+                logger.warning(
+                    section=LogSection.LOBBY,
+                    subsection=LogSubsection.LOBBY.SECURITY,
+                    message=f"Попытка ответить раньше времени: пользователь {user_id} пытается ответить на вопрос {question_id} (индекс {question_index}), текущий индекс {current_index}"
+                )
                 raise HTTPException(status_code=403, detail="Вы не можете отвечать на этот вопрос, пока не дойдете до него")
             
             # В мультиплеере разрешаем отвечать на любые предыдущие вопросы без ограничений
@@ -1600,7 +2180,11 @@ async def submit_answer(
         # Проверяем правильность ответа
         correct_answer = lobby["correct_answers"].get(question_id)
         if correct_answer is None:
-            logger.error(f"Правильный ответ для вопроса {question_id} не найден в лобби {lobby_id}")
+            logger.error(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.QUESTIONS,
+                message=f"Правильный ответ не найден: для вопроса {question_id} в лобби {lobby_id} отсутствует правильный ответ"
+            )
             raise HTTPException(status_code=500, detail="Правильный ответ для данного вопроса не найден")
         
         # Проверяем валидность индекса ответа
@@ -1608,11 +2192,19 @@ async def submit_answer(
         if question and "options" in question:
             options_count = len(question["options"])
             if answer_index < 0 or answer_index >= options_count:
-                logger.warning(f"Пользователь {user_id} отправил недопустимый индекс ответа: {answer_index} (доступно вариантов: {options_count})")
+                logger.warning(
+                    section=LogSection.LOBBY,
+                    subsection=LogSubsection.LOBBY.VALIDATION,
+                    message=f"Недопустимый индекс ответа: пользователь {user_id} отправил индекс {answer_index}, доступно вариантов {options_count}"
+                )
                 raise HTTPException(status_code=400, detail=f"Недопустимый индекс ответа. Должен быть от 0 до {options_count-1}")
         
         is_correct = (answer_index == correct_answer)
-        logger.info(f"Ответ пользователя {user_id} на вопрос {question_id}: {'корректный' if is_correct else 'некорректный'}")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ACCESS,
+            message=f"Ответ обработан: пользователь {user_id} ответил на вопрос {question_id} - {'правильно' if is_correct else 'неправильно'} (ответ {answer_index}, правильный {correct_answer})"
+        )
         
         # Получаем информацию о вопросе для ответа (нужно получить до формирования response_data)
         question = await db.questions.find_one({"_id": ObjectId(question_id)})
@@ -1647,7 +2239,11 @@ async def submit_answer(
             lobby_cache.invalidate_lobby(lobby_id)
             
         except Exception as e:
-            logger.error(f"Database error while saving answer: {str(e)}")
+            logger.error(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.DATABASE,
+                message=f"Ошибка сохранения ответа в БД: лобби {lobby_id}, пользователь {user_id}, вопрос {question_id}, ошибка {str(e)}"
+            )
             raise HTTPException(status_code=500, detail="Ошибка при сохранении ответа")
 
         # Формируем ответ для пользователя
@@ -1715,7 +2311,11 @@ async def submit_answer(
                     }
                 })
             except Exception as e:
-                logger.error(f"Ошибка при отправке WebSocket уведомления: {str(e)}")
+                logger.error(
+                    section=LogSection.WEBSOCKET,
+                    subsection=LogSubsection.WEBSOCKET.ERROR,
+                    message=f"Ошибка отправки WS уведомления об ответе: лобби {lobby_id}, пользователь {user_id}, вопрос {question_id}, ошибка {str(e)}"
+                )
 
         # Запускаем WebSocket уведомления в фоне
         asyncio.create_task(send_ws_notifications())
@@ -1750,11 +2350,19 @@ async def submit_answer(
                 min_answers_for_auto_advance = max(1, len(participants) // 2)  # Минимум половина
                 should_auto_advance = answered_count >= min_answers_for_auto_advance
                 
-                logger.info(f"Question completion check: {current_question_id}, answered: {answered_count}/{len(participants)}, auto_advance: {should_auto_advance}")
+                logger.info(
+                    section=LogSection.LOBBY,
+                    subsection=LogSubsection.LOBBY.LIFECYCLE,
+                    message=f"Проверка завершения вопроса: вопрос {current_question_id}, ответили {answered_count}/{len(participants)} участников, автопереход {should_auto_advance}"
+                )
                 
                 # В мультиплеере переход к следующему вопросу управляется только хостом
                 # Автоматический переход отключен для лучшего контроля
-                logger.info(f"Question {current_question_id}: {answered_count}/{len(participants)} participants answered. Waiting for host to advance.")
+                logger.info(
+                    section=LogSection.LOBBY,
+                    subsection=LogSubsection.LOBBY.LIFECYCLE,
+                    message=f"Ожидание действий хоста: вопрос {current_question_id}, ответили {answered_count}/{len(participants)} участников, переход контролирует хост"
+                )
                 
                 # Уведомляем хоста о статусе ответов
                 await ws_manager.send_json_parallel(lobby_id, {
@@ -1770,7 +2378,11 @@ async def submit_answer(
 
                         
             except Exception as e:
-                logger.error(f"Error in check_question_completion: {str(e)}")
+                logger.error(
+                    section=LogSection.LOBBY,
+                    subsection=LogSubsection.LOBBY.ERROR,
+                    message=f"Ошибка проверки завершения вопроса: лобби {lobby_id}, вопрос {current_question_id}, ошибка {str(e)}"
+                )
 
         # Запускаем проверку завершения вопроса в фоне
         asyncio.create_task(check_question_completion())
@@ -1788,13 +2400,21 @@ async def submit_answer(
             explanation = {}
             correct_option_text = None
 
-        logger.info(f"Ответ пользователя {user_id} на вопрос {question_id} в лобби {lobby_id} успешно обработан")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ACCESS,
+            message=f"Ответ успешно обработан: пользователь {user_id} ответил на вопрос {question_id} в лобби {lobby_id}, результат {'верно' if is_correct else 'неверно'}"
+        )
         return success(data=response_data)
     
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Ошибка при обработке ответа пользователя {user_id} на вопрос {question_id} в лобби {lobby_id}: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Критическая ошибка обработки ответа: пользователь {user_id}, лобби {lobby_id}, вопрос {question_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
 
 
@@ -1808,12 +2428,33 @@ async def skip_question(lobby_id: str, request: Request = None, current_user: di
     """
     user_id = get_user_id(current_user)
     
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.LIFECYCLE,
+        message=f"Запрос пропуска вопроса: хост {user_id} пропускает текущий вопрос в лобби {lobby_id}"
+    )
+    
     lobby = await db.lobbies.find_one({"_id": lobby_id})
     if not lobby:
+        logger.warning(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.SECURITY,
+            message=f"Попытка пропуска в несуществующем лобби: пользователь {user_id}, лобби {lobby_id}"
+        )
         raise HTTPException(status_code=404, detail="Лобби не найдено")
     if lobby["host_id"] != user_id:
+        logger.warning(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.SECURITY,
+            message=f"Попытка пропуска не-хостом: пользователь {user_id} не является хостом лобби {lobby_id}"
+        )
         raise HTTPException(status_code=403, detail="Только хост может пропускать вопросы")
     if lobby["status"] != "in_progress":
+        logger.warning(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.SECURITY,
+            message=f"Попытка пропуска в неактивном лобби: лобби {lobby_id} имеет статус {lobby['status']}"
+        )
         raise HTTPException(status_code=400, detail="Тест не запущен")
 
     current_index = lobby.get("current_index", 0)
@@ -1825,6 +2466,12 @@ async def skip_question(lobby_id: str, request: Request = None, current_user: di
         await db.lobbies.update_one({"_id": lobby_id}, {"$set": {"current_index": new_index}})
         next_question_id = lobby["question_ids"][new_index]
         
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.LIFECYCLE,
+            message=f"Вопрос пропущен: лобби {lobby_id}, переход с индекса {current_index} на {new_index}, следующий вопрос {next_question_id}"
+        )
+        
         # Уведомляем всех по WebSocket о переходе к следующему вопросу
         await ws_manager.send_json(lobby_id, {
             "type": "skip_to",
@@ -1834,6 +2481,12 @@ async def skip_question(lobby_id: str, request: Request = None, current_user: di
         return success(data={"message": "Вопрос пропущен, переход к следующему"})
     else:
         # Если это был последний вопрос или уже ответили на 40 вопросов, завершаем тест
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.LIFECYCLE,
+            message=f"Тест завершён пропуском: лобби {lobby_id}, индекс {current_index}, всего вопросов {total_questions}"
+        )
+        
         await db.lobbies.update_one(
             {"_id": lobby_id}, 
             {"$set": {"status": "finished", "finished_at": datetime.utcnow()}}
@@ -1877,7 +2530,11 @@ async def next_question_multiplayer(
     Только хост может управлять переходом между вопросами.
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Хост {user_id} переходит к следующему вопросу в лобби {lobby_id}")
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.LIFECYCLE,
+        message=f"Запрос перехода к следующему вопросу: хост {user_id} пытается перейти к следующему вопросу в лобби {lobby_id}"
+    )
     
     try:
         lobby = await db.lobbies.find_one({"_id": lobby_id})
@@ -1934,7 +2591,11 @@ async def next_question_multiplayer(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error going to next question: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка перехода к следующему вопросу: лобби {lobby_id}, хост {user_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Ошибка при переходе к следующему вопросу")
 
 @router.post("/lobbies/{lobby_id}/kick", summary="Исключить участника из лобби")
@@ -1950,7 +2611,11 @@ async def kick_participant(
     user_id = get_user_id(current_user)
     target_user_id = request.target_user_id
     
-    logger.info(f"Хост {user_id} исключает участника {target_user_id} из лобби {lobby_id}")
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.SECURITY,
+        message=f"Запрос исключения участника: хост {user_id} исключает участника {target_user_id} из лобби {lobby_id}"
+    )
     
     try:
         # Получаем информацию о лобби
@@ -1980,7 +2645,11 @@ async def kick_participant(
                 if user_response:
                     kicked_user_name = user_response.get("full_name", "Участник")
         except Exception as e:
-            logger.warning(f"Could not fetch user name for {target_user_id}: {str(e)}")
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.DATABASE,
+                message=f"Не удалось получить имя исключаемого пользователя: пользователь {target_user_id}, ошибка {str(e)}"
+            )
         
         # Убираем участника из лобби и добавляем в черный список
         update_result = await db.lobbies.update_one(
@@ -2022,7 +2691,11 @@ async def kick_participant(
             })
             
         except Exception as e:
-            logger.error(f"Error sending WebSocket notifications for kick: {str(e)}")
+            logger.error(
+                section=LogSection.WEBSOCKET,
+                subsection=LogSubsection.WEBSOCKET.ERROR,
+                message=f"Ошибка отправки WS уведомления об исключении: лобби {lobby_id}, исключён {target_user_id}, ошибка {str(e)}"
+            )
         
         return success(data={
             "message": f"Участник {kicked_user_name} исключен из лобби",
@@ -2033,7 +2706,11 @@ async def kick_participant(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error kicking participant: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка исключения участника: лобби {lobby_id}, хост {user_id}, исключаемый {target_user_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Ошибка при исключении участника")
 
 @router.post("/lobbies/{lobby_id}/close", summary="Закрыть лобби")
@@ -2043,7 +2720,11 @@ async def close_lobby(lobby_id: str, request: Request = None, current_user: dict
     Только хост может закрыть лобби.
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Пользователь {user_id} пытается закрыть лобби {lobby_id}")
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.LIFECYCLE,
+        message=f"Запрос закрытия лобби: пользователь {user_id} пытается закрыть лобби {lobby_id}"
+    )
     
     try:
         lobby = await db.lobbies.find_one({"_id": lobby_id})
@@ -2064,9 +2745,17 @@ async def close_lobby(lobby_id: str, request: Request = None, current_user: dict
                 "type": "lobby_closed",
                 "data": {"message": "Лобби было закрыто хостом", "redirect": True}
             })
-            logger.info(f"Отправлено уведомление о закрытии лобби {lobby_id}")
+            logger.info(
+                section=LogSection.WEBSOCKET,
+                subsection=LogSubsection.WEBSOCKET.MESSAGE_SEND,
+                message=f"Отправлено WS уведомление о закрытии: лобби {lobby_id} закрывается хостом {user_id}"
+            )
         except Exception as e:
-            logger.error(f"Ошибка при отправке WebSocket уведомления о закрытии лобби: {str(e)}")
+            logger.error(
+                section=LogSection.WEBSOCKET,
+                subsection=LogSubsection.WEBSOCKET.ERROR,
+                message=f"Ошибка отправки WS уведомления о закрытии: лобби {lobby_id}, ошибка {str(e)}"
+            )
         
         # Ждем немного, чтобы сообщение дошло до клиентов
         await asyncio.sleep(1)
@@ -2095,19 +2784,35 @@ async def close_lobby(lobby_id: str, request: Request = None, current_user: dict
                     try:
                         await conn["websocket"].close(code=1000, reason="Lobby closed")
                     except Exception as e:
-                        logger.error(f"Error closing WebSocket for user {conn['user_id']}: {str(e)}")
+                        logger.error(
+                            section=LogSection.WEBSOCKET,
+                            subsection=LogSubsection.WEBSOCKET.ERROR,
+                            message=f"Ошибка закрытия WS соединения: пользователь {conn['user_id']}, ошибка {str(e)}"
+                        )
                 # Очищаем список соединений
                 del ws_manager.connections[lobby_id]
         except Exception as e:
-            logger.error(f"Ошибка при закрытии WebSocket соединений: {str(e)}")
+            logger.error(
+                section=LogSection.WEBSOCKET,
+                subsection=LogSubsection.WEBSOCKET.ERROR,
+                message=f"Ошибка закрытия WS соединений: лобби {lobby_id}, ошибка {str(e)}"
+            )
         
-        logger.info(f"Лобби {lobby_id} успешно закрыто пользователем {user_id}")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.LIFECYCLE,
+            message=f"Лобби успешно закрыто: лобби {lobby_id} закрыто пользователем {user_id}"
+        )
         return success(data={"message": "Лобби успешно закрыто"})
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Ошибка при закрытии лобби {lobby_id}: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка закрытия лобби: лобби {lobby_id}, пользователь {user_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Ошибка при закрытии лобби")
 
 @router.post("/lobbies/{lobby_id}/finish", summary="Завершить тест")
@@ -2245,7 +2950,11 @@ async def finish_lobby(lobby_id: str, request: Request = None, current_user: dic
                 await db.history.insert_one(history_record)
             except Exception as e:
                 # Логируем ошибку, но не прерываем выполнение для остальных участников
-                print(f"Error saving history for user {participant_id}: {str(e)}")
+                logger.error(
+                    section=LogSection.DATABASE,
+                    subsection=LogSubsection.DATABASE.ERROR,
+                    message=f"Ошибка сохранения истории: пользователь {participant_id}, лобби {lobby_id}, ошибка {str(e)}"
+                )
         
         # Оповещаем участников о завершении и сообщаем результаты
         try:
@@ -2262,7 +2971,11 @@ async def finish_lobby(lobby_id: str, request: Request = None, current_user: dic
             })
 
         except Exception as e:
-            print(f"Error sending WebSocket notification: {str(e)}")
+            logger.error(
+                section=LogSection.WEBSOCKET,
+                subsection=LogSubsection.WEBSOCKET.ERROR,
+                message=f"Ошибка отправки WS уведомления о завершении: лобби {lobby_id}, ошибка {str(e)}"
+            )
         
         return success(data={
             "status": "finished", 
@@ -2276,7 +2989,11 @@ async def finish_lobby(lobby_id: str, request: Request = None, current_user: dic
         raise
     except Exception as e:
         # Логируем неожиданные ошибки
-        print(f"Unexpected error finishing lobby {lobby_id}: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Неожиданная ошибка завершения лобби: лобби {lobby_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при завершении теста")
 
 @router.get("/lobbies/{lobby_id}/public", summary="Получить публичную информацию о лобби")
@@ -2327,7 +3044,11 @@ async def get_lobby_public_info(lobby_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Ошибка при получении публичной информации о лобби {lobby_id}: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка получения публичной информации: лобби {lobby_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Ошибка при получении информации о лобби")
 
 @router.get("/lobbies/{lobby_id}", summary="Получить информацию о лобби")
@@ -2341,7 +3062,11 @@ async def get_lobby(
     Получает информацию о лобби по его ID.
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Запрос информации о лобби {lobby_id} от пользователя {user_id}")
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.ACCESS,
+        message=f"Запрос информации о лобби: пользователь {user_id} запрашивает данные лобби {lobby_id}"
+    )
     
     try:
         # Принудительно обновляем кеш если есть параметры cache-busting
@@ -2365,8 +3090,11 @@ async def get_lobby(
             remaining_seconds = max(0, MAX_LOBBY_LIFETIME - lobby_age)
             
             # Логирование для отладки
-            logger.info(f"Lobby {lobby_id} time calculation: created_at={lobby['created_at']}, "
-                       f"lobby_age={lobby_age:.2f}s, remaining_seconds={remaining_seconds:.2f}s")
+            logger.info(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.LIFECYCLE,
+                message=f"Расчёт времени лобби: лобби {lobby_id}, создано {lobby['created_at']}, возраст {lobby_age:.2f}с, осталось {remaining_seconds:.2f}с"
+            )
         
         # Получаем имя хоста (можно кэшировать, но для этого нужен отдельный кэш пользователей)
         host_user = await db.users.find_one({"_id": ObjectId(lobby["host_id"])})
@@ -2422,12 +3150,20 @@ async def get_lobby(
                     "duration": EXAM_TIMER_DURATION
                 }
         
-        logger.info(f"Возвращена информация о лобби {lobby_id}")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ACCESS,
+            message=f"Информация о лобби возвращена: лобби {lobby_id}, пользователь {user_id}"
+        )
         return success(data=response_data)
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Ошибка при получении информации о лобби {lobby_id}: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка получения информации о лобби: лобби {lobby_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
 
 @router.get("/lobbies/{lobby_id}/answered-users", summary="Получить список пользователей, ответивших на текущий вопрос")
@@ -2488,7 +3224,11 @@ async def get_answered_users(lobby_id: str, request: Request = None, current_use
         raise
     except Exception as e:
         # Логируем неожиданные ошибки
-        print(f"Error getting answered users for lobby {lobby_id}: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка получения списка ответивших пользователей: лобби {lobby_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении данных")
 
 @router.get("/lobbies/{lobby_id}/results", summary="Получить подробные результаты теста")
@@ -2640,7 +3380,11 @@ async def get_test_results(lobby_id: str, request: Request = None, current_user:
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error getting test results for lobby {lobby_id}: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка получения результатов теста: лобби {lobby_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Ошибка при получении результатов теста")
 
 @router.get("/active-lobby", summary="Получить информацию об активном лобби пользователя")
@@ -2649,7 +3393,11 @@ async def get_user_active_lobby(current_user: dict = Depends(get_current_actor))
     Проверяет, есть ли у пользователя активное лобби, и возвращает информацию о нем
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Проверка активного лобби для пользователя {user_id}")
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.ACCESS,
+        message=f"Проверка активного лобби: пользователь {user_id} запрашивает информацию о текущем активном лобби"
+    )
     
     try:
         # Ищем активное лобби пользователя (исключаем закрытые и завершенные)
@@ -2659,7 +3407,11 @@ async def get_user_active_lobby(current_user: dict = Depends(get_current_actor))
         })
         
         if not active_lobby:
-            logger.info(f"У пользователя {user_id} нет активных лобби")
+            logger.info(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.ACCESS,
+                message=f"Нет активных лобби: пользователь {user_id} не участвует в активных лобби"
+            )
             return success(data={"has_active_lobby": False})
         
         # Проверяем, не истёк ли срок действия лобби (4 часа)
@@ -2675,7 +3427,11 @@ async def get_user_active_lobby(current_user: dict = Depends(get_current_actor))
                         "auto_finished": True
                     }}
                 )
-                logger.info(f"Автоматически завершено просроченное лобби {active_lobby['_id']}")
+                logger.info(
+                    section=LogSection.LOBBY,
+                    subsection=LogSubsection.LOBBY.LIFECYCLE,
+                    message=f"Автозавершение просроченного лобби: лобби {active_lobby['_id']} завершено автоматически по истечении времени жизни"
+                )
                 return success(data={"has_active_lobby": False})
             
             # Лобби активно и не просрочено
@@ -2706,7 +3462,11 @@ async def get_user_active_lobby(current_user: dict = Depends(get_current_actor))
             "status": active_lobby.get("status")
         })
     except Exception as e:
-        logger.error(f"Ошибка при проверке активного лобби: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка проверки активного лобби: пользователь {user_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при проверке активного лобби")
 
 @router.get("/categories/stats", summary="Получить статистику по категориям и количеству вопросов")
@@ -2718,7 +3478,11 @@ async def get_categories_stats(current_user: dict = Depends(get_current_actor)):
     Также возвращает общее количество вопросов.
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Пользователь {user_id} запрашивает статистику по категориям")
+    logger.info(
+        section=LogSection.API,
+        subsection=LogSubsection.API.REQUEST,
+        message=f"Запрос статистики категорий: пользователь {user_id} запрашивает статистику по категориям вопросов"
+    )
     
     try:
         # Агрегация для подсчета вопросов по категориям
@@ -2746,7 +3510,11 @@ async def get_categories_stats(current_user: dict = Depends(get_current_actor)):
         for stat in category_stats:
             categories_dict[stat["_id"]] = stat["count"]
         
-        logger.info(f"Статистика по категориям: {categories_dict}, общее количество: {total_questions}")
+        logger.info(
+            section=LogSection.API,
+            subsection=LogSubsection.API.RESPONSE,
+            message=f"Статистика категорий: найдено {len(categories_dict)} категорий, общее количество вопросов {total_questions}"
+        )
         
         # Определяем группы категорий для подсчета уникальных вопросов
         category_groups = [
@@ -2816,7 +3584,11 @@ async def get_categories_stats(current_user: dict = Depends(get_current_actor)):
         })
         
     except Exception as e:
-        logger.error(f"Ошибка при получении статистики категорий: {str(e)}")
+        logger.error(
+            section=LogSection.API,
+            subsection=LogSubsection.API.ERROR,
+            message=f"Ошибка получения статистики категорий: пользователь {user_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
 
 @router.get("/lobbies/{lobby_id}/online-users", summary="Получить список онлайн пользователей в лобби")
@@ -2829,7 +3601,11 @@ async def get_online_users(
     """
     try:
         user_id = get_user_id(current_user)
-        logger.info(f"Запрос онлайн пользователей лобби {lobby_id} от пользователя {user_id}")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ACCESS,
+            message=f"Запрос онлайн пользователей: пользователь {user_id} запрашивает список онлайн участников лобби {lobby_id}"
+        )
         
         # Проверяем доступ к лобби
         lobby, is_host, subscription_type = await validate_lobby_access(
@@ -2851,9 +3627,17 @@ async def get_online_users(
                     "is_guest": user_info.get("is_guest", False)
                 })
             except Exception as e:
-                logger.error(f"Error getting info for user {online_user_id}: {str(e)}")
+                logger.error(
+                    section=LogSection.LOBBY,
+                    subsection=LogSubsection.LOBBY.ERROR,
+                    message=f"Ошибка получения информации о пользователе: пользователь {online_user_id}, ошибка {str(e)}"
+                )
         
-        logger.info(f"Возвращен список из {len(online_users)} онлайн пользователей для лобби {lobby_id}")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ACCESS,
+            message=f"Список онлайн пользователей: возвращено {len(online_users)} онлайн участников для лобби {lobby_id}"
+        )
         
         return success(data={
             "lobby_id": lobby_id,
@@ -2865,7 +3649,11 @@ async def get_online_users(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Ошибка при получении онлайн пользователей лобби {lobby_id}: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка получения онлайн пользователей: лобби {lobby_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
 
 @router.post("/lobbies/{lobby_id}/leave", summary="Выйти из лобби")
@@ -2875,7 +3663,11 @@ async def leave_lobby(lobby_id: str, current_user: dict = Depends(get_current_ac
     Если выходит хост, лобби закрывается.
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Пользователь {user_id} выходит из лобби {lobby_id}")
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.LIFECYCLE,
+        message=f"Выход из лобби: пользователь {user_id} покидает лобби {lobby_id}"
+    )
     
     try:
         lobby = await db.lobbies.find_one({"_id": lobby_id})
@@ -2926,7 +3718,11 @@ async def leave_lobby(lobby_id: str, current_user: dict = Depends(get_current_ac
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Ошибка при выходе из лобби: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка выхода из лобби: пользователь {user_id}, лобби {lobby_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Ошибка при выходе из лобби")
 
 class ShowCorrectAnswerRequest(BaseModel):
@@ -2944,7 +3740,11 @@ async def show_correct_answer(
     Только хост может управлять показом правильных ответов.
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Хост {user_id} показывает правильный ответ в лобби {lobby_id}")
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.ACCESS,
+        message=f"Показ правильного ответа: хост {user_id} показывает правильный ответ в лобби {lobby_id}"
+    )
     
     try:
         # Инвалидируем кэш для получения актуального состояния лобби
@@ -2964,7 +3764,11 @@ async def show_correct_answer(
         if request_data and request_data.question_id:
             current_question_id = request_data.question_id
             current_index = request_data.question_index
-            logger.info(f"Using question from request: {current_question_id} (index {current_index})")
+            logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.QUESTIONS,
+            message=f"Использование вопроса из запроса: вопрос {current_question_id}, индекс {current_index}"
+        )
         else:
             current_index = lobby.get("current_index", 0)
             question_ids = lobby.get("question_ids", [])
@@ -2973,19 +3777,31 @@ async def show_correct_answer(
                 raise HTTPException(status_code=400, detail="Нет текущего вопроса")
             
             current_question_id = question_ids[current_index]
-            logger.info(f"Using question from lobby state: {current_question_id} (index {current_index})")
+            logger.info(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.QUESTIONS,
+                message=f"Использование вопроса из состояния лобби: вопрос {current_question_id}, индекс {current_index}"
+            )
         
-        logger.info(f"Show correct answer debug: lobby {lobby_id}, current_index: {current_index}, question_id: {current_question_id}")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.QUESTIONS,
+            message=f"Отладка показа ответа: лобби {lobby_id}, индекс {current_index}, вопрос {current_question_id}"
+        )
         
-        # Получаем данные вопроса из базы данных
+        # Получаем правильный ответ из лобби (уже преобразован в индекс)
+        correct_answers = lobby.get("correct_answers", {})
+        correct_answer_index = correct_answers.get(str(current_question_id), 0)
+        
+        # Получаем данные вопроса из базы данных для объяснения и медиа
         question = await db.questions.find_one({"_id": ObjectId(current_question_id)})
-        if not question:
-            raise HTTPException(status_code=404, detail="Вопрос не найден")
+        explanation = question.get("explanation", "") if question else ""
         
-        correct_answer_index = question.get("correct_answer", 0)
-        explanation = question.get("explanation", "")
-        
-        logger.info(f"Question found: {current_question_id}, correct answer index: {correct_answer_index}")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.QUESTIONS,
+            message=f"Вопрос найден: вопрос {current_question_id}, индекс правильного ответа {correct_answer_index}"
+        )
         
         # Проверяем, есть ли медиа после ответа
         has_after_media = bool(
@@ -3026,11 +3842,19 @@ async def show_correct_answer(
             }
         }
         
-        logger.info(f"Sending show_correct_answer WebSocket message for question {current_question_id} (index {current_index}): {websocket_data}")
+        logger.info(
+            section=LogSection.WEBSOCKET,
+            subsection=LogSubsection.WEBSOCKET.MESSAGE_SEND,
+            message=f"Отправка WS сообщения show_correct_answer: вопрос {current_question_id}, индекс {current_index}, данные отправлены"
+        )
         
         await ws_manager.send_json_parallel(lobby_id, websocket_data)
         
-        logger.info(f"Правильный ответ показан в лобби {lobby_id}: вопрос {current_question_id}, ответ {correct_answer_index}")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ACCESS,
+            message=f"Правильный ответ показан: лобби {lobby_id}, вопрос {current_question_id}, ответ {correct_answer_index}"
+        )
         
         return success(data={
             "message": "Правильный ответ показан всем участникам",
@@ -3042,7 +3866,11 @@ async def show_correct_answer(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error showing correct answer: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка показа правильного ответа: лобби {lobby_id}, пользователь {user_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Ошибка при показе правильного ответа")
 
 @router.post("/lobbies/{lobby_id}/toggle-participant-answers", summary="Переключить видимость ответов участников")
@@ -3055,7 +3883,11 @@ async def toggle_participant_answers(
     Только хост может управлять видимостью ответов.
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Хост {user_id} переключает видимость ответов в лобби {lobby_id}")
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.ACCESS,
+        message=f"Переключение видимости ответов: хост {user_id} изменяет видимость ответов участников в лобби {lobby_id}"
+    )
     
     try:
         lobby = await db.lobbies.find_one({"_id": lobby_id})
@@ -3093,7 +3925,11 @@ async def toggle_participant_answers(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error toggling participant answers visibility: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка переключения видимости ответов: лобби {lobby_id}, пользователь {user_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Ошибка при переключении видимости ответов")
 
 @router.post("/lobbies/{lobby_id}/sync-state", summary="Синхронизировать состояние лобби")
@@ -3106,7 +3942,11 @@ async def sync_lobby_state(
     Может вызываться хостом для принудительной синхронизации.
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Пользователь {user_id} запрашивает синхронизацию состояния лобби {lobby_id}")
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.ACCESS,
+        message=f"Синхронизация состояния: пользователь {user_id} запрашивает синхронизацию лобби {lobby_id}"
+    )
     
     try:
         lobby = await db.lobbies.find_one({"_id": lobby_id})
@@ -3132,12 +3972,20 @@ async def sync_lobby_state(
             # Если правильный ответ уже был показан, получаем его индекс и объяснение
             if current_question_correct_shown:
                 try:
+                    # Получаем правильный ответ из лобби
+                    correct_answers = lobby.get("correct_answers", {})
+                    correct_answer_index = correct_answers.get(str(current_question_id), 0)
+                    
+                    # Получаем объяснение из базы данных
                     question = await db.questions.find_one({"_id": ObjectId(current_question_id)})
                     if question:
-                        correct_answer_index = question.get("correct_answer_index")
                         explanation = question.get("explanation", "")
                 except Exception as e:
-                    logger.error(f"Error fetching correct answer for question {current_question_id}: {str(e)}")
+                    logger.error(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.ERROR,
+                message=f"Ошибка получения правильного ответа: вопрос {current_question_id}, ошибка {str(e)}"
+            )
         
         sync_data = {
             "current_question_index": current_index,
@@ -3162,7 +4010,11 @@ async def sync_lobby_state(
             "data": sync_data
         })
         
-        logger.info(f"Состояние лобби {lobby_id} синхронизировано для всех участников")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ACCESS,
+            message=f"Синхронизация завершена: состояние лобби {lobby_id} синхронизировано для всех участников"
+        )
         
         return success(data={
             "message": "Состояние лобби синхронизировано",
@@ -3173,7 +4025,11 @@ async def sync_lobby_state(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error syncing lobby state: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка синхронизации состояния: лобби {lobby_id}, пользователь {user_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Ошибка при синхронизации состояния лобби")
 
 @router.get("/debug/question/{question_id}/media-info", summary="Отладка: информация о медиа вопроса")
@@ -3185,7 +4041,11 @@ async def debug_question_media_info(
     Отладочный эндпоинт для проверки информации о медиа файлах вопроса
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Отладка медиа для вопроса {question_id} пользователем {user_id}")
+    logger.info(
+        section=LogSection.SYSTEM,
+        subsection=LogSubsection.SYSTEM.DEBUG,
+        message=f"Отладка медиа: пользователь {user_id} запрашивает отладочную информацию для вопроса {question_id}"
+    )
     
     try:
         # Найти вопрос
@@ -3257,7 +4117,11 @@ async def debug_question_media_info(
         return result
         
     except Exception as e:
-        logger.error(f"Ошибка в отладке медиа для вопроса {question_id}: {str(e)}")
+        logger.error(
+            section=LogSection.SYSTEM,
+            subsection=LogSubsection.SYSTEM.ERROR,
+            message=f"Ошибка отладки медиа: вопрос {question_id}, пользователь {user_id}, ошибка {str(e)}"
+        )
         return {"error": str(e), "question_id": question_id}
 
 @router.post("/lobbies/{lobby_id}/finish-test", summary="Завершить тест (хост)")
@@ -3270,7 +4134,11 @@ async def finish_test(
     Подсчитывает результаты всех участников и сохраняет их в историю.
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Хост {user_id} завершает тест в лобби {lobby_id}")
+    logger.info(
+        section=LogSection.LOBBY,
+        subsection=LogSubsection.LOBBY.LIFECYCLE,
+        message=f"Завершение теста хостом: пользователь {user_id} завершает тест в лобби {lobby_id}"
+    )
     
     try:
         lobby = await db.lobbies.find_one({"_id": lobby_id})
@@ -3343,6 +4211,10 @@ async def finish_test(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error finishing test: {str(e)}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка завершения теста: лобби {lobby_id}, пользователь {user_id}, ошибка {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Ошибка при завершении теста")
 

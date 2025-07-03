@@ -2,15 +2,14 @@ from fastapi import APIRouter, HTTPException, Depends, Request, Query
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 from bson import ObjectId
-import logging
-
 from app.db.database import db
 from app.core.security import get_current_actor
 from app.core.response import success
 from app.admin.permissions import get_current_admin_user
+from app.logging import get_logger, LogSection, LogSubsection
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 def serialize_datetime(obj):
     """Сериализация datetime объектов для JSON"""
@@ -22,6 +21,14 @@ def serialize_datetime(obj):
         return [serialize_datetime(item) for item in obj]
     return obj
 
+def convert_answer_to_index(correct_answer_raw):
+    """Convert letter answer (A, B, C, D) to numeric index (0, 1, 2, 3)"""
+    if isinstance(correct_answer_raw, str):
+        letter_to_index = {'A': 0, 'B': 1, 'C': 2, 'D': 3}
+        return letter_to_index.get(correct_answer_raw.upper(), 0)
+    else:
+        return correct_answer_raw if correct_answer_raw is not None else 0
+
 @router.get("/user/{user_id}/simple-stats")
 async def get_user_simple_stats(
     user_id: str,
@@ -29,61 +36,55 @@ async def get_user_simple_stats(
     current_user = Depends(get_current_actor)
 ):
     """Получить простую статистику пользователя: завершенные тесты и средний балл"""
-    start_time = datetime.utcnow()
-    logger.info(f"[SIMPLE_STATS] Starting request for user {user_id}")
-    
     try:
         # Проверяем доступ
-        auth_start = datetime.utcnow()
         current_user_id = str(current_user.get('id'))
         user_role = current_user.get('role', 'user')
         
         if user_role != 'admin' and current_user_id != user_id:
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+                message=f"Попытка доступа к статистике пользователя {user_id} от пользователя {current_user_id} (роль: {user_role})"
+            )
             raise HTTPException(status_code=403, detail="Нет доступа к статистике другого пользователя")
-        
-        logger.info(f"[SIMPLE_STATS] Auth check took {(datetime.utcnow() - auth_start).total_seconds():.3f}s")
 
         # Получаем пользователя
-        user_lookup_start = datetime.utcnow()
         try:
             user_oid = ObjectId(user_id)
         except:
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.VALIDATION,
+                message=f"Неверный формат ID пользователя: {user_id}"
+            )
             raise HTTPException(status_code=400, detail="Неверный ID пользователя")
             
         user = await db.users.find_one({"_id": user_oid})
         if not user:
             user = await db.guests.find_one({"_id": user_oid})
         if not user:
+            logger.warning(
+                section=LogSection.USER,
+                subsection=LogSubsection.USER.PROFILE,
+                message=f"Пользователь {user_id} не найден при запросе статистики"
+            )
             raise HTTPException(status_code=404, detail="Пользователь не найден")
-            
-        logger.info(f"[SIMPLE_STATS] User lookup took {(datetime.utcnow() - user_lookup_start).total_seconds():.3f}s")
 
         # Получаем все лобби пользователя (используем host_id, а не creator_id)
-        lobbies_start = datetime.utcnow()
         user_lobbies = await db.lobbies.find({
             "host_id": user_id
         }).sort("created_at", -1).to_list(None)
         
-        logger.info(f"[SIMPLE_STATS] Lobbies query took {(datetime.utcnow() - lobbies_start).total_seconds():.3f}s")
-        
-        logger.info(f"[SIMPLE_STATS] Found {len(user_lobbies)} lobbies for user {user_id}")
-
         # Получаем ответы пользователя
-        answers_start = datetime.utcnow()
         user_answers = await db.user_answers.find({
             "user_id": user_id
         }).to_list(None)
-        
-        logger.info(f"[SIMPLE_STATS] Answers query took {(datetime.utcnow() - answers_start).total_seconds():.3f}s")
-        logger.info(f"[SIMPLE_STATS] Found {len(user_answers)} answer documents for user {user_id}")
 
         # Создаем словарь ответов по lobby_id
-        dict_start = datetime.utcnow()
         answers_by_lobby = {ans["lobby_id"]: ans for ans in user_answers}
-        logger.info(f"[SIMPLE_STATS] Dictionary creation took {(datetime.utcnow() - dict_start).total_seconds():.3f}s")
 
         # Подсчитываем завершенные тесты и средний балл
-        calc_start = datetime.utcnow()
         completed_tests = 0
         total_score = 0
         questions_processed = 0
@@ -97,8 +98,6 @@ async def get_user_simple_stats(
                 all_question_ids.update(question_ids)
         
         # Получаем все вопросы одним запросом
-        questions_fetch_start = datetime.utcnow()
-        
         # Преобразуем все ID в ObjectId для поиска
         search_ids = []
         for qid in all_question_ids:
@@ -113,9 +112,6 @@ async def get_user_simple_stats(
         all_questions = await db.questions.find({
             "_id": {"$in": search_ids}
         }).to_list(None)
-        logger.info(f"[SIMPLE_STATS] Questions fetch took {(datetime.utcnow() - questions_fetch_start).total_seconds():.3f}s for {len(all_question_ids)} unique IDs, found {len(all_questions)} questions")
-        logger.info(f"[SIMPLE_STATS] Sample question IDs from collection: {list(all_question_ids)[:3]}")
-        logger.info(f"[SIMPLE_STATS] Sample question IDs found: {[str(q['_id']) for q in all_questions[:3]]}")
         
         # Создаем словарь вопросов для быстрого доступа (ключи и как ObjectId, и как строки)
         questions_dict = {}
@@ -147,14 +143,8 @@ async def get_user_simple_stats(
                     if not question:
                         question = questions_dict.get(str(question_id))
                     
-                    # Логируем первые несколько вопросов для отладки
-                    if questions_processed <= 3:
-                        logger.info(f"[SIMPLE_STATS] Debug Q{questions_processed}: ID={question_id} (type={type(question_id)}), found_question={question is not None}")
-                        if question:
-                            logger.info(f"[SIMPLE_STATS] Debug Q{questions_processed}: correct_answer={question.get('correct_answer')}, user_answer={answers.get(question_id_str)}")
-                    
                     if question:
-                        correct_answer_index = question.get('correct_answer', 0)
+                        correct_answer_index = convert_answer_to_index(question.get('correct_answer', 'A'))
                         user_answer = answers.get(question_id_str)
                         
                         if user_answer == correct_answer_index:
@@ -166,17 +156,17 @@ async def get_user_simple_stats(
 
         # Средний балл за все тесты
         average_score = round(total_score / completed_tests, 2) if completed_tests > 0 else 0
-        
-        logger.info(f"[SIMPLE_STATS] Calculations took {(datetime.utcnow() - calc_start).total_seconds():.3f}s")
-        logger.info(f"[SIMPLE_STATS] Processed {questions_processed} questions across {len(user_lobbies)} lobbies")
 
         result_data = {
             "completed_tests": completed_tests,  # Завершено тестов в общем у юзера (цифры)
             "average_score": average_score       # Средний балл в общем за все тесты (процент)
         }
 
-        total_time = (datetime.utcnow() - start_time).total_seconds()
-        logger.info(f"[SIMPLE_STATS] Total request time: {total_time:.3f}s for user {user_id}")
+        logger.info(
+            section=LogSection.USER,
+            subsection=LogSubsection.USER.PROFILE,
+            message=f"Простая статистика для пользователя {user_id}: {completed_tests} завершённых тестов, средний балл {average_score}%"
+        )
         
         return success(
             data=result_data,
@@ -186,7 +176,11 @@ async def get_user_simple_stats(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[SIMPLE_STATS] Error getting simple stats: {e}")
+        logger.error(
+            section=LogSection.API,
+            subsection=LogSubsection.API.ERROR,
+            message=f"Критическая ошибка при получении простой статистики пользователя {user_id}: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Ошибка получения статистики")
 
 @router.get("/user/{user_id}/recent-tests")
@@ -196,50 +190,36 @@ async def get_user_recent_tests(
     current_user = Depends(get_current_actor)
 ):
     """Получить недавние тесты пользователя за неделю"""
-    request_start_time = datetime.utcnow()
-    logger.info(f"[RECENT_TESTS] Starting request for user {user_id}")
-    
     try:
         # Проверяем доступ
-        auth_start = datetime.utcnow()
         current_user_id = str(current_user.get('id'))
         user_role = current_user.get('role', 'user')
         
         if user_role != 'admin' and current_user_id != user_id:
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+                message=f"Попытка доступа к недавним тестам пользователя {user_id} от пользователя {current_user_id} (роль: {user_role})"
+            )
             raise HTTPException(status_code=403, detail="Нет доступа к статистике другого пользователя")
-        
-        logger.info(f"[RECENT_TESTS] Auth check took {(datetime.utcnow() - auth_start).total_seconds():.3f}s")
 
         # Временной диапазон - последняя неделя
-        date_calc_start = datetime.utcnow()
         end_date = datetime.utcnow()
         start_date = end_date - timedelta(days=7)
-        logger.info(f"[RECENT_TESTS] Date calculation took {(datetime.utcnow() - date_calc_start).total_seconds():.3f}s")
 
         # Получаем недавние лобби пользователя (используем host_id, а не creator_id)
-        lobbies_start = datetime.utcnow()
         recent_lobbies = await db.lobbies.find({
             "host_id": user_id,
             "created_at": {"$gte": start_date, "$lte": end_date}
         }).sort("created_at", -1).to_list(None)
-        
-        logger.info(f"[RECENT_TESTS] Recent lobbies query took {(datetime.utcnow() - lobbies_start).total_seconds():.3f}s")
-        logger.info(f"[RECENT_TESTS] Found {len(recent_lobbies)} recent lobbies")
 
         # Получаем ответы пользователя
-        answers_start = datetime.utcnow()
         user_answers = await db.user_answers.find({
             "user_id": user_id
         }).to_list(None)
-        
-        logger.info(f"[RECENT_TESTS] Answers query took {(datetime.utcnow() - answers_start).total_seconds():.3f}s")
-        logger.info(f"[RECENT_TESTS] Found {len(user_answers)} answer documents")
 
-        dict_start = datetime.utcnow()
         answers_by_lobby = {ans["lobby_id"]: ans for ans in user_answers}
-        logger.info(f"[RECENT_TESTS] Dictionary creation took {(datetime.utcnow() - dict_start).total_seconds():.3f}s")
 
-        processing_start = datetime.utcnow()
         recent_tests = []
         questions_processed = 0
 
@@ -252,8 +232,6 @@ async def get_user_recent_tests(
                 all_question_ids.update(question_ids)
         
         # Получаем все вопросы одним запросом
-        questions_fetch_start = datetime.utcnow()
-        
         # Преобразуем все ID в ObjectId для поиска
         search_ids = []
         for qid in all_question_ids:
@@ -268,9 +246,6 @@ async def get_user_recent_tests(
         all_questions = await db.questions.find({
             "_id": {"$in": search_ids}
         }).to_list(None)
-        logger.info(f"[RECENT_TESTS] Questions fetch took {(datetime.utcnow() - questions_fetch_start).total_seconds():.3f}s for {len(all_question_ids)} unique IDs, found {len(all_questions)} questions")
-        logger.info(f"[RECENT_TESTS] Sample question IDs from collection: {list(all_question_ids)[:3]}")
-        logger.info(f"[RECENT_TESTS] Sample question IDs found: {[str(q['_id']) for q in all_questions[:3]]}")
         
         # Создаем словарь вопросов для быстрого доступа (ключи и как ObjectId, и как строки)
         questions_dict = {}
@@ -302,7 +277,7 @@ async def get_user_recent_tests(
                         question = questions_dict.get(str(question_id))
                     
                     if question:
-                        correct_answer_index = question.get('correct_answer', 0)
+                        correct_answer_index = convert_answer_to_index(question.get('correct_answer', 'A'))
                         user_answer = answers.get(question_id_str)
                         
                         if user_answer == correct_answer_index:
@@ -336,15 +311,13 @@ async def get_user_recent_tests(
                     "completion_rate": round((answered_count / total_questions * 100), 2) if total_questions > 0 else 0
                 })
 
-        logger.info(f"[RECENT_TESTS] Processing took {(datetime.utcnow() - processing_start).total_seconds():.3f}s")
-        logger.info(f"[RECENT_TESTS] Processed {questions_processed} questions across {len(recent_lobbies)} lobbies")
-        
-        serialization_start = datetime.utcnow()
         result_data = serialize_datetime(recent_tests)
-        logger.info(f"[RECENT_TESTS] Serialization took {(datetime.utcnow() - serialization_start).total_seconds():.3f}s")
 
-        total_time = (datetime.utcnow() - request_start_time).total_seconds()
-        logger.info(f"[RECENT_TESTS] Total request time: {total_time:.3f}s for user {user_id}")
+        logger.info(
+            section=LogSection.USER,
+            subsection=LogSubsection.USER.PROFILE,
+            message=f"Получены недавние тесты для пользователя {user_id}: {len(recent_tests)} тестов за последние 7 дней"
+        )
         
         return success(
             data=result_data,
@@ -354,7 +327,11 @@ async def get_user_recent_tests(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[RECENT_TESTS] Error getting recent tests: {e}")
+        logger.error(
+            section=LogSection.API,
+            subsection=LogSubsection.API.ERROR,
+            message=f"Критическая ошибка при получении недавних тестов пользователя {user_id}: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Ошибка получения недавних тестов")
 
 @router.get("/user/{user_id}/all-tests")
@@ -370,6 +347,11 @@ async def get_user_all_tests(
         user_role = current_user.get('role', 'user')
         
         if user_role != 'admin' and current_user_id != user_id:
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+                message=f"Попытка доступа ко всем тестам пользователя {user_id} от пользователя {current_user_id} (роль: {user_role})"
+            )
             raise HTTPException(status_code=403, detail="Нет доступа к статистике другого пользователя")
 
         # Получаем все лобби пользователя (используем host_id, а не creator_id)
@@ -422,7 +404,7 @@ async def get_user_all_tests(
                             continue
                     
                     if question:
-                        correct_answer_index = question.get('correct_answer', 0)
+                        correct_answer_index = convert_answer_to_index(question.get('correct_answer', 'A'))
                         user_answer = answers.get(question_id_str)
                         
                         if user_answer == correct_answer_index:
@@ -471,7 +453,11 @@ async def get_user_all_tests(
             "completed_count": len([t for t in all_tests if t["status"] == "completed"])
         }
 
-        logger.info(f"[ALL_TESTS] Retrieved all tests for user {user_id} from {request.client.host}")
+        logger.info(
+            section=LogSection.USER,
+            subsection=LogSubsection.USER.PROFILE,
+            message=f"Получен полный список тестов для пользователя {user_id}: {len(all_tests)} тестов ({len([t for t in all_tests if t['status'] == 'completed'])} завершённых)"
+        )
         
         return success(
             data=result_data,
@@ -481,7 +467,11 @@ async def get_user_all_tests(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[ALL_TESTS] Error getting all tests: {e}")
+        logger.error(
+            section=LogSection.API,
+            subsection=LogSubsection.API.ERROR,
+            message=f"Критическая ошибка при получении всех тестов пользователя {user_id}: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Ошибка получения всех тестов")
 
 @router.get("/{lobby_id}/secure/results")
@@ -496,6 +486,11 @@ async def get_secure_test_results(
         # Get lobby data
         lobby = await db.lobbies.find_one({"_id": lobby_id})
         if not lobby:
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.RESULTS,
+                message=f"Попытка получить результаты несуществующего лобби {lobby_id} пользователем {user_id}"
+            )
             raise HTTPException(status_code=404, detail="Lobby not found")
         
         # Get user answers
@@ -591,7 +586,7 @@ async def get_secure_test_results(
                     pass
             
             if question:
-                correct_answer_index = question.get('correct_answer', 0)
+                correct_answer_index = convert_answer_to_index(question.get('correct_answer', 'A'))
                 user_answer = user_answers.get(question_id_str)
                 is_answered = user_answer is not None
                 is_correct = is_answered and user_answer == correct_answer_index
@@ -750,7 +745,11 @@ async def get_secure_test_results(
             }
         }
         
-        logger.info(f"[SECURE_RESULTS] Retrieved results for lobby {lobby_id} user {user_id}")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.RESULTS,
+            message=f"Получены детальные результаты теста для лобби {lobby_id} пользователем {user_id}: {percentage}% ({correct_count}/{total_questions})"
+        )
         
         return success(
             data=result_data,
@@ -760,7 +759,11 @@ async def get_secure_test_results(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in get_secure_test_results: {e}")
+        logger.error(
+            section=LogSection.API,
+            subsection=LogSubsection.API.ERROR,
+            message=f"Критическая ошибка при получении результатов теста для лобби {lobby_id} пользователем {user_id}: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/user/{user_id}/stats")
@@ -777,18 +780,33 @@ async def get_user_test_stats(
         user_role = current_user.get('role', 'user')
         
         if user_role != 'admin' and current_user_id != user_id:
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+                message=f"Попытка доступа к расширенной статистике пользователя {user_id} от пользователя {current_user_id} (роль: {user_role})"
+            )
             raise HTTPException(status_code=403, detail="Нет доступа к статистике другого пользователя")
 
         # Получаем пользователя
         try:
             user_oid = ObjectId(user_id)
         except:
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.VALIDATION,
+                message=f"Неверный формат ID пользователя при запросе расширенной статистики: {user_id}"
+            )
             raise HTTPException(status_code=400, detail="Неверный ID пользователя")
             
         user = await db.users.find_one({"_id": user_oid})
         if not user:
             user = await db.guests.find_one({"_id": user_oid})
         if not user:
+            logger.warning(
+                section=LogSection.USER,
+                subsection=LogSubsection.USER.PROFILE,
+                message=f"Пользователь {user_id} не найден при запросе расширенной статистики"
+            )
             raise HTTPException(status_code=404, detail="Пользователь не найден")
 
         # Временной диапазон
@@ -868,7 +886,7 @@ async def get_user_test_stats(
                             continue
                     
                     if question:
-                        correct_answer_index = question.get('correct_answer', 0)
+                        correct_answer_index = convert_answer_to_index(question.get('correct_answer', 'A'))
                         user_answer = answers.get(question_id_str)
                         is_correct = user_answer == correct_answer_index
                         
@@ -1014,7 +1032,11 @@ async def get_user_test_stats(
             "progress": progress_stats
         }
 
-        logger.info(f"[TEST_STATS] Retrieved stats for user {user_id} from {request.client.host}")
+        logger.info(
+            section=LogSection.USER,
+            subsection=LogSubsection.USER.PROFILE,
+            message=f"Получена расширенная статистика для пользователя {user_id}: {completed_tests} завершённых тестов, средний балл {average_score}%, {passed_tests} пройдено"
+        )
         
         return success(
             data=result_data,
@@ -1024,7 +1046,11 @@ async def get_user_test_stats(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[TEST_STATS] Error getting user stats: {e}")
+        logger.error(
+            section=LogSection.API,
+            subsection=LogSubsection.API.ERROR,
+            message=f"Критическая ошибка при получении расширенной статистики пользователя {user_id}: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Ошибка получения статистики")
 
 async def calculate_progress_stats(user_id: str, current_date: datetime) -> Dict[str, Any]:
@@ -1081,7 +1107,11 @@ async def calculate_progress_stats(user_id: str, current_date: datetime) -> Dict
         }
 
     except Exception as e:
-        logger.error(f"Error calculating progress stats: {e}")
+        logger.error(
+            section=LogSection.API,
+            subsection=LogSubsection.API.ERROR,
+            message=f"Ошибка при подсчёте статистики прогресса пользователя {user_id}: {str(e)}"
+        )
         return {
             "recent_period": {"tests_completed": 0, "average_score": 0, "total_questions": 0, "passed_tests": 0},
             "previous_period": {"tests_completed": 0, "average_score": 0, "total_questions": 0, "passed_tests": 0},
@@ -1131,7 +1161,7 @@ async def calculate_period_stats(user_id: str, lobbies: List[Dict]) -> Dict[str,
                         continue
                 
                 if question:
-                    correct_answer_index = question.get('correct_answer', 0)
+                    correct_answer_index = convert_answer_to_index(question.get('correct_answer', 'A'))
                     user_answer = answers.get(question_id_str)
                     
                     if user_answer == correct_answer_index:
@@ -1249,7 +1279,11 @@ async def get_global_test_stats(
             ]
         }
 
-        logger.info(f"[ADMIN_TEST_STATS] Retrieved global stats from {request.client.host}")
+        logger.info(
+            section=LogSection.ADMIN,
+            subsection=LogSubsection.ADMIN.LIST_ACCESS,
+            message=f"Получена глобальная статистика администратором: {total_lobbies} тестов, {len(active_users)} активных пользователей, {completed_tests} завершённых тестов"
+        )
         
         return success(
             data=result_data,
@@ -1259,5 +1293,9 @@ async def get_global_test_stats(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[ADMIN_TEST_STATS] Error getting global stats: {e}")
+        logger.error(
+            section=LogSection.API,
+            subsection=LogSubsection.API.ERROR,
+            message=f"Критическая ошибка при получении глобальной статистики: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Ошибка получения глобальной статистики") 

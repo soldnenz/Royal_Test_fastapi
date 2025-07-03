@@ -9,13 +9,13 @@ from app.db.database import get_database
 from app.admin.permissions import get_current_admin_user
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-import logging
+from app.logging import get_logger, LogSection, LogSubsection
 from app.core.finance import process_referral
 from pymongo import ReturnDocument
 from app.core.response import success
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # 🎯 Создание подписки
 @router.post("/", response_model=SubscriptionOut)
@@ -25,12 +25,22 @@ async def create_subscription(
     current_user=Depends(get_current_admin_user)
 ):
     if current_user["role"] != "admin":
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка создания подписки от пользователя без прав администратора: {current_user.get('iin', 'неизвестен')} (роль: {current_user.get('role', 'неизвестна')})"
+        )
         raise HTTPException(
             status_code=403,
             detail={"message": "Только администратор может создавать подписки"}
         )
 
     if not ObjectId.is_valid(payload.user_id):
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.VALIDATION,
+            message=f"Администратор {current_user['iin']} пытался создать подписку с некорректным user_id: {payload.user_id}"
+        )
         raise HTTPException(
             status_code=400,
             detail={"message": "Некорректный user_id"}
@@ -44,6 +54,11 @@ async def create_subscription(
     })
 
     if not user:
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.VALIDATION,
+            message=f"Администратор {current_user['iin']} пытался создать подписку для несуществующего пользователя: user_id={payload.user_id}, IIN={payload.iin}"
+        )
         raise HTTPException(
             status_code=404,
             detail={"message": "Пользователь не найден по user_id и IIN"}
@@ -51,6 +66,11 @@ async def create_subscription(
 
     existing = await db.subscriptions.find_one({"user_id": user_object_id, "is_active": True})
     if existing:
+        logger.warning(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+            message=f"Администратор {current_user['iin']} пытался создать подписку для пользователя {payload.user_id}, у которого уже есть активная подписка {existing['_id']}"
+        )
         raise HTTPException(
             status_code=409,
             detail={"message": "У пользователя уже есть активная подписка"}
@@ -58,6 +78,12 @@ async def create_subscription(
 
     # Новое поле для суммы
     amount = payload.amount
+    
+    logger.info(
+        section=LogSection.ADMIN,
+        subsection=LogSubsection.ADMIN.VALIDATION,
+        message=f"Администратор {current_user['full_name']} (IIN: {current_user['iin']}) начинает создание подписки для пользователя {payload.user_id} (IIN: {payload.iin}) - валидация пройдена успешно"
+    )
 
     try:
         # Инициализация переменной referral
@@ -69,7 +95,11 @@ async def create_subscription(
         if payload.use_referral:
             if user.get("referred_by") and not user.get("referred_use"):
                 # Уведомление админа о наличии активной реферальной ссылки
-                logger.info(f"У пользователя есть активная реферальная ссылка: {user['referred_by']}")
+                logger.info(
+                    section=LogSection.PAYMENT,
+                    subsection=LogSubsection.PAYMENT.REFERRAL,
+                    message=f"Обнаружена активная реферальная ссылка у пользователя {payload.user_id}: код {user['referred_by']} готов к использованию"
+                )
 
                 # Подготовка деталей реферала
                 referral = await db.referrals.find_one({"code": user["referred_by"]})
@@ -80,6 +110,18 @@ async def create_subscription(
                                    f"У пользователя была рефералка {user['referred_by']} с процентом {referral['rate']['value']}%, "
                                    f"и после вычислений на аккаунт реферала {referral['owner_user_id']} начислено {referral_amount} тенге.")
                     referral_used = True
+                    
+                    logger.info(
+                        section=LogSection.PAYMENT,
+                        subsection=LogSubsection.PAYMENT.REFERRAL,
+                        message=f"Найден реферальный код {user['referred_by']} в базе данных: владелец {referral['owner_user_id']}, ставка {referral['rate']['value']}%, к начислению {referral_amount} тенге"
+                    )
+                else:
+                    logger.warning(
+                        section=LogSection.PAYMENT,
+                        subsection=LogSubsection.PAYMENT.REFERRAL,
+                        message=f"Реферальный код {user['referred_by']} не найден в базе данных для пользователя {payload.user_id}"
+                    )
 
         # Если рефералка использована, обработать реферал
         if referral_used:
@@ -93,6 +135,12 @@ async def create_subscription(
                 {"_id": user_object_id},
                 {"$set": {"referred_use": True}},
                 return_document=ReturnDocument.AFTER
+            )
+            
+            logger.info(
+                section=LogSection.PAYMENT,
+                subsection=LogSubsection.PAYMENT.REFERRAL,
+                message=f"Реферальный бонус успешно обработан для пользователя {payload.user_id}: код {user['referred_by']}, владелец {referral['owner_user_id']}, начислено {referral_amount} тенге"
             )
 
         now = datetime.utcnow()
@@ -120,7 +168,11 @@ async def create_subscription(
         }
 
         result = await db.subscriptions.insert_one(subscription)
-        logger.info(f"[CREATE] Подписка создана: {result.inserted_id} для user_id={payload.user_id} админом {current_user['iin']}")
+        logger.info(
+            section=LogSection.ADMIN,
+            subsection=LogSubsection.ADMIN.USER_MANAGEMENT,
+            message=f"Администратор {current_user['full_name']} (IIN: {current_user['iin']}) создал подписку {result.inserted_id} для пользователя {payload.user_id} типа {payload.subscription_type} на {payload.duration_days} дней за {amount} тенге"
+        )
 
         subscription["_id"] = str(result.inserted_id)
         subscription["user_id"] = str(subscription["user_id"])
@@ -132,7 +184,11 @@ async def create_subscription(
         return success(data=response_data)
 
     except Exception as e:
-        logger.error(f"[CREATE ERROR] Ошибка при создании подписки: {e}")
+        logger.error(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+            message=f"Критическая ошибка при создании подписки для пользователя {payload.user_id} администратором {current_user['iin']}: {str(e)}"
+        )
         raise HTTPException(
             status_code=500,
             detail={"message": f"Ошибка при создании подписки {e}"}
@@ -146,6 +202,11 @@ async def cancel_subscription(
     current_user=Depends(get_current_admin_user)
 ):
     if current_user["role"] != "admin":
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка отмены подписки от пользователя без прав администратора: {current_user.get('iin', 'неизвестен')} (роль: {current_user.get('role', 'неизвестна')})"
+        )
         raise HTTPException(
             status_code=403,
             detail={"message": "Только администратор может отменить подписку"}
@@ -154,12 +215,22 @@ async def cancel_subscription(
     try:
         subscription = await db.subscriptions.find_one({"_id": ObjectId(data.subscription_id)})
         if not subscription:
+            logger.warning(
+                section=LogSection.PAYMENT,
+                subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+                message=f"Администратор {current_user['iin']} пытался отменить несуществующую подписку: {data.subscription_id}"
+            )
             raise HTTPException(
                 status_code=404,
                 detail={"message": "Подписка не найдена"}
             )
 
         if subscription["is_active"] is False:
+            logger.warning(
+                section=LogSection.PAYMENT,
+                subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+                message=f"Администратор {current_user['iin']} пытался отменить уже неактивную подписку {data.subscription_id} для пользователя {subscription['user_id']}"
+            )
             raise HTTPException(
                 status_code=409,
                 detail={"message": "Подписка уже отменена или не активна"}
@@ -178,11 +249,19 @@ async def cancel_subscription(
             }
         )
 
-        logger.info(f"[CANCEL] Подписка отменена: {data.subscription_id} админом {current_user['iin']}")
+        logger.info(
+            section=LogSection.ADMIN,
+            subsection=LogSubsection.ADMIN.USER_MANAGEMENT,
+            message=f"Администратор {current_user['full_name']} (IIN: {current_user['iin']}) отменил подписку {data.subscription_id} по причине: {data.cancel_reason}"
+        )
         return success(data={"message": "Подписка отменена"})
 
     except Exception as e:
-        logger.error(f"[CANCEL ERROR] Ошибка при отмене подписки: {e}")
+        logger.error(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+            message=f"Ошибка при отмене подписки {data.subscription_id} администратором {current_user['iin']}: {str(e)}"
+        )
         raise HTTPException(
             status_code=400,
             detail={"message": "Ошибка при отмене подписки", "hint": str(e)}
@@ -197,6 +276,11 @@ async def get_subscription_by_user_id(
     current_user=Depends(get_current_admin_user)
 ):
     if current_user["role"] not in {"admin", "moderator"}:
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка получения подписки от пользователя без прав: {current_user.get('iin', 'неизвестен')} (роль: {current_user.get('role', 'неизвестна')})"
+        )
         raise HTTPException(
             status_code=403,
             detail={"message": "Недостаточно прав"}
@@ -210,6 +294,11 @@ async def get_subscription_by_user_id(
             sort=[("created_at", -1)]
         )
         if not subscription:
+            logger.info(
+                section=LogSection.PAYMENT,
+                subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+                message=f"Подписка не найдена для пользователя {user_id} - запрос от {current_user['role']} {current_user['iin']}"
+            )
             raise HTTPException(
                 status_code=404,
                 detail={"message": "Подписка не найдена"}
@@ -233,13 +322,23 @@ async def get_subscription_by_user_id(
             subscription["cancelled_by"] = "system"
             subscription["cancel_reason"] = "Истек срок действия"
             subscription["cancelled_at"] = datetime.utcnow()
+            
+            logger.info(
+                section=LogSection.PAYMENT,
+                subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+                message=f"Система автоматически отменила подписку {subscription['_id']} для пользователя {user_id} из-за истечения срока действия (истекла: {subscription['expires_at']})"
+            )
 
         subscription["_id"] = str(subscription["_id"])
         subscription["user_id"] = str(subscription["user_id"])
         return success(data=jsonable_encoder(subscription))
 
     except Exception as e:
-        logger.error(f"[GET BY USER_ID ERROR] {e}")
+        logger.error(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+            message=f"Ошибка при получении подписки для пользователя {user_id} администратором {current_user['iin']}: {str(e)}"
+        )
         raise HTTPException(
             status_code=400,
             detail={"message": "Ошибка при получении подписки", "hint": str(e)}
@@ -253,6 +352,11 @@ async def update_subscription(
     current_user=Depends(get_current_admin_user)
 ):
     if current_user["role"] != "admin":
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка обновления подписки от пользователя без прав администратора: {current_user.get('iin', 'неизвестен')} (роль: {current_user.get('role', 'неизвестна')})"
+        )
         raise HTTPException(
             status_code=403,
             detail={"message": "Только администратор может редактировать подписки"}
@@ -262,6 +366,11 @@ async def update_subscription(
         # Проверяем, что подписка существует
         subscription = await db.subscriptions.find_one({"_id": ObjectId(data.subscription_id)})
         if not subscription:
+            logger.warning(
+                section=LogSection.PAYMENT,
+                subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+                message=f"Администратор {current_user['iin']} пытался обновить несуществующую подписку: {data.subscription_id}"
+            )
             raise HTTPException(
                 status_code=404,
                 detail={"message": "Подписка не найдена"}
@@ -269,6 +378,11 @@ async def update_subscription(
 
         # Проверяем, что подписка активна
         if subscription["is_active"] is False:
+            logger.warning(
+                section=LogSection.PAYMENT,
+                subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+                message=f"Администратор {current_user['iin']} пытался обновить неактивную подписку {data.subscription_id} для пользователя {subscription['user_id']}"
+            )
             raise HTTPException(
                 status_code=409,
                 detail={"message": "Нельзя изменить неактивную подписку"}
@@ -327,12 +441,21 @@ async def update_subscription(
             )
         
         if result.modified_count == 0:
+            logger.error(
+                section=LogSection.PAYMENT,
+                subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+                message=f"Не удалось обновить подписку {data.subscription_id} в базе данных - операция не внесла изменений (администратор: {current_user['iin']})"
+            )
             raise HTTPException(
                 status_code=400,
                 detail={"message": "Не удалось обновить подписку"}
             )
             
-        logger.info(f"[UPDATE] Подписка обновлена: {data.subscription_id} админом {current_user['iin']} - Тип: {subscription['subscription_type']} -> {data.subscription_type}, Срок: {subscription['expires_at']} -> {data.expires_at}")
+        logger.info(
+            section=LogSection.ADMIN,
+            subsection=LogSubsection.ADMIN.USER_MANAGEMENT,
+            message=f"Администратор {current_user['full_name']} (IIN: {current_user['iin']}) обновил подписку {data.subscription_id}: тип {subscription['subscription_type']} → {data.subscription_type}, срок действия {subscription['expires_at']} → {data.expires_at}, заметка: {data.note}"
+        )
         
         # Получаем обновленную запись
         updated_subscription = await db.subscriptions.find_one({"_id": ObjectId(data.subscription_id)})
@@ -342,7 +465,11 @@ async def update_subscription(
         return success(data=jsonable_encoder(updated_subscription))
 
     except Exception as e:
-        logger.error(f"[UPDATE ERROR] Ошибка при обновлении подписки: {e}")
+        logger.error(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+            message=f"Ошибка при обновлении подписки {data.subscription_id} администратором {current_user['iin']}: {str(e)}"
+        )
         raise HTTPException(
             status_code=400,
             detail={"message": "Ошибка при обновлении подписки", "hint": str(e)}

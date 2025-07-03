@@ -283,6 +283,9 @@ body.dark-theme .notification-badge {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255,255,255,0.15);
   animation: fadeInDown 0.2s ease-out;
+  display: block !important;
+  opacity: 1;
+  visibility: visible;
 }
 
 .profile-info {

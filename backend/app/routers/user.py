@@ -1,6 +1,5 @@
 # app/routers/user.py
 
-import logging
 from typing import Optional, Literal
 import secrets
 import string
@@ -22,10 +21,11 @@ from app.schemas.subscription_schemas import SubscriptionCreate, GiftSubscriptio
 from app.schemas.promo_code_schemas import PromoCodeActivate, PromoCodeCreate, PromoCodeOut, PromoCodeAdminUpdate
 from pydantic import BaseModel, Field
 from app.core.finance import process_referral
+from app.logging import get_logger, LogSection, LogSubsection
 from enum import Enum
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @router.get("/me")
@@ -34,6 +34,12 @@ async def get_current_profile(actor = Depends(get_current_actor)):
     actor["type"]  →  'user' | 'admin' | 'guest'
     actor["role"]  →  'user' | 'admin' | 'moder' | 'guest'
     """
+    logger.info(
+        section=LogSection.USER,
+        subsection=LogSubsection.USER.PROFILE,
+        message=f"Запрос профиля пользователем {actor.get('id')} с ролью {actor.get('role')}"
+    )
+    
     if actor["type"] == "user":
         profile = {
             "id": str(actor["id"]),
@@ -66,11 +72,21 @@ async def get_current_profile(actor = Depends(get_current_actor)):
         }
 
     else:
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.VALIDATION,
+            message=f"Попытка доступа с неизвестной ролью: {actor.get('type')} от пользователя {actor.get('id')}"
+        )
         raise HTTPException(
             status_code=403,
             detail={"message": "Unknown role", "hint": "Роль пользователя не распознана"}
         )
 
+    logger.info(
+        section=LogSection.USER,
+        subsection=LogSubsection.USER.PROFILE,
+        message=f"Профиль успешно получен для пользователя {actor.get('id')} с ролью {actor.get('role')}"
+    )
     return success(data=profile, message="Профиль получен")
 
 
@@ -83,7 +99,18 @@ async def get_user_profile(
     """
     Получить профиль пользователя или гостя по ID
     """
+    logger.info(
+        section=LogSection.USER,
+        subsection=LogSubsection.USER.PROFILE,
+        message=f"Запрос профиля пользователя {user_id} от пользователя {current_user.get('id')} с ролью {current_user.get('role')}"
+    )
+    
     if current_user["role"] not in {"user", "guest"}:
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка доступа к профилю пользователя {user_id} пользователем {current_user.get('id')} с ролью {current_user.get('role')}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"message": "Доступ запрещён"}
@@ -95,6 +122,11 @@ async def get_user_profile(
         guest = await db.guests.find_one({"_id": user_id})
         
         if not guest:
+            logger.warning(
+                section=LogSection.USER,
+                subsection=LogSubsection.USER.PROFILE,
+                message=f"Гость {user_id} не найден при запросе от пользователя {current_user.get('id')}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={"message": "Гость не найден"}
@@ -113,6 +145,11 @@ async def get_user_profile(
     else:
         # Проверяем валидность ObjectId для обычных пользователей
         if not ObjectId.is_valid(user_id):
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.VALIDATION,
+                message=f"Попытка доступа с неверным форматом ID пользователя: {user_id} от пользователя {current_user.get('id')}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={"message": "Неверный формат ID пользователя"}
@@ -122,6 +159,11 @@ async def get_user_profile(
         user = await db.users.find_one({"_id": ObjectId(user_id)})
         
         if not user:
+            logger.warning(
+                section=LogSection.USER,
+                subsection=LogSubsection.USER.PROFILE,
+                message=f"Пользователь {user_id} не найден при запросе от пользователя {current_user.get('id')}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={"message": "Пользователь не найден"}
@@ -135,6 +177,11 @@ async def get_user_profile(
             "is_guest": False
         }
         
+        logger.info(
+            section=LogSection.USER,
+            subsection=LogSubsection.USER.PROFILE,
+            message=f"Профиль пользователя {user_id} успешно получен пользователем {current_user.get('id')}"
+        )
         return success(data=profile, message="Профиль пользователя получен")
 
 
@@ -145,7 +192,18 @@ async def get_my_subscription_info(
     current_user: dict = Depends(get_current_actor),
     db=Depends(get_database)
 ):
+    logger.info(
+        section=LogSection.USER,
+        subsection=LogSubsection.USER.PROFILE,
+        message=f"Запрос информации о подписке пользователем {current_user.get('id')} с ролью {current_user.get('role')}"
+    )
+    
     if current_user["role"] != "user":
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка доступа к информации о подписке пользователем {current_user.get('id')} с ролью {current_user.get('role')}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"message": "Только для пользователей", "path": "/my/subscription"}
@@ -160,12 +218,22 @@ async def get_my_subscription_info(
     })
 
     if not subscription:
+        logger.info(
+            section=LogSection.USER,
+            subsection=LogSubsection.USER.PROFILE,
+            message=f"Пользователь {current_user.get('id')} не имеет активной подписки"
+        )
         return success(
             data={"has_subscription": False},
             message="У вас нет активной подписки"
         )
 
     if subscription["expires_at"] < now:
+        logger.info(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+            message=f"Подписка пользователя {current_user.get('id')} истекла, деактивирована системой"
+        )
         await db.subscriptions.update_one(
             {"_id": subscription["_id"]},
             {"$set": {
@@ -182,6 +250,11 @@ async def get_my_subscription_info(
         )
 
     days_left = (subscription["expires_at"] - now).days
+    logger.info(
+        section=LogSection.USER,
+        subsection=LogSubsection.USER.PROFILE,
+        message=f"Информация о подписке получена пользователем {current_user.get('id')}: тип {subscription['subscription_type']}, осталось {max(days_left, 0)} дней"
+    )
     return success(
         data={
             "has_subscription": True,
@@ -207,7 +280,11 @@ async def search_users_by_query(
     start_time = datetime.utcnow()
     
     if current_user["role"] not in {"admin", "moderator"}:
-        logger.warning(f"Unauthorized access attempt to search_users by user {current_user['id']} with role {current_user['role']}")
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка поиска пользователей пользователем {current_user.get('id')} с ролью {current_user.get('role')}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"message": "Доступ запрещён", "path": "/admin/search_users"}
@@ -216,7 +293,11 @@ async def search_users_by_query(
     # Санитизация запроса для предотвращения NoSQL-инъекций
     sanitized_query = query.strip()
     if not sanitized_query:
-        logger.warning(f"Empty query in search_users by user {current_user['id']}")
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.VALIDATION,
+            message=f"Пустой поисковый запрос от администратора {current_user.get('id')}"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"message": "Поисковый запрос не может быть пустым"}
@@ -250,7 +331,11 @@ async def search_users_by_query(
         {"referral_code": sanitized_query}  # Добавляем поиск по реферальному коду
     ])
     
-    logger.info(f"User search initiated by {current_user['id']} with query: {sanitized_query}")
+    logger.info(
+        section=LogSection.ADMIN,
+        subsection=LogSubsection.ADMIN.LIST_ACCESS,
+        message=f"Поиск пользователей администратором {current_user.get('full_name', current_user.get('id'))}: запрос '{sanitized_query}'"
+    )
     
     try:
         # Ограничиваем выборку и устанавливаем таймаут для защиты от DoS
@@ -527,7 +612,11 @@ async def search_users_by_query(
                             "referred_users": referred_users
                         }
                     except Exception as e:
-                        logger.error(f"Error processing referral data for user {user_id_str}: {str(e)}")
+                        logger.error(
+                            section=LogSection.API,
+                            subsection=LogSubsection.API.ERROR,
+                            message=f"Ошибка при обработке реферальных данных пользователя {user_id_str}: {str(e)}"
+                        )
                         user_data["referral_system"] = {
                             "code": referral_code,
                             "referred_users_count": 0,
@@ -580,14 +669,28 @@ async def search_users_by_query(
                         else:
                             user_data["referral_system"]["referrals"] = referrals
                 except Exception as e:
-                    logger.error(f"Error fetching referrals for user {user_id_str}: {str(e)}")
+                    logger.error(
+                        section=LogSection.API,
+                        subsection=LogSubsection.API.ERROR,
+                        message=f"Ошибка при получении реферальных кодов пользователя {user_id_str}: {str(e)}"
+                    )
         
         if not results:
-            logger.info(f"No users found for query: {sanitized_query}")
+            logger.info(
+                section=LogSection.ADMIN,
+                subsection=LogSubsection.ADMIN.LIST_ACCESS,
+                message=f"Поиск пользователей не дал результатов: запрос '{sanitized_query}' от администратора {current_user.get('id')}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={"message": "Пользователь не найден", "query": sanitized_query}
             )
+        
+        logger.info(
+            section=LogSection.ADMIN,
+            subsection=LogSubsection.ADMIN.LIST_ACCESS,
+            message=f"Поиск пользователей завершён успешно: найдено {len(results)} пользователей по запросу '{sanitized_query}' от администратора {current_user.get('full_name', current_user.get('id'))}"
+        )
         
         return success(
             data=results, 
@@ -599,7 +702,11 @@ async def search_users_by_query(
         raise
     except Exception as e:
         # Обрабатываем неожиданные ошибки
-        logger.error(f"Error in search_users: {str(e)}", exc_info=True)
+        logger.error(
+            section=LogSection.API,
+            subsection=LogSubsection.API.ERROR,
+            message=f"Критическая ошибка при поиске пользователей администратором {current_user.get('id')}: {str(e)}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"message": "Произошла ошибка при поиске пользователей", "error": str(e)}
@@ -619,6 +726,12 @@ async def get_user_history(
     """
     user_id = str(current_user["id"])
     
+    logger.info(
+        section=LogSection.USER,
+        subsection=LogSubsection.USER.PROFILE,
+        message=f"Запрос истории тестов пользователем {current_user.get('full_name', user_id)}: лимит {limit}, смещение {offset}"
+    )
+    
     # Подсчитываем общее количество
     total = await db.history.count_documents({"user_id": user_id})
     
@@ -631,6 +744,12 @@ async def get_user_history(
     for record in history:
         record["id"] = str(record["_id"])
         del record["_id"]
+    
+    logger.info(
+        section=LogSection.USER,
+        subsection=LogSubsection.USER.PROFILE,
+        message=f"История тестов получена пользователем {current_user.get('full_name', user_id)}: {len(history)} из {total} записей"
+    )
     
     return success(data={
         "history": history,
@@ -657,8 +776,19 @@ async def purchase_subscription(
     current_user: dict       = Depends(get_current_actor),
     db:           any        = Depends(get_database),
 ):
+    logger.info(
+        section=LogSection.PAYMENT,
+        subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+        message=f"Попытка покупки подписки {sub_data.subscription_type.value} на {sub_data.duration_days} дней пользователем {current_user.get('full_name', current_user.get('id'))}"
+    )
+    
     # Только обычные пользователи
     if current_user["role"] != "user":
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка покупки подписки пользователем {current_user.get('id')} с ролью {current_user.get('role')}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"message": "Только пользователи могут покупать подписки"}
@@ -670,6 +800,11 @@ async def purchase_subscription(
     # Подтягиваем полный профиль
     full_user = await db.users.find_one({"_id": ObjectId(user_id)})
     if not full_user:
+        logger.error(
+            section=LogSection.API,
+            subsection=LogSubsection.API.ERROR,
+            message=f"Пользователь {user_id} не найден при попытке покупки подписки"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"message": "Пользователь не найден"}
@@ -681,6 +816,11 @@ async def purchase_subscription(
         "is_active": True
     })
     if existing:
+        logger.warning(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+            message=f"Попытка покупки подписки пользователем {current_user.get('full_name', user_id)} с уже активной подпиской"
+        )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={"message": "У вас уже есть активная подписка"}
@@ -692,6 +832,11 @@ async def purchase_subscription(
         sub_data.duration_days
     )
     if sub_data.use_balance and full_user.get("money", 0) < price:
+        logger.warning(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.CREDIT,
+            message=f"Недостаточно средств для покупки подписки у пользователя {current_user.get('full_name', user_id)}: баланс {full_user.get('money', 0)} тенге, требуется {price} тенге"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"message": f"Недостаточно средств. Требуется: {price} тг."}
@@ -759,6 +904,12 @@ async def purchase_subscription(
             f"Реферальный бонус за {sub_data.subscription_type.value}"
         )
 
+        logger.info(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+            message=f"Успешно приобретена подписка {sub_data.subscription_type.value} пользователем {current_user.get('full_name', user_id)} на {sub_data.duration_days} дней за {price} тенге"
+        )
+
         return success(
             data={
                 "subscription_id":   subscription_id,
@@ -775,7 +926,11 @@ async def purchase_subscription(
         # Пробрасываем наши 400/403/409 ошибки
         raise
     except Exception as e:
-        logger.error(f"[PURCHASE ERROR] {e}")
+        logger.error(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+            message=f"Ошибка при покупке подписки пользователем {user_id}: {str(e)}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"message": f"Не удалось оформить подписку: {e}"}
@@ -826,7 +981,18 @@ async def purchase_gift_subscription(
     """
     Пользователь покупает подписку в подарок другому пользователю по ИИН.
     """
+    logger.info(
+        section=LogSection.PAYMENT,
+        subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+        message=f"Попытка покупки подарка подписки {gift_data.subscription_type} на {gift_data.duration_days} дней для ИИН {gift_data.gift_iin} пользователем {current_user.get('full_name', current_user.get('id'))}"
+    )
+    
     if current_user["role"] != "user":
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка покупки подарка подписки пользователем {current_user.get('id')} с ролью {current_user.get('role')}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"message": "Только пользователи могут покупать подписки в подарок", "path": "/purchase-gift-subscription"}
@@ -837,6 +1003,11 @@ async def purchase_gift_subscription(
     # Получаем полные данные пользователя из БД (включая поля referred_by и referred_use)
     full_user = await db.users.find_one({"_id": ObjectId(user_id)})
     if not full_user:
+        logger.error(
+            section=LogSection.API,
+            subsection=LogSubsection.API.ERROR,
+            message=f"Пользователь {user_id} не найден при попытке покупки подарка подписки"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"message": "Пользователь не найден"}
@@ -845,6 +1016,11 @@ async def purchase_gift_subscription(
     # Проверяем, существует ли получатель
     recipient = await db.users.find_one({"iin": gift_data.gift_iin})
     if not recipient:
+        logger.warning(
+            section=LogSection.PAYMENT,
+            subsection=LogSection.PAYMENT.SUBSCRIPTION,
+            message=f"Попытка покупки подарка подписки для несуществующего ИИН {gift_data.gift_iin} пользователем {current_user.get('full_name', user_id)}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"message": "Пользователь с указанным ИИН не найден"}
@@ -854,6 +1030,11 @@ async def purchase_gift_subscription(
     
     # Проверяем, не дарит ли пользователь сам себе
     if current_user["iin"] == gift_data.gift_iin:
+        logger.warning(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+            message=f"Попытка покупки подарка подписки самому себе пользователем {current_user.get('full_name', user_id)}"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"message": "Нельзя подарить подписку самому себе"}
@@ -866,6 +1047,11 @@ async def purchase_gift_subscription(
     })
     
     if existing:
+        logger.warning(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+            message=f"Попытка покупки подарка подписки для пользователя {gift_data.gift_iin} с уже активной подпиской от пользователя {current_user.get('full_name', user_id)}"
+        )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={"message": "У получателя уже есть активная подписка"}
@@ -876,6 +1062,11 @@ async def purchase_gift_subscription(
     
     # Проверяем, хватает ли средств
     if current_user["money"] < price:
+        logger.warning(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.CREDIT,
+            message=f"Недостаточно средств для покупки подарка подписки у пользователя {current_user.get('full_name', user_id)}: баланс {current_user['money']} тенге, требуется {price} тенге"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"message": f"Недостаточно средств на балансе. Требуется: {price} тг."}
@@ -949,8 +1140,9 @@ async def purchase_gift_subscription(
         await process_referral(str(user_id), price, description)
         
         logger.info(
-            f"[GIFT] Пользователь {user_id} подарил подписку {gift_data.subscription_type} " +
-            f"на {gift_data.duration_days} дней пользователю {gift_data.gift_iin} за {price} тг."
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+            message=f"Подарена подписка {gift_data.subscription_type} пользователем {current_user.get('full_name', user_id)} получателю {gift_data.gift_iin} на {gift_data.duration_days} дней за {price} тенге"
         )
         
         # По возможности отправляем уведомление получателю
@@ -972,7 +1164,11 @@ async def purchase_gift_subscription(
         )
         
     except Exception as e:
-        logger.error(f"[GIFT ERROR] Ошибка при дарении подписки: {e}")
+        logger.error(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+            message=f"Ошибка при дарении подписки пользователем {user_id} получателю {gift_data.gift_iin}: {str(e)}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"message": f"Ошибка при дарении подписки: {str(e)}"}
@@ -999,8 +1195,9 @@ async def purchase_promo_code(
     # Только для обычных пользователей
     if current_user.get("role") != "user":
         logger.warning(
-            f"[PROMO][{ip}] Пользователь {current_user.get('id')} с ролью "
-            f"{current_user.get('role')} попытался создать промокод"
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка создания промокода пользователем {current_user.get('id')} с ролью {current_user.get('role')} с IP {ip}"
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -1018,9 +1215,10 @@ async def purchase_promo_code(
 
     # Проверяем баланс
     if balance < price:
-        logger.info(
-            f"[PROMO][{ip}] Недостаточно средств у пользователя {user_id}: "
-            f"баланс={balance}, требуется={price}"
+        logger.warning(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.CREDIT,
+            message=f"Недостаточно средств для создания промокода у пользователя {user_id}: баланс {balance} тенге, требуется {price} тенге"
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1077,8 +1275,9 @@ async def purchase_promo_code(
                 await db.transactions.insert_one(txn, session=session)
 
         logger.info(
-            f"[PROMO][{ip}] Промокод {code} создан для пользователя {user_id}, "
-            f"цена={price}, баланс_после={balance - price}"
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.CREDIT,
+            message=f"Создан промокод {code} пользователем {current_user.get('full_name', user_id)}: тип {promo_data.subscription_type}, {promo_data.duration_days} дней, цена {price} тенге"
         )
 
         return success(
@@ -1097,7 +1296,11 @@ async def purchase_promo_code(
         # пробрасываем 403/400
         raise
     except Exception as e:
-        logger.error(f"[PROMO ERROR][{ip}] Ошибка создания промокода для {user_id}: {e}", exc_info=True)
+        logger.error(
+            section=LogSection.API,
+            subsection=LogSubsection.API.ERROR,
+            message=f"Критическая ошибка при создании промокода пользователем {user_id}: {str(e)}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"message": "Внутренняя ошибка при создании промокода"}
@@ -1119,11 +1322,19 @@ async def activate_promo_code(
     user_id = current_user.get("id")
     user_role = current_user.get("role")
 
-    logger.info(f"[PROMO ACT][{ip}] Пользователь {user_id} (role={user_role}) пытается активировать промокод '{promo_data.promo_code}'")
+    logger.info(
+        section=LogSection.PAYMENT,
+        subsection=LogSubsection.PAYMENT.CREDIT,
+        message=f"Попытка активации промокода '{promo_data.promo_code}' пользователем {user_id} (роль: {user_role})"
+    )
 
     # Только для обычных пользователей
     if user_role != "user":
-        logger.warning(f"[PROMO ACT][{ip}] Отказ: роль {user_role} не может активировать промокоды")
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка активации промокода '{promo_data.promo_code}' пользователем {user_id} с ролью {user_role}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"message": "Только пользователи могут активировать промокоды"}
@@ -1132,7 +1343,11 @@ async def activate_promo_code(
     # Санитизация и нормализация кода
     code = promo_data.promo_code.strip().upper()
     if not code:
-        logger.warning(f"[PROMO ACT][{ip}] Пустой промокод после очистки")
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.VALIDATION,
+            message=f"Попытка активации пустого промокода пользователем {user_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"message": "Промокод не может быть пустым"}
@@ -1143,7 +1358,11 @@ async def activate_promo_code(
     # Проверяем существование промокода
     promo = await db.promo_codes.find_one({"code": code})
     if not promo:
-        logger.info(f"[PROMO ACT][{ip}] Промокод '{code}' не найден")
+        logger.warning(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.CREDIT,
+            message=f"Попытка активации несуществующего промокода '{code}' пользователем {user_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"message": "Промокод не найден"}
@@ -1151,7 +1370,11 @@ async def activate_promo_code(
 
     # Проверяем, активен ли он
     if not promo.get("is_active", False):
-        logger.info(f"[PROMO ACT][{ip}] Промокод '{code}' не активен")
+        logger.warning(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.CREDIT,
+            message=f"Попытка активации неактивного промокода '{code}' пользователем {user_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"message": "Промокод недействителен или уже использован"}
@@ -1168,7 +1391,11 @@ async def activate_promo_code(
                     {"$set": {"is_active": False, "updated_at": now}},
                     session=session
                 )
-        logger.info(f"[PROMO ACT][{ip}] Срок промокода '{code}' истёк, деактивирован")
+        logger.warning(
+            section=LogSection.PAYMENT,
+            subsection=LogSection.PAYMENT.CREDIT,
+            message=f"Попытка активации истёкшего промокода '{code}' пользователем {user_id}, промокод деактивирован"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"message": "Срок действия промокода истек"}
@@ -1177,7 +1404,11 @@ async def activate_promo_code(
     # Специальные типы только для админов
     sub_type = promo.get("subscription_type", "").lower()
     if sub_type in ["demo", "school"]:
-        logger.warning(f"[PROMO ACT][{ip}] Промокод '{code}' типа '{sub_type}' недоступен для user")
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка активации промокода '{code}' типа '{sub_type}' обычным пользователем {user_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"message": f"Тип подписки '{sub_type}' не доступен для обычных пользователей"}
@@ -1195,7 +1426,11 @@ async def activate_promo_code(
                     {"$set": {"is_active": False, "updated_at": now}},
                     session=session
                 )
-        logger.info(f"[PROMO ACT][{ip}] Промокод '{code}' превысил лимит использования ({usage_count}/{usage_limit})")
+        logger.warning(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.CREDIT,
+            message=f"Попытка активации промокода '{code}' с превышенным лимитом использования ({usage_count}/{usage_limit}) пользователем {user_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"message": "Промокод уже использован максимальное количество раз"}
@@ -1204,7 +1439,11 @@ async def activate_promo_code(
     # Проверяем, не активировал ли пользователь уже
     used_by = promo.get("used_by", [])
     if str(user_id) in used_by:
-        logger.info(f"[PROMO ACT][{ip}] Пользователь {user_id} уже использовал промокод '{code}'")
+        logger.warning(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.CREDIT,
+            message=f"Попытка повторной активации промокода '{code}' пользователем {user_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"message": "Вы уже активировали этот промокод ранее"}
@@ -1216,7 +1455,11 @@ async def activate_promo_code(
         "is_active": True
     })
     if existing:
-        logger.info(f"[PROMO ACT][{ip}] Пользователь {user_id} уже имеет активную подписку, невозможно активировать промокод")
+        logger.warning(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.SUBSCRIPTION,
+            message=f"Попытка активации промокода '{code}' пользователем {user_id} с уже активной подпиской"
+        )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={"message": "У вас уже есть активная подписка"}
@@ -1269,7 +1512,11 @@ async def activate_promo_code(
                     session=session
                 )
 
-        logger.info(f"[PROMO ACT][{ip}] Пользователь {user_id} активировал промокод '{code}', подписка {subscription_id}")
+        logger.info(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.CREDIT,
+            message=f"Успешно активирован промокод '{code}' пользователем {current_user.get('full_name', user_id)}: подписка {promo.get('subscription_type')} на {duration_days} дней"
+        )
 
         return success(
             data={
@@ -1285,7 +1532,11 @@ async def activate_promo_code(
         # пропускаем контролируемые ошибки
         raise
     except Exception as e:
-        logger.error(f"[PROMO ACT ERROR][{ip}] Ошибка при активации промокода '{code}' для {user_id}: {e}", exc_info=True)
+        logger.error(
+            section=LogSection.API,
+            subsection=LogSubsection.API.ERROR,
+            message=f"Критическая ошибка при активации промокода '{code}' пользователем {user_id}: {str(e)}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"message": "Ошибка при активации промокода"}
@@ -1304,6 +1555,11 @@ async def get_promo_codes(
     Доступно только для администраторов.
     """
     if current_user["role"] not in ["admin", "moderator"]:
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка доступа к списку промокодов пользователем {current_user.get('id')} с ролью {current_user.get('role')}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"message": "Доступ запрещен", "path": "/admin/promo-codes"}
@@ -1334,6 +1590,12 @@ async def get_promo_codes(
         
         promo_codes.append(promo)
     
+    logger.info(
+        section=LogSection.ADMIN,
+        subsection=LogSubsection.ADMIN.LIST_ACCESS,
+        message=f"Получен список промокодов администратором {current_user.get('full_name', current_user.get('id'))}: {len(promo_codes)} из {total} промокодов"
+    )
+    
     return success(
         data={
             "promo_codes": promo_codes,
@@ -1355,6 +1617,11 @@ async def get_promo_code_details(
     Доступно только для администраторов.
     """
     if current_user["role"] not in ["admin", "moderator"]:
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка доступа к деталям промокода {promo_id} пользователем {current_user.get('id')} с ролью {current_user.get('role')}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"message": "Доступ запрещен", "path": f"/admin/promo-codes/{promo_id}"}
@@ -1493,7 +1760,11 @@ async def update_promo_code(
             if date_field in updated_promo and updated_promo[date_field]:
                 updated_promo[date_field] = updated_promo[date_field].isoformat()
         
-        logger.info(f"[ADMIN] Промокод {promo_id} обновлен администратором {current_user['id']}")
+        logger.info(
+            section=LogSection.ADMIN,
+            subsection=LogSubsection.ADMIN.LIST_ACCESS,
+            message=f"Промокод {promo_id} обновлен администратором {current_user.get('full_name', current_user.get('id'))}"
+        )
         
         return success(
             data=updated_promo,
@@ -1501,7 +1772,11 @@ async def update_promo_code(
         )
         
     except Exception as e:
-        logger.error(f"[ADMIN ERROR] Ошибка при обновлении промокода: {e}")
+        logger.error(
+            section=LogSection.API,
+            subsection=LogSubsection.API.ERROR,
+            message=f"Ошибка при обновлении промокода {promo_id} администратором {current_user.get('id')}: {str(e)}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"message": f"Ошибка при обновлении промокода: {str(e)}"}
@@ -1540,7 +1815,11 @@ async def delete_promo_code(
                 detail={"message": "Промокод не найден или уже удален"}
             )
         
-        logger.info(f"[ADMIN] Промокод {promo_id} удален администратором {current_user['id']}")
+        logger.info(
+            section=LogSection.ADMIN,
+            subsection=LogSubsection.ADMIN.LIST_ACCESS,
+            message=f"Промокод {promo_id} удален администратором {current_user.get('full_name', current_user.get('id'))}"
+        )
         
         return success(
             data={"deleted": True, "promo_id": promo_id},
@@ -1551,7 +1830,11 @@ async def delete_promo_code(
         if isinstance(e, HTTPException):
             raise e
         
-        logger.error(f"[ADMIN ERROR] Ошибка при удалении промокода: {e}")
+        logger.error(
+            section=LogSection.API,
+            subsection=LogSubsection.API.ERROR,
+            message=f"Ошибка при удалении промокода {promo_id} администратором {current_user.get('id')}: {str(e)}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"message": f"Ошибка при удалении промокода: {str(e)}"}
@@ -1566,7 +1849,18 @@ async def admin_create_promo_code(
     """
     Создание нового промокода администратором.
     """
+    logger.info(
+        section=LogSection.ADMIN,
+        subsection=LogSubsection.ADMIN.LIST_ACCESS,
+        message=f"Попытка создания промокода администратором {current_user.get('full_name', current_user.get('id'))}: тип {promo_data.subscription_type}, {promo_data.duration_days} дней"
+    )
+    
     if current_user["role"] != "admin":
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка создания промокода пользователем {current_user.get('id')} с ролью {current_user.get('role')}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"message": "Доступ запрещен", "path": "/admin/generate-promo-code"}
@@ -1607,7 +1901,11 @@ async def admin_create_promo_code(
         result = await db.promo_codes.insert_one(promo)
         promo_id = str(result.inserted_id)
         
-        logger.info(f"[ADMIN] Создан промокод {promo_code} администратором {current_user['id']}")
+        logger.info(
+            section=LogSection.ADMIN,
+            subsection=LogSubsection.ADMIN.LIST_ACCESS,
+            message=f"Создан промокод {promo_code} администратором {current_user.get('full_name', current_user.get('id'))}: тип {promo_data.subscription_type}, {promo_data.duration_days} дней"
+        )
         
         return success(
             data={
@@ -1622,7 +1920,11 @@ async def admin_create_promo_code(
         )
         
     except Exception as e:
-        logger.error(f"[ADMIN ERROR] Ошибка при создании промокода: {e}")
+        logger.error(
+            section=LogSection.API,
+            subsection=LogSubsection.API.ERROR,
+            message=f"Ошибка при создании промокода администратором {current_user.get('id')}: {str(e)}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"message": f"Ошибка при создании промокода: {str(e)}"}
@@ -1641,10 +1943,18 @@ async def get_user_promo_codes(
     user_id = current_user.get("id")
     role    = current_user.get("role")
 
-    logger.info(f"[PROMO LIST][{ip}] Пользователь {user_id} (role={role}) запросил список своих промокодов")
+    logger.info(
+        section=LogSection.USER,
+        subsection=LogSubsection.USER.PROFILE,
+        message=f"Запрос списка промокодов пользователем {user_id} (роль: {role})"
+    )
 
     if role != "user":
-        logger.warning(f"[PROMO LIST][{ip}] Отказ в доступе: роль {role} не может просматривать свои промокоды")
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка просмотра промокодов пользователем {user_id} с ролью {role}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"message": "Только пользователи могут просматривать свои промокоды"}
@@ -1715,7 +2025,11 @@ async def get_user_promo_codes(
                 "subscription_id":   str(sub["_id"])
             })
 
-        logger.info(f"[PROMO LIST][{ip}] Пользователь {user_id} получил {len(created)} созданных и {len(used_list)} использованных промокодов")
+        logger.info(
+            section=LogSection.USER,
+            subsection=LogSubsection.USER.PROFILE,
+            message=f"Получен список промокодов пользователем {user_id}: {len(created)} созданных, {len(used_list)} использованных"
+        )
 
         return success(
             data={
@@ -1729,7 +2043,11 @@ async def get_user_promo_codes(
         # пробрасываем контролируемые ошибки
         raise
     except Exception as e:
-        logger.error(f"[PROMO LIST ERROR][{ip}] Ошибка при получении промокодов для {user_id}: {e}", exc_info=True)
+        logger.error(
+            section=LogSection.API,
+            subsection=LogSubsection.API.ERROR,
+            message=f"Ошибка при получении списка промокодов пользователем {user_id}: {str(e)}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"message": "Внутренняя ошибка сервера при получении промокодов"}
@@ -1746,7 +2064,18 @@ async def get_my_transactions(
     """
     Возвращает историю транзакций пользователя с пагинацией.
     """
+    logger.info(
+        section=LogSection.USER,
+        subsection=LogSubsection.USER.PROFILE,
+        message=f"Запрос истории транзакций пользователем {current_user.get('full_name', current_user.get('id'))}: лимит {limit}, смещение {offset}"
+    )
+    
     if current_user["role"] != "user":
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка доступа к истории транзакций пользователем {current_user.get('id')} с ролью {current_user.get('role')}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"message": "Только для пользователей", "path": "/my/transactions"}
@@ -1783,7 +2112,11 @@ async def get_my_transactions(
         
         transactions.append(filtered_txn)
     
-    logger.info(f"Получено {len(transactions)} транзакций для пользователя {user_id}")
+    logger.info(
+        section=LogSection.USER,
+        subsection=LogSubsection.USER.PROFILE,
+        message=f"Получена история транзакций пользователем {current_user.get('full_name', user_id)}: {len(transactions)} из {total} транзакций"
+    )
     
     return success(
         data={

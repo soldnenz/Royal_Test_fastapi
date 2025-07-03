@@ -1,4 +1,3 @@
-import logging
 from datetime import datetime, timedelta
 
 import jwt
@@ -9,23 +8,17 @@ from bson import ObjectId
 from app.core.response import error
 from app.db.database import db
 from app.core.config import settings
+from app.logging import get_logger, LogSection, LogSubsection
 
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.db.database import get_database
 
-logger = logging.getLogger(__name__)
+# Настройка логгера
+logger = get_logger(__name__)
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
-
-# Security logger
-security_logger = logging.getLogger('security_tasks')
-security_handler = logging.FileHandler('security_tasks.log')
-security_handler.setLevel(logging.INFO)
-security_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-security_handler.setFormatter(security_formatter)
-security_logger.addHandler(security_handler)
-security_logger.setLevel(logging.INFO)
 
 def hash_password(plain_password: str) -> str:
     return pwd_context.hash(plain_password)
@@ -40,6 +33,16 @@ def create_access_token(data: dict, expires_delta: timedelta = None) -> tuple[st
     to_encode = data.copy()
     to_encode.update({"exp": expire})
     token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    
+    user_id = data.get("sub", "неизвестен")
+    role = data.get("role", "неизвестна")
+    expire_str = expire.strftime("%H:%M:%S %d.%m.%Y")
+    logger.info(
+        section=LogSection.AUTH,
+        subsection=LogSubsection.AUTH.TOKEN_CREATE,
+        message=f"JWT токен успешно создан для пользователя {user_id} с ролью {role} - действует до {expire_str}"
+    )
+    
     return token, expire
 
 
@@ -58,6 +61,11 @@ async def store_token_in_db(token: str, user_id, expires_at: datetime, ip: str, 
         if len(active_tokens) >= 3:
             oldest = active_tokens[0]
             await db.tokens.update_one({"_id": oldest["_id"]}, {"$set": {"revoked": True}})
+            logger.info(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.TOKEN_LIMIT,
+                message=f"Отозван старый токен пользователя {user_id} - превышен лимит 3 активных токена"
+            )
 
     await db.tokens.insert_one({
         "user_id": user_id,
@@ -70,10 +78,23 @@ async def store_token_in_db(token: str, user_id, expires_at: datetime, ip: str, 
         "last_activity": datetime.utcnow(),
         "is_guest": is_guest
     })
+    
+    user_type = "гость" if is_guest else "пользователь"
+    expire_str = expires_at.strftime("%H:%M:%S %d.%m.%Y")
+    logger.info(
+        section=LogSection.AUTH,
+        subsection=LogSubsection.AUTH.TOKEN_STORE,
+        message=f"Токен сохранен в БД для {user_type} {user_id} с IP {ip} - действует до {expire_str}"
+    )
 
 async def get_current_user(request: Request):
     token = request.cookies.get("access_token")
     if not token:
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.TOKEN_MISSING,
+            message=f"Отсутствует токен в cookie при запросе с IP {request.client.host}"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"message": "Токен не найден в cookie", "hint": "Авторизуйтесь, чтобы получить доступ"}
@@ -83,16 +104,31 @@ async def get_current_user(request: Request):
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id: str = payload.get("sub")
         if not user_id or not ObjectId.is_valid(user_id):
+            logger.warning(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.TOKEN_INVALID,
+                message=f"Недействительный user_id в токене: {user_id} с IP {request.client.host}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail={"message": "Недействительный токен", "hint": "Проверьте корректность токена"}
             )
     except jwt.ExpiredSignatureError:
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.TOKEN_EXPIRED,
+            message=f"Попытка использования просроченного токена с IP {request.client.host}"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"message": "Срок действия токена истёк", "hint": "Выполните вход заново"}
         )
     except jwt.PyJWTError:
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.TOKEN_INVALID,
+            message=f"Ошибка валидации JWT токена с IP {request.client.host}"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"message": "Ошибка валидации токена"}
@@ -100,12 +136,22 @@ async def get_current_user(request: Request):
 
     token_doc = await db.tokens.find_one({"token": token})
     if not token_doc:
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.TOKEN_NOT_FOUND,
+            message=f"Токен не найден в БД для пользователя {user_id} с IP {request.client.host}"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"message": "Токен не найден в базе", "hint": "Повторите вход"}
         )
 
     if token_doc.get("revoked") or token_doc.get("expires_at") < datetime.utcnow():
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.TOKEN_REVOKED,
+            message=f"Попытка использования отозванного/просроченного токена пользователем {user_id} с IP {request.client.host}"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"message": "Токен отозван или просрочен"}
@@ -113,6 +159,11 @@ async def get_current_user(request: Request):
 
     # Проверяем, что это не гость
     if isinstance(user_id, str) and user_id.startswith("guest_"):
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.ACCESS_DENIED,
+            message=f"Гость {user_id} пытается получить доступ к пользовательским функциям с IP {request.client.host}"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"message": "Неверный тип пользователя для данного метода"}
@@ -120,6 +171,11 @@ async def get_current_user(request: Request):
     
     user = await db.users.find_one({"_id": ObjectId(user_id)})
     if not user:
+        logger.error(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.USER_NOT_FOUND,
+            message=f"Пользователь {user_id} не найден в БД при валидации токена с IP {request.client.host}"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"message": "Пользователь не найден"}
@@ -133,6 +189,12 @@ async def get_current_user(request: Request):
             "user_agent": request.headers.get("User-Agent", "unknown")
         }}
     )
+    
+    logger.info(
+        section=LogSection.AUTH,
+        subsection=LogSubsection.AUTH.USER_VALIDATED,
+        message=f"Пользователь {user.get('full_name', 'неизвестен')} ({user_id}) успешно аутентифицирован с IP {request.client.host}"
+    )
 
 
 async def get_current_actor(request: Request) -> dict:
@@ -145,6 +207,11 @@ async def get_current_actor(request: Request) -> dict:
     # ─────────────────────────────────────────────────────────────────────────
     token = request.cookies.get("access_token")
     if not token:
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.TOKEN_MISSING,
+            message=f"Отсутствует токен в cookie при запросе get_current_actor с IP {request.client.host}"
+        )
         raise HTTPException(
             status_code=401,
             detail={"message": "Не передан токен (cookie)", "hint": "Добавьте access_token в cookie"}
@@ -160,16 +227,31 @@ async def get_current_actor(request: Request) -> dict:
         is_guest = isinstance(user_id, str) and user_id.startswith("guest_")
         
         if not user_id or (not is_guest and not ObjectId.is_valid(user_id)):
+            logger.warning(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.TOKEN_INVALID,
+                message=f"Некорректные данные в токене: user_id={user_id}, role={role} с IP {request.client.host}"
+            )
             raise HTTPException(
                 status_code=401,
                 detail={"message": "Некорректные данные токена", "hint": "Проверьте токен"}
             )
     except jwt.ExpiredSignatureError:
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.TOKEN_EXPIRED,
+            message=f"Просроченный токен в get_current_actor с IP {request.client.host}"
+        )
         raise HTTPException(
             status_code=401,
             detail={"message": "Срок действия токена истёк", "hint": "Войдите снова"}
         )
     except jwt.PyJWTError:
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.TOKEN_INVALID,
+            message=f"Ошибка декодирования JWT в get_current_actor с IP {request.client.host}"
+        )
         raise HTTPException(
             status_code=401,
             detail={"message": "Ошибка валидации токена", "hint": "Невозможно декодировать токен"}
@@ -179,6 +261,11 @@ async def get_current_actor(request: Request) -> dict:
     if role == "guest":
         token_doc = await db.tokens.find_one({"token": token})
         if not token_doc or token_doc.get("revoked") or token_doc["expires_at"] < datetime.utcnow():
+            logger.warning(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.TOKEN_INVALID,
+                message=f"Недействительный токен гостя {user_id} с IP {request.client.host}"
+            )
             raise HTTPException(
                 status_code=401,
                 detail={"message": "Токен недействителен", "hint": "Он отозван или истёк"}
@@ -196,10 +283,21 @@ async def get_current_actor(request: Request) -> dict:
 
         guest = await db.guests.find_one({"_id": user_id})
         if not guest:
+            logger.error(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.USER_NOT_FOUND,
+                message=f"Гостевой пользователь {user_id} не найден в БД с IP {request.client.host}"
+            )
             raise HTTPException(
                 status_code=404,
                 detail={"message": "Гостевой пользователь не найден"}
             )
+
+        logger.info(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.GUEST_VALIDATED,
+            message=f"Гость {guest.get('full_name', 'неизвестен')} ({user_id}) успешно аутентифицирован для лобби {guest.get('lobby_id')} с IP {request.client.host}"
+        )
 
         return {
             "type": "guest",
@@ -216,6 +314,11 @@ async def get_current_actor(request: Request) -> dict:
     elif role == "user":
         token_doc = await db.tokens.find_one({"token": token})
         if not token_doc or token_doc.get("revoked") or token_doc["expires_at"] < datetime.utcnow():
+            logger.warning(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.TOKEN_INVALID,
+                message=f"Недействительный токен пользователя {user_id} с IP {request.client.host}"
+            )
             raise HTTPException(
                 status_code=401,
                 detail={"message": "Токен недействителен", "hint": "Он отозван или истёк"}
@@ -233,6 +336,11 @@ async def get_current_actor(request: Request) -> dict:
 
         # Проверяем, что это не гость (для роли user)
         if isinstance(user_id, str) and user_id.startswith("guest_"):
+            logger.warning(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.ACCESS_DENIED,
+                message=f"Гость {user_id} пытается использовать роль user с IP {request.client.host}"
+            )
             raise HTTPException(
                 status_code=401,
                 detail={"message": "Гости не могут использовать роль user"}
@@ -240,10 +348,17 @@ async def get_current_actor(request: Request) -> dict:
         
         user = await db.users.find_one({"_id": ObjectId(user_id)})
         if not user:
+            logger.error(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.USER_NOT_FOUND,
+                message=f"Пользователь {user_id} не найден в БД при role=user с IP {request.client.host}"
+            )
             raise HTTPException(
                 status_code=404,
                 detail={"message": "Пользователь не найден"}
             )
+
+
 
         return {
             "type": "user",
@@ -261,6 +376,11 @@ async def get_current_actor(request: Request) -> dict:
     elif role in ("admin", "moderator", "tests_creator"):
         # Проверяем, что это не гость (для админских ролей)
         if isinstance(user_id, str) and user_id.startswith("guest_"):
+            logger.warning(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.ACCESS_DENIED,
+                message=f"Гость {user_id} пытается использовать административную роль {role} с IP {request.client.host}"
+            )
             raise HTTPException(
                 status_code=401,
                 detail={"message": "Гости не могут иметь административные роли"}
@@ -268,6 +388,11 @@ async def get_current_actor(request: Request) -> dict:
         
         admin = await db.admins.find_one({"_id": ObjectId(user_id)})
         if not admin:
+            logger.error(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.ADMIN_NOT_FOUND,
+                message=f"Администратор {user_id} не найден в БД при role={role} с IP {request.client.host}"
+            )
             raise HTTPException(
                 status_code=404,
                 detail={"message": "Администратор не найден"}
@@ -275,6 +400,11 @@ async def get_current_actor(request: Request) -> dict:
 
         sess = admin.get("active_session")
         if not sess or sess.get("token") != token:
+            logger.warning(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.SESSION_INVALID,
+                message=f"Неактивная сессия администратора {admin.get('full_name', 'неизвестен')} ({user_id}) с IP {request.client.host}"
+            )
             raise HTTPException(
                 status_code=401,
                 detail={"message": "Сессия не активна или токен устарел"}
@@ -290,6 +420,12 @@ async def get_current_actor(request: Request) -> dict:
             }}
         )
 
+        logger.info(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.ADMIN_VALIDATED,
+            message=f"Администратор {admin.get('full_name', 'неизвестен')} ({user_id}) с ролью {role} успешно аутентифицирован с IP {request.client.host}"
+        )
+
         return {
             "type": "admin",
             "id": admin["_id"],
@@ -299,6 +435,11 @@ async def get_current_actor(request: Request) -> dict:
         }
 
     # ──────────────────────── НЕИЗВЕСТНАЯ РОЛЬ ──────────────────────────────
+    logger.warning(
+        section=LogSection.AUTH,
+        subsection=LogSubsection.AUTH.ROLE_UNKNOWN,
+        message=f"Неизвестная роль {role} для пользователя {user_id} с IP {request.client.host}"
+    )
     raise HTTPException(
         status_code=403,
         detail={"message": "Неизвестная роль", "hint": "Роль не распознана"}
@@ -334,23 +475,43 @@ async def auto_close_expired_exams():
                 }
             )
             
-            security_logger.info(f"AUTO_CLOSE_BACKGROUND: Closed expired exam lobby {lobby_id}")
+            logger.info(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.AUTO_TASK,
+                message=f"Автоматически закрыто экзаменационное лобби {lobby_id} по истечению времени"
+            )
             closed_count += 1
         
         if closed_count > 0:
-            security_logger.info(f"AUTO_CLOSE_SUMMARY: Closed {closed_count} expired exam lobbies")
+            logger.info(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.AUTO_TASK,
+                message=f"Фоновая задача автозакрытия завершена: закрыто {closed_count} просроченных экзаменационных лобби"
+            )
             
     except Exception as e:
-        security_logger.error(f"AUTO_CLOSE_ERROR: Error in auto-close task: {str(e)}")
+        logger.error(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.AUTO_TASK,
+            message=f"Ошибка в фоновой задаче автозакрытия лобби: {str(e)}"
+        )
 
 async def cleanup_old_security_logs():
     """Clean up old security log entries"""
     try:
         # This would typically clean up old log files or database entries
         # For now, just log that cleanup was attempted
-        security_logger.info("CLEANUP: Security logs cleanup completed")
+        logger.info(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.CLEANUP,
+            message="Очистка старых записей безопасности завершена успешно"
+        )
     except Exception as e:
-        security_logger.error(f"CLEANUP_ERROR: Error in cleanup task: {str(e)}")
+        logger.error(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.CLEANUP,
+            message=f"Ошибка при очистке логов безопасности: {str(e)}"
+        )
 
 async def security_background_tasks():
     """Main security background tasks runner"""
@@ -367,5 +528,9 @@ async def security_background_tasks():
             await asyncio.sleep(30)  # Wait 30 seconds before next check
             
         except Exception as e:
-            security_logger.error(f"BACKGROUND_TASK_ERROR: {str(e)}")
+            logger.error(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.BACKGROUND_TASK,
+                message=f"Критическая ошибка в фоновых задачах безопасности: {str(e)} - перезапуск через 60 секунд"
+            )
             await asyncio.sleep(60)  # Wait longer on error

@@ -7,16 +7,16 @@ from datetime import datetime, timedelta
 from typing import Dict, Any
 import json
 import time
-import logging
 from bson import ObjectId
+from app.logging import get_logger, LogSection, LogSubsection
 
 # Настройка логгера
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["Solo Lobby"])
 
 def serialize_datetime(obj):
-    """Convert datetime objects to ISO format strings for JSON serialization"""
+    """Преобразует объекты datetime в строки ISO формата для JSON сериализации"""
     if isinstance(obj, datetime):
         return obj.isoformat()
     elif isinstance(obj, dict):
@@ -26,11 +26,19 @@ def serialize_datetime(obj):
     else:
         return obj
 
+def convert_answer_to_index(correct_answer_raw):
+    """Преобразует буквенный ответ (A, B, C, D) в числовой индекс (0, 1, 2, 3)"""
+    if isinstance(correct_answer_raw, str):
+        letter_to_index = {'A': 0, 'B': 1, 'C': 2, 'D': 3}
+        return letter_to_index.get(correct_answer_raw.upper(), 0)
+    else:
+        return correct_answer_raw if correct_answer_raw is not None else 0
+
 # Rate limiting для безопасности
 user_rate_limits = {}
 
 def check_rate_limit(user_id: str, endpoint: str, max_requests: int = 10, window_seconds: int = 60) -> bool:
-    """Check if user is within rate limits for specific endpoint"""
+    """Проверяет, находится ли пользователь в пределах лимита запросов для конкретной конечной точки"""
     current_time = time.time()
     key = f"{user_id}:{endpoint}"
     
@@ -49,16 +57,14 @@ def check_rate_limit(user_id: str, endpoint: str, max_requests: int = 10, window
     user_rate_limits[key].append(current_time)
     return True
 
-def log_security_event(event_type: str, user_id: str, lobby_id: str, details: dict = None):
-    """Log security events for monitoring"""
-    logger.info(f"[SECURITY] {event_type} - User: {user_id}, Lobby: {lobby_id}, Details: {details}")
+
 
 def validate_question_access(lobby: dict, user_id: str, question_id: str, user_answers: dict, current_index: int = None) -> tuple[bool, str]:
-    """Validate if user can access a specific question"""
+    """Проверяет, может ли пользователь получить доступ к определенному вопросу"""
     try:
         question_ids = lobby.get('question_ids', [])
         if not question_ids:
-            return False, "No questions in lobby"
+            return False, "В лобби нет вопросов"
         
         # Find question index
         question_index = None
@@ -68,7 +74,7 @@ def validate_question_access(lobby: dict, user_id: str, question_id: str, user_a
                 break
         
         if question_index is None:
-            return False, "Question not found in lobby"
+            return False, "Вопрос не найден в лобби"
         
         # In exam mode, enforce sequential access
         if lobby.get('exam_mode', False):
@@ -76,13 +82,12 @@ def validate_question_access(lobby: dict, user_id: str, question_id: str, user_a
             for i in range(question_index):
                 prev_question_id = str(question_ids[i])
                 if prev_question_id not in user_answers:
-                    return False, f"Must answer question {i+1} before accessing question {question_index+1}"
+                    return False, f"Необходимо ответить на вопрос {i+1} перед доступом к вопросу {question_index+1}"
         
-        return True, "Access granted"
+        return True, "Доступ предоставлен"
         
     except Exception as e:
-        logger.error(f"Error validating question access: {e}")
-        return False, "Validation error"
+        return False, "Ошибка валидации"
 
 # Secure endpoints for solo testing
 @router.get("/{lobby_id}/secure")
@@ -90,13 +95,17 @@ async def get_secure_lobby(
     lobby_id: str,
     current_user: dict = Depends(get_current_actor)
 ):
-    """Secure lobby information endpoint with access controls"""
+    """Защищенная конечная точка информации о лобби с контролем доступа"""
     try:
         user_id = str(current_user.get('id'))
         
         # Rate limiting
         if not check_rate_limit(user_id, "secure_lobby", max_requests=30, window_seconds=60):
-            log_security_event("RATE_LIMIT_EXCEEDED", user_id, lobby_id, {"endpoint": "secure_lobby"})
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
+                message=f"Превышен лимит запросов: пользователь {user_id} слишком часто запрашивает доступ к лобби {lobby_id} (эндпоинт secure_lobby)"
+            )
             raise HTTPException(status_code=429, detail="Too many requests")
         
         # Get lobby
@@ -106,7 +115,11 @@ async def get_secure_lobby(
         
         # Validate user access
         if user_id not in lobby.get('participants', []):
-            log_security_event("UNAUTHORIZED_LOBBY_ACCESS", user_id, lobby_id)
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
+                message=f"Неавторизованная попытка доступа к лобби {lobby_id}: пользователь {user_id} не является участником лобби"
+            )
             raise HTTPException(status_code=403, detail="Access denied")
         
         # Get user answers
@@ -117,7 +130,11 @@ async def get_secure_lobby(
         
         user_answers = user_answers_doc.get('answers', {}) if user_answers_doc else {}
         
-        log_security_event("SECURE_LOBBY_ACCESS", user_id, lobby_id)
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ACCESS,
+            message=f"Предоставлен безопасный доступ к лобби {lobby_id} пользователю {user_id} с {len(user_answers)} сохранёнными ответами"
+        )
         
         # Serialize lobby data to handle datetime objects
         serialized_lobby = serialize_datetime(lobby)
@@ -151,13 +168,17 @@ async def get_secure_lobby(
                 "is_host": str(lobby.get('host_id')) == user_id,
                 "current_index": lobby.get('current_index', 0)
             },
-            message="Secure lobby data retrieved successfully"
+            message="Данные защищенного лобби успешно получены"
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in get_secure_lobby: {e}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Критическая ошибка при получении безопасного доступа к лобби {lobby_id}: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/{lobby_id}/questions/{question_id}/secure")
@@ -171,11 +192,19 @@ async def get_secure_question(
     """Secure question endpoint with access validation"""
     try:
         user_id = str(current_user.get('id'))
-        logger.info(f"[SECURE_QUESTION] User {user_id} requesting question {question_id} in lobby {lobby_id}, index: {current_index}")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ACCESS,
+            message=f"Пользователь {user_id} запрашивает безопасный доступ к вопросу {question_id} в лобби {lobby_id} на позиции {current_index}"
+        )
         
         # Rate limiting
         if not check_rate_limit(user_id, "secure_question", max_requests=50, window_seconds=60):
-            log_security_event("RATE_LIMIT_EXCEEDED", user_id, lobby_id, {"endpoint": "secure_question"})
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
+                message=f"Превышен лимит запросов: пользователь {user_id} слишком часто запрашивает вопросы в лобби {lobby_id} (эндпоинт secure_question)"
+            )
             raise HTTPException(status_code=429, detail="Too many requests")
         
         # Parse user answers
@@ -192,7 +221,11 @@ async def get_secure_question(
         # Validate question access
         can_access, reason = validate_question_access(lobby, user_id, question_id, user_answers_dict, current_index)
         if not can_access:
-            log_security_event("QUESTION_ACCESS_DENIED", user_id, lobby_id, {"question_id": question_id, "reason": reason})
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
+                message=f"Отказано в доступе к вопросу {question_id} для пользователя {user_id} в лобби {lobby_id}: {reason}"
+            )
             raise HTTPException(status_code=403, detail=reason)
         
         # Get question - try both string and ObjectId
@@ -207,8 +240,7 @@ async def get_secure_question(
         if not question:
             raise HTTPException(status_code=404, detail="Question not found")
         
-        # Debug: Log the raw question from database
-        logger.info(f"[SECURE_QUESTION] Raw question from DB: answers={question.get('answers', 'NO_ANSWERS')}, keys={list(question.keys())}")
+
         
         # Prepare question data
         question_data = {
@@ -233,9 +265,11 @@ async def get_secure_question(
             question_data.pop('correct_answer_index', None)
             question_data.pop('explanation', None)
         
-        log_security_event("SECURE_QUESTION_ACCESS", user_id, lobby_id, {"question_id": question_id})
-        
-        logger.info(f"[SECURE_QUESTION] Returning question data: answers={len(question_data.get('answers', []))}, has_media={question_data.get('has_media')}")
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.QUESTIONS,
+            message=f"Предоставлен безопасный доступ к вопросу {question_id} пользователю {user_id} в лобби {lobby_id}, медиа: {question_data.get('has_media', False)}, режим экзамена: {lobby.get('exam_mode', False)}"
+        )
         
         return success(
             data=question_data,
@@ -245,7 +279,11 @@ async def get_secure_question(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in get_secure_question: {e}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Критическая ошибка при получении безопасного вопроса {question_id} в лобби {lobby_id}: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/{lobby_id}/secure/answer")
@@ -260,7 +298,11 @@ async def submit_secure_answer(
         
         # Rate limiting
         if not check_rate_limit(user_id, "secure_answer", max_requests=20, window_seconds=60):
-            log_security_event("RATE_LIMIT_EXCEEDED", user_id, lobby_id, {"endpoint": "secure_answer"})
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
+                message=f"Превышен лимит запросов: пользователь {user_id} слишком часто отправляет ответы в лобби {lobby_id} (эндпоинт secure_answer)"
+            )
             raise HTTPException(status_code=429, detail="Too many requests")
         
         question_id = answer_data.get('question_id')
@@ -274,20 +316,27 @@ async def submit_secure_answer(
         if not lobby:
             raise HTTPException(status_code=404, detail="Lobby not found")
         
-        # Debug: Log lobby status
-        logger.info(f"[SECURE_ANSWER] Lobby {lobby_id} status: {lobby.get('status', 'NO_STATUS')}, all keys: {list(lobby.keys())}")
+
         
         # Validate lobby status - for solo tests, allow more flexible status checking
         lobby_status = lobby.get('status')
         if lobby_status not in ['active', 'in_progress', 'started']:
-            logger.warning(f"[SECURE_ANSWER] Rejecting answer for lobby {lobby_id} with status: {lobby_status}")
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.SECURITY,
+                message=f"Отклонён ответ пользователя {user_id} на вопрос {question_id}: лобби {lobby_id} имеет недопустимый статус '{lobby_status}'"
+            )
             raise HTTPException(status_code=400, detail=f"Lobby is not active (status: {lobby_status})")
         
         # Check if exam time expired
         if lobby.get('exam_mode') and lobby.get('exam_timer'):
             time_left = lobby['exam_timer'].get('time_left', 0)
             if time_left <= 0:
-                log_security_event("ANSWER_AFTER_EXAM_EXPIRED", user_id, lobby_id, {"question_id": question_id})
+                logger.warning(
+                    section=LogSection.SECURITY,
+                    subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
+                    message=f"Попытка отправки ответа после истечения времени экзамена: пользователь {user_id} пытался ответить на вопрос {question_id} в лобби {lobby_id}"
+                )
                 raise HTTPException(status_code=400, detail="Exam time has expired")
         
         # Save answer in both places like the old code
@@ -316,10 +365,17 @@ async def submit_secure_answer(
             }
         )
         
-        log_security_event("SECURE_ANSWER_SUBMITTED", user_id, lobby_id, {
-            "question_id": question_id,
-            "answer_index": answer_index
-        })
+        logger.info(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.AUDIT,
+            message=f"Безопасно отправлен ответ: пользователь {user_id} отправил ответ {answer_index} на вопрос {question_id} в лобби {lobby_id}"
+        )
+        
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.QUESTIONS,
+            message=f"Пользователь {user_id} успешно отправил ответ {answer_index} на вопрос {question_id} в лобби {lobby_id}"
+        )
         
         # Determine if answer access should be granted
         answer_access_granted = not lobby.get('exam_mode', False)
@@ -335,7 +391,11 @@ async def submit_secure_answer(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in submit_secure_answer: {e}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Критическая ошибка при отправке ответа пользователя {user_id} в лобби {lobby_id}: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/{lobby_id}/secure/correct-answer")
@@ -352,12 +412,20 @@ async def get_secure_correct_answer(
         
         # Rate limiting
         if not check_rate_limit(user_id, "secure_correct_answer", max_requests=30, window_seconds=60):
-            log_security_event("RATE_LIMIT_EXCEEDED", user_id, lobby_id, {"endpoint": "secure_correct_answer"})
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
+                message=f"Превышен лимит запросов: пользователь {user_id} слишком часто запрашивает правильные ответы в лобби {lobby_id} (эндпоинт secure_correct_answer)"
+            )
             raise HTTPException(status_code=429, detail="Too many requests")
         
         # Security: Block in exam mode
         if exam_mode:
-            log_security_event("CORRECT_ANSWER_BLOCKED_EXAM_MODE", user_id, lobby_id, {"question_id": question_id})
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
+                message=f"Заблокирован запрос правильного ответа в экзаменационном режиме: пользователь {user_id} попытался получить правильный ответ на вопрос {question_id} в лобби {lobby_id}"
+            )
             raise HTTPException(status_code=403, detail="Correct answers not available in exam mode")
         
         # Parse user answers from URL parameter
@@ -378,13 +446,21 @@ async def get_secure_correct_answer(
         has_answered_in_url = question_id in user_answers_dict
         has_answered_in_db = question_id in user_saved_answers
         
-        logger.info(f"[SECURE_CORRECT_ANSWER] Question {question_id}: URL={has_answered_in_url}, DB={has_answered_in_db}, user_answers_dict={user_answers_dict}, saved_answers={user_saved_answers}")
+
         
         if not (has_answered_in_url or has_answered_in_db):
-            log_security_event("CORRECT_ANSWER_WITHOUT_USER_ANSWER", user_id, lobby_id, {"question_id": question_id})
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
+                message=f"Попытка получения правильного ответа без предварительного ответа: пользователь {user_id} запросил правильный ответ на вопрос {question_id} в лобби {lobby_id} не ответив на него"
+            )
             raise HTTPException(status_code=403, detail="Must answer question first")
         
-        # Get question - try both string and ObjectId
+        # Get correct answer from lobby (already converted to index)
+        correct_answers = lobby.get("correct_answers", {})
+        correct_index = correct_answers.get(question_id, 0)
+        
+        # Get question for explanation and media info
         question = await db.questions.find_one({"_id": question_id})
         if not question:
             try:
@@ -393,11 +469,6 @@ async def get_secure_correct_answer(
             except:
                 pass
         
-        if not question:
-            raise HTTPException(status_code=404, detail="Question not found")
-        
-        correct_index = question.get('correct_answer', 0)
-        
         # Get user's answer (prefer saved data from DB, fallback to URL params)
         user_answer = user_saved_answers.get(question_id)
         if user_answer is None:
@@ -405,7 +476,7 @@ async def get_secure_correct_answer(
         
         is_correct = user_answer == correct_index
         
-        logger.info(f"[SECURE_CORRECT_ANSWER] Question {question_id}: user_answer={user_answer}, correct_index={correct_index}, is_correct={is_correct}")
+
         
         # Determine after-media access
         after_media_access_granted = True  # Allow after-answer media access
@@ -413,18 +484,19 @@ async def get_secure_correct_answer(
         # Prepare response data
         response_data = {
             "correct_answer_index": correct_index,
-            "explanation": question.get('explanation'),
-            "has_after_answer_media": question.get('has_after_answer_media', False),
+            "explanation": question.get('explanation') if question else {},
+            "has_after_answer_media": question.get('has_after_answer_media', False) if question else False,
             "after_media_access_granted": after_media_access_granted,
             "user_is_correct": is_correct
         }
         
-        logger.info(f"[SECURE_CORRECT_ANSWER] Returning response data: {response_data}")
+
         
-        log_security_event("SECURE_CORRECT_ANSWER_ACCESS", user_id, lobby_id, {
-            "question_id": question_id,
-            "is_correct": is_correct
-        })
+        logger.info(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.AUDIT,
+            message=f"Предоставлен доступ к правильному ответу: пользователь {user_id} получил правильный ответ на вопрос {question_id} в лобби {lobby_id}, его ответ был {'правильным' if is_correct else 'неправильным'}"
+        )
         
         return success(
             data=response_data,
@@ -434,7 +506,11 @@ async def get_secure_correct_answer(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in get_secure_correct_answer: {e}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Критическая ошибка при получении правильного ответа для вопроса {question_id} в лобби {lobby_id}: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/{lobby_id}/secure/after-answer-media-access")
@@ -450,7 +526,11 @@ async def check_secure_after_media_access(
         
         # Rate limiting
         if not check_rate_limit(user_id, "secure_after_media", max_requests=25, window_seconds=60):
-            log_security_event("RATE_LIMIT_EXCEEDED", user_id, lobby_id, {"endpoint": "secure_after_media"})
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
+                message=f"Превышен лимит запросов: пользователь {user_id} слишком часто проверяет доступ к дополнительному медиа в лобби {lobby_id} (эндпоинт secure_after_media)"
+            )
             raise HTTPException(status_code=429, detail="Too many requests")
         
         # Parse user answers
@@ -463,7 +543,17 @@ async def check_secure_after_media_access(
         access_granted = question_id in user_answers_dict
         
         if not access_granted:
-            log_security_event("AFTER_MEDIA_ACCESS_DENIED", user_id, lobby_id, {"question_id": question_id})
+            logger.info(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
+                message=f"Отказано в доступе к дополнительному медиа: пользователь {user_id} запросил доступ к дополнительному медиа для вопроса {question_id} в лобби {lobby_id} не ответив на вопрос"
+            )
+        else:
+            logger.info(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.ACCESS,
+                message=f"Предоставлен доступ к дополнительному медиа: пользователь {user_id} получил доступ к дополнительному медиа для вопроса {question_id} в лобби {lobby_id}"
+            )
         
         return success(
             data={"access_granted": access_granted},
@@ -473,7 +563,11 @@ async def check_secure_after_media_access(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in check_secure_after_media_access: {e}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка при проверке доступа к дополнительному медиа для вопроса {question_id}: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/{lobby_id}/secure/exam-timer")
@@ -487,7 +581,11 @@ async def get_secure_exam_timer(
         
         # Rate limiting
         if not check_rate_limit(user_id, "secure_exam_timer", max_requests=20, window_seconds=60):
-            log_security_event("RATE_LIMIT_EXCEEDED", user_id, lobby_id, {"endpoint": "secure_exam_timer"})
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
+                message=f"Превышен лимит запросов: пользователь {user_id} слишком часто запрашивает экзаменационный таймер в лобби {lobby_id} (эндпоинт secure_exam_timer)"
+            )
             raise HTTPException(status_code=429, detail="Too many requests")
         
         # Get lobby
@@ -528,7 +626,11 @@ async def get_secure_exam_timer(
                 {"_id": lobby_id},
                 {"$set": {"status": "finished", "finished_at": datetime.utcnow()}}
             )
-            log_security_event("EXAM_AUTO_CLOSED", user_id, lobby_id, {"time_left": time_left})
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.EXAM_TIMER,
+                message=f"Автоматически закрыт экзамен из-за истечения времени: лобби {lobby_id} закрыто для пользователя {user_id}, оставшееся время: {time_left} секунд"
+            )
         
         return success(
             data={"time_left": time_left},
@@ -538,7 +640,11 @@ async def get_secure_exam_timer(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in get_secure_exam_timer: {e}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка при получении экзаменационного таймера для лобби {lobby_id}: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/{lobby_id}/secure/exam-timer")
@@ -554,7 +660,11 @@ async def update_secure_exam_timer(
         
         # Rate limiting
         if not check_rate_limit(user_id, "secure_timer_update", max_requests=10, window_seconds=60):
-            log_security_event("RATE_LIMIT_EXCEEDED", user_id, lobby_id, {"endpoint": "secure_timer_update"})
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
+                message=f"Превышен лимит запросов: пользователь {user_id} слишком часто обновляет экзаменационный таймер в лобби {lobby_id} (эндпоинт secure_timer_update)"
+            )
             raise HTTPException(status_code=429, detail="Too many requests")
         
         # Update timer
@@ -563,12 +673,16 @@ async def update_secure_exam_timer(
             {"$set": {"exam_timer.time_left": time_left, "exam_timer.updated_at": datetime.utcnow()}}
         )
         
-        log_security_event("EXAM_TIMER_SYNC", user_id, lobby_id, {"time_left": time_left})
+
         
         return success(data={}, message="Timer synchronized")
         
     except Exception as e:
-        logger.error(f"Error in update_secure_exam_timer: {e}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка при обновлении экзаменационного таймера для лобби {lobby_id}: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/{lobby_id}/secure/auto-close-exam")
@@ -586,12 +700,20 @@ async def auto_close_expired_exam(
             {"$set": {"status": "finished", "finished_at": datetime.utcnow()}}
         )
         
-        log_security_event("EXAM_AUTO_CLOSED_MANUAL", user_id, lobby_id)
+        logger.warning(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.EXAM_TIMER,
+            message=f"Вручную инициировано автоматическое закрытие экзамена: пользователь {user_id} закрыл экзамен в лобби {lobby_id} из-за истечения времени"
+        )
         
         return success(data={}, message="Exam auto-closed due to time expiration")
         
     except Exception as e:
-        logger.error(f"Error in auto_close_expired_exam: {e}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка при автоматическом закрытии истёкшего экзамена в лобби {lobby_id}: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/{lobby_id}/secure/finish")
@@ -606,7 +728,11 @@ async def finish_secure_test(
         
         # Rate limiting
         if not check_rate_limit(user_id, "secure_finish", max_requests=5, window_seconds=60):
-            log_security_event("RATE_LIMIT_EXCEEDED", user_id, lobby_id, {"endpoint": "secure_finish"})
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
+                message=f"Превышен лимит запросов: пользователь {user_id} слишком часто пытается завершить тест в лобби {lobby_id} (эндпоинт secure_finish)"
+            )
             raise HTTPException(status_code=429, detail="Too many requests")
         
         # Update lobby status
@@ -615,15 +741,30 @@ async def finish_secure_test(
             {"$set": {"status": "finished", "finished_at": datetime.utcnow()}}
         )
         
-        log_security_event("SECURE_TEST_FINISHED", user_id, lobby_id, {
-            "final_answers": len(finish_data.get('final_answers', {})),
-            "exam_mode": finish_data.get('exam_mode', False)
-        })
+        final_answers_count = len(finish_data.get('final_answers', {}))
+        exam_mode = finish_data.get('exam_mode', False)
+        mode_text = "экзаменационном" if exam_mode else "тренировочном"
+        
+        logger.info(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.AUDIT,
+            message=f"Безопасно завершён тест: пользователь {user_id} завершил тест в {mode_text} режиме в лобби {lobby_id} с {final_answers_count} финальными ответами"
+        )
+        
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.FINISH_TEST,
+            message=f"Пользователь {user_id} завершил тест в лобби {lobby_id} с {len(finish_data.get('final_answers', {}))} ответами"
+        )
         
         return success(data={}, message="Test finished securely")
         
     except Exception as e:
-        logger.error(f"Error in finish_secure_test: {e}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка при завершении безопасного теста в лобби {lobby_id}: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/{lobby_id}/secure/results")
@@ -637,7 +778,11 @@ async def get_secure_test_results(
         
         # Rate limiting
         if not check_rate_limit(user_id, "secure_results", max_requests=10, window_seconds=60):
-            log_security_event("RATE_LIMIT_EXCEEDED", user_id, lobby_id, {"endpoint": "secure_results"})
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
+                message=f"Превышен лимит запросов: пользователь {user_id} слишком часто запрашивает результаты теста в лобби {lobby_id} (эндпоинт secure_results)"
+            )
             raise HTTPException(status_code=429, detail="Too many requests")
         
         # Get lobby data
@@ -726,10 +871,16 @@ async def get_secure_test_results(
         correct_count = 0
         category_stats = {}
         
+        # Get correct answers from lobby (already converted to indices)
+        correct_answers = lobby.get("correct_answers", {})
+        
         for i, question_id in enumerate(question_ids):
             question_id_str = str(question_id)
             
-            # Get question details
+            # Get correct answer from lobby
+            correct_answer_index = correct_answers.get(question_id_str, 0)
+            
+            # Get question details for additional info
             question = await db.questions.find_one({"_id": question_id})
             if not question:
                 try:
@@ -737,16 +888,15 @@ async def get_secure_test_results(
                 except:
                     pass
             
+            user_answer = user_answers.get(question_id_str)
+            is_answered = user_answer is not None
+            is_correct = is_answered and user_answer == correct_answer_index
+            
+            if is_correct:
+                correct_count += 1
+            
+            # Category analysis (only if question found)
             if question:
-                correct_answer_index = question.get('correct_answer', 0)
-                user_answer = user_answers.get(question_id_str)
-                is_answered = user_answer is not None
-                is_correct = is_answered and user_answer == correct_answer_index
-                
-                if is_correct:
-                    correct_count += 1
-                
-                # Category analysis
                 question_categories = question.get('categories', [])
                 for cat in question_categories:
                     if cat not in category_stats:
@@ -754,23 +904,25 @@ async def get_secure_test_results(
                     category_stats[cat]["total"] += 1
                     if is_correct:
                         category_stats[cat]["correct"] += 1
-                
-                # Question details
-                question_detail = {
-                    "question_number": i + 1,
-                    "question_id": question_id_str,
-                    "question_text": question.get('question_text', {}),
-                    "options": [opt.get('text', {}) for opt in question.get('options', [])],
-                    "correct_answer_index": correct_answer_index,
-                    "user_answer_index": user_answer,
-                    "is_answered": is_answered,
-                    "is_correct": is_correct,
-                    "categories": question_categories,
-                    "explanation": question.get('explanation', {}),
-                    "has_media": question.get('has_media', False),
-                    "has_after_answer_media": question.get('has_after_answer_media', False)
-                }
-                detailed_answers.append(question_detail)
+            else:
+                question_categories = []
+            
+            # Question details
+            question_detail = {
+                "question_number": i + 1,
+                "question_id": question_id_str,
+                "question_text": question.get('question_text', {}) if question else {},
+                "options": [opt.get('text', {}) for opt in question.get('options', [])] if question else [],
+                "correct_answer_index": correct_answer_index,
+                "user_answer_index": user_answer,
+                "is_answered": is_answered,
+                "is_correct": is_correct,
+                "categories": question_categories,
+                "explanation": question.get('explanation', {}) if question else {},
+                "has_media": question.get('has_media', False) if question else False,
+                "has_after_answer_media": question.get('has_after_answer_media', False) if question else False
+            }
+            detailed_answers.append(question_detail)
         
         # Calculate metrics
         incorrect_count = answered_count - correct_count
@@ -897,11 +1049,17 @@ async def get_secure_test_results(
             }
         }
         
-        log_security_event("SECURE_RESULTS_RETRIEVED", user_id, lobby_id, {
-            "answered": answered_count,
-            "correct": correct_count,
-            "percentage": percentage
-        })
+        logger.info(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.AUDIT,
+            message=f"Получены результаты теста: пользователь {user_id} запросил результаты из лобби {lobby_id} с {answered_count} ответами, {correct_count} правильными ({percentage}%)"
+        )
+        
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.RESULTS,
+            message=f"Пользователь {user_id} получил результаты теста из лобби {lobby_id}: {correct_count}/{total_questions} правильных ответов ({percentage}%)"
+        )
         
         return success(
             data=result_data,
@@ -911,7 +1069,11 @@ async def get_secure_test_results(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in get_secure_test_results: {e}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка при получении результатов теста для лобби {lobby_id}: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/{lobby_id}/report")
@@ -926,7 +1088,11 @@ async def report_question(
         
         # Rate limiting
         if not check_rate_limit(user_id, "report_question", max_requests=5, window_seconds=300):  # 5 reports per 5 minutes
-            log_security_event("RATE_LIMIT_EXCEEDED", user_id, lobby_id, {"endpoint": "report_question"})
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
+                message=f"Превышен лимит запросов: пользователь {user_id} слишком часто отправляет жалобы на вопросы в лобби {lobby_id} (эндпоинт report_question)"
+            )
             raise HTTPException(status_code=429, detail="Too many reports. Please wait.")
         
         question_id = report_data.get('question_id')
@@ -949,10 +1115,11 @@ async def report_question(
         
         await db.question_reports.insert_one(report_doc)
         
-        log_security_event("QUESTION_REPORTED", user_id, lobby_id, {
-            "question_id": question_id,
-            "report_type": report_type
-        })
+        logger.info(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.AUDIT,
+            message=f"Отправлена жалоба на вопрос: пользователь {user_id} пожаловался на вопрос {question_id} в лобби {lobby_id}, тип жалобы: {report_type}, описание: {description[:100]}..."
+        )
         
         return success(
             data={"report_submitted": True},
@@ -962,5 +1129,9 @@ async def report_question(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in report_question: {e}")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ERROR,
+            message=f"Ошибка при отправке жалобы на вопрос от пользователя {user_id}: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail="Internal server error") 

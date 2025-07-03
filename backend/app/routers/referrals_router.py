@@ -3,7 +3,6 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 from bson import ObjectId
-import logging
 
 from app.db.database import db
 from app.admin.permissions import get_current_admin_user
@@ -14,13 +13,12 @@ from app.models.referral_model import Referral as ReferralModel
 import random
 from app.core.config import settings
 from app.core.finance import process_referral
-
-
+from app.logging import get_logger, LogSection, LogSubsection
 
 router = APIRouter()
 
-# Логирование
-logger = logging.getLogger(__name__)
+# Настройка логгера
+logger = get_logger(__name__)
 
 
 @router.post("/", summary="Создать реферальный код (пользователь)")
@@ -29,7 +27,10 @@ async def create_referral_user(data: ReferralCreateUser, request: Request, curre
     user_role = current_user.get("role") if isinstance(current_user, dict) else getattr(current_user, "role", None)
     if user_role != "user":
         logger.warning(
-            f"[REFERRAL_CREATE][{request.client.host}] Попытка создания кода не пользователем (role={user_role})")
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_CONTROL,
+            message=f"Попытка создания реферального кода не пользователем: роль {user_role}, IP {request.client.host}"
+        )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                             detail={"message": "Только пользователи могут создавать реферальные коды"})
 
@@ -42,11 +43,19 @@ async def create_referral_user(data: ReferralCreateUser, request: Request, curre
         "subscription_type": {"$in": ["economy", "vip", "royal"]}
     })
     if not subscription:
-        logger.warning(f"[REFERRAL_CREATE][{request.client.host}] Попытка создания кода без подписки (user_id={owner_id_str})")
+        logger.warning(
+            section=LogSection.USER,
+            subsection=LogSubsection.USER.SUBSCRIPTION,
+            message=f"Попытка создания реферального кода без подписки: пользователь {owner_id_str}, IP {request.client.host}"
+        )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"message": "Система реферальных ссылок недоступна. Для создания реферального кода вам нужно иметь активный Economy, VIP или Royal подписку."})
     existing = await db.referrals.find_one({"owner_user_id": owner_id_str, "active": True})
     if existing:
-        logger.info(f"[REFERRAL_CREATE][{request.client.host}] У пользователя уже есть код (user_id={owner_id_str})")
+        logger.info(
+            section=LogSection.USER,
+            subsection=LogSubsection.USER.ACTION,
+            message=f"Попытка создания дублирующегося реферального кода: пользователь {owner_id_str} уже имеет активный код, IP {request.client.host}"
+        )
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail={"message": "У вас уже есть активный реферальный код"})
 
@@ -75,7 +84,10 @@ async def create_referral_user(data: ReferralCreateUser, request: Request, curre
             await db.referrals.insert_one(referral_doc, session=session)
             
     logger.info(
-        f"[REFERRAL_CREATE][{request.client.host}] Создан реферальный код {code} для пользователя {owner_id_str}")
+        section=LogSection.USER,
+        subsection=LogSubsection.USER.REFERRAL,
+        message=f"Реферальный код успешно создан: код {code}, пользователь {owner_id_str}, ставка {referral_doc['rate']}, IP {request.client.host}"
+    )
     response_data = {
         "code": code,
         "rate": referral_doc["rate"],
@@ -88,16 +100,29 @@ async def create_referral_admin(data: ReferralCreate, request: Request, current_
     # Проверяем, существует ли пользователь-владелец с данным ID
     try:
         owner_oid = ObjectId(data.owner_user_id)
-    except Exception:
+    except Exception as e:
+        logger.warning(
+            section=LogSection.ADMIN,
+            subsection=LogSubsection.ADMIN.VALIDATION,
+            message=f"Ошибка парсинга ObjectId при создании реферального кода: owner_user_id {data.owner_user_id}, ошибка {str(e)}, IP {request.client.host}"
+        )
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"message": "Неверный формат ID пользователя"})
     owner = await db.users.find_one({"_id": owner_oid})
     if not owner:
-        logger.warning(f"[REFERRAL_CREATE_ADMIN][{request.client.host}] Пользователь не найден (owner_id={data.owner_user_id})")
+        logger.warning(
+            section=LogSection.ADMIN,
+            subsection=LogSubsection.ADMIN.VALIDATION,
+            message=f"Попытка создания реферального кода для несуществующего пользователя: владелец {data.owner_user_id}, IP {request.client.host}"
+        )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"message": "Пользователь с данным ID не найден"})
     # Проверяем, нет ли уже активного кода этого типа у данного пользователя
     existing_ref = await db.referrals.find_one({"owner_user_id": data.owner_user_id, "type": data.type, "active": True})
     if existing_ref:
-        logger.warning(f"[REFERRAL_CREATE_ADMIN][{request.client.host}] У пользователя {data.owner_user_id} уже есть активный код типа {data.type}")
+        logger.warning(
+            section=LogSection.ADMIN,
+            subsection=LogSubsection.ADMIN.VALIDATION,
+            message=f"Попытка создания дублирующегося реферального кода: пользователь {data.owner_user_id} уже имеет активный код типа {data.type}, IP {request.client.host}"
+        )
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"message": "У пользователя уже есть активный код данного типа"})
     # Если код не задан, генерируем (8-значный)
     code = data.code
@@ -109,7 +134,11 @@ async def create_referral_admin(data: ReferralCreate, request: Request, current_
         # Проверяем уникальность указанного кода
         existing_code = await db.referrals.find_one({"code": code})
         if existing_code:
-            logger.warning(f"[REFERRAL_CREATE_ADMIN][{request.client.host}] Код уже используется: {code}")
+            logger.warning(
+                section=LogSection.ADMIN,
+                subsection=LogSubsection.ADMIN.VALIDATION,
+                message=f"Попытка создания реферального кода с существующим кодом: код {code}, IP {request.client.host}"
+            )
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"message": "Указанный код уже используется"})
     # Используем ставку по умолчанию, если не задана явно
     rate = data.rate.model_dump() if data.rate else (settings.DEFAULT_REFERRAL_RATE if hasattr(settings, "DEFAULT_REFERRAL_RATE") else DEFAULT_REFERRAL_RATE)
@@ -139,7 +168,11 @@ async def create_referral_admin(data: ReferralCreate, request: Request, current_
         async with session.start_transaction():
             result = await db.referrals.insert_one(referral_doc, session=session)
             
-    logger.info(f"[REFERRAL_CREATE_ADMIN][{request.client.host}] Админ {created_by} создал код {code} для пользователя {data.owner_user_id}")
+    logger.info(
+        section=LogSection.ADMIN,
+        subsection=LogSubsection.ADMIN.REFERRAL,
+        message=f"Реферальный код создан администратором: код {code}, тип {data.type}, владелец {data.owner_user_id}, создал {created_by}, IP {request.client.host}"
+    )
     # Готовим данные для ответа (все поля созданной записи)
     referral_doc["id"] = str(result.inserted_id)
     referral_doc["_id"] = str(result.inserted_id)
@@ -152,10 +185,20 @@ async def get_my_referral(request: Request, current_user = Depends(get_current_a
     # Только пользователь (не админ) имеет собственный реферальный код
     role = current_user.get("role") if isinstance(current_user, dict) else getattr(current_user, "role", None)
     if role != "user":
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_CONTROL,
+            message=f"Попытка доступа к персональному реферальному коду не пользователем: роль {role}, IP {request.client.host}"
+        )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"message": "У администратора нет персонального реферального кода"})
     owner_id_str = str(current_user["id"]) if isinstance(current_user, dict) else str(getattr(current_user, "id", "") or getattr(current_user, "_id", ""))
     referral = await db.referrals.find_one({"owner_user_id": owner_id_str, "active": True})
     if not referral:
+        logger.info(
+            section=LogSection.USER,
+            subsection=LogSubsection.USER.REFERRAL,
+            message=f"Запрос несуществующего реферального кода: пользователь {owner_id_str}, IP {request.client.host}"
+        )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"message": "У вас нет реферального кода"})
     # Формируем ответ с нужными полями
     response_data = {
@@ -163,6 +206,13 @@ async def get_my_referral(request: Request, current_user = Depends(get_current_a
            "rate": referral["rate"],
         "created_at": referral["created_at"].isoformat() if isinstance(referral["created_at"], datetime) else str(referral["created_at"])
     }
+    
+    logger.info(
+        section=LogSection.USER,
+        subsection=LogSubsection.USER.REFERRAL,
+        message=f"Успешный запрос персонального реферального кода: пользователь {owner_id_str}, код {referral['code']}, ставка {referral['rate']}, IP {request.client.host}"
+    )
+    
     return success(data=response_data)
 
 @router.get("/transactions", summary="Получить данные по реферальным транзакциям")
@@ -176,6 +226,11 @@ async def get_referral_transactions(
     """
     # Только для обычных пользователей
     if current_user.get("role") != "user":
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_CONTROL,
+            message=f"Попытка доступа к реферальным транзакциям не пользователем: роль {current_user.get('role')}, IP {request.client.host}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"message": "Доступно только для пользователей"}
@@ -189,6 +244,11 @@ async def get_referral_transactions(
         "active": True
     })
     if not referral:
+        logger.info(
+            section=LogSection.USER,
+            subsection=LogSubsection.USER.REFERRAL,
+            message=f"Запрос транзакций без активного реферального кода: пользователь {user_id_str}, IP {request.client.host}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"message": "У вас нет активного реферального кода"}
@@ -259,6 +319,12 @@ async def get_referral_transactions(
         reverse=True
     )
 
+    logger.info(
+        section=LogSection.USER,
+        subsection=LogSubsection.USER.REFERRAL,
+        message=f"Успешный запрос реферальных транзакций: пользователь {user_id_str}, код {referral_code}, заработано {total_earned}, зарегистрировано {total_registered}, совершили покупку {total_purchased}, IP {request.client.host}"
+    )
+
     return success(
         data={
             "transactions":     result_transactions,
@@ -283,6 +349,11 @@ async def list_referrals(
         # Проверяем наличие недопустимых символов в коде фильтра
         forbidden_chars = ['$', '{', '}', '<', '>', '|', '&', '*', '?', '^']
         if any(ch in code for ch in forbidden_chars):
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.INJECTION,
+                message=f"Попытка инъекции в параметре code: {code[:50]}, недопустимые символы обнаружены"
+            )
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"message": "Недопустимые символы в параметре code"})
         query["code"] = code
     if type:
@@ -307,11 +378,20 @@ async def deactivate_referral(referral_id: str, request: Request, current_actor 
     # Преобразуем идентификатор в ObjectId и находим реферальный код
     try:
         oid = ObjectId(referral_id)
-    except Exception:
+    except Exception as e:
+        logger.warning(
+            section=LogSection.API,
+            subsection=LogSubsection.API.REQUEST,
+            message=f"Ошибка парсинга ObjectId при деактивации реферального кода: referral_id {referral_id}, ошибка {str(e)}, IP {request.client.host}"
+        )
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"message": "Некорректный ID реферального кода"})
     referral = await db.referrals.find_one({"_id": oid})
     if not referral:
-        logger.warning(f"[REFERRAL_DEACTIVATE][{request.client.host}] Код не найден (id={referral_id})")
+        logger.warning(
+            section=LogSection.API,
+            subsection=LogSubsection.API.REQUEST,
+            message=f"Попытка деактивировать несуществующий реферальный код: ID {referral_id}, IP {request.client.host}"
+        )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"message": "Реферальный код не найден"})
     # Проверка прав: пользователь может деактивировать только свой собственный код
     actor_role = current_actor.get("role") if isinstance(current_actor, dict) else getattr(current_actor, "role", None)
@@ -319,7 +399,11 @@ async def deactivate_referral(referral_id: str, request: Request, current_actor 
     if actor_role == "user":
         curr_user_id_str = str(current_actor["_id"]) if isinstance(current_actor, dict) else str(getattr(current_actor, "id", "") or getattr(current_actor, "_id", ""))
         if owner_id_str != curr_user_id_str:
-            logger.warning(f"[REFERRAL_DEACTIVATE][{request.client.host}] Чужой код (user_id={curr_user_id_str}, owner_id={owner_id_str})")
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.ACCESS_CONTROL,
+                message=f"Попытка деактивировать чужой реферальный код: пользователь {curr_user_id_str}, владелец {owner_id_str}, код {referral.get('code')}, IP {request.client.host}"
+            )
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"message": "Нельзя деактивировать чужой реферальный код"})
     # Если код уже не активен, нельзя деактивировать его повторно
     if not referral.get("active", False):
@@ -334,7 +418,11 @@ async def deactivate_referral(referral_id: str, request: Request, current_actor 
                 session=session
             )
             
-    logger.info(f"[REFERRAL_DEACTIVATE][{request.client.host}] Код деактивирован (code={referral['code']}, owner={owner_id_str})")
+    logger.info(
+        section=LogSection.USER,
+        subsection=LogSubsection.USER.REFERRAL,
+        message=f"Реферальный код деактивирован: код {referral['code']}, владелец {owner_id_str}, IP {request.client.host}"
+    )
     return success(message="Реферальный код деактивирован")
 
 @router.patch("/{referral_id}", summary="Обновить реферальный код (админ)")
@@ -342,11 +430,20 @@ async def update_referral(referral_id: str, data: ReferralUpdateAdmin, request: 
     # Ищем существующую запись реферального кода по ID
     try:
         oid = ObjectId(referral_id)
-    except Exception:
+    except Exception as e:
+        logger.warning(
+            section=LogSection.ADMIN,
+            subsection=LogSubsection.ADMIN.VALIDATION,
+            message=f"Ошибка парсинга ObjectId при обновлении реферального кода: referral_id {referral_id}, ошибка {str(e)}, IP {request.client.host}"
+        )
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"message": "Некорректный ID реферального кода"})
     referral = await db.referrals.find_one({"_id": oid})
     if not referral:
-        logger.warning(f"[REFERRAL_UPDATE][{request.client.host}] Код не найден (id={referral_id})")
+        logger.warning(
+            section=LogSection.ADMIN,
+            subsection=LogSubsection.ADMIN.VALIDATION,
+            message=f"Попытка обновить несуществующий реферальный код: ID {referral_id}, IP {request.client.host}"
+        )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"message": "Реферальный код не найден"})
     # Проверяем конфликт: у нового владельца не должно быть другого активного кода этого же типа
     new_owner_for_check = data.owner_user_id or referral.get("owner_user_id")
@@ -369,7 +466,12 @@ async def update_referral(referral_id: str, data: ReferralUpdateAdmin, request: 
         # Проверяем, что новый владелец существует
         try:
             new_owner_oid = ObjectId(data.owner_user_id)
-        except Exception:
+        except Exception as e:
+            logger.warning(
+                section=LogSection.ADMIN,
+                subsection=LogSubsection.ADMIN.VALIDATION,
+                message=f"Ошибка парсинга нового owner_user_id при обновлении реферального кода: owner_user_id {data.owner_user_id}, ошибка {str(e)}, IP {request.client.host}"
+            )
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"message": "Неверный формат ID пользователя"})
         new_owner = await db.users.find_one({"_id": new_owner_oid})
         if not new_owner:
@@ -405,5 +507,9 @@ async def update_referral(referral_id: str, data: ReferralUpdateAdmin, request: 
     updated["_id"] = str(updated["_id"])
     if isinstance(updated.get("created_at"), datetime):
         updated["created_at"] = updated["created_at"].isoformat()
-    logger.info(f"[REFERRAL_UPDATE][{request.client.host}] Код обновлён (id={referral_id})")
+    logger.info(
+        section=LogSection.ADMIN,
+        subsection=LogSubsection.ADMIN.REFERRAL,
+        message=f"Реферальный код обновлён: ID {referral_id}, код {updated.get('code')}, владелец {updated.get('owner_user_id')}, IP {request.client.host}"
+    )
     return success(data=updated)

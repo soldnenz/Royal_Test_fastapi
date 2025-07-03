@@ -1,12 +1,13 @@
-import logging
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 from datetime import datetime
 from app.core.config import settings
 
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Новая структурированная система логирования
+from app.logging import get_structured_logger, LogSection
+from app.logging.log_models import LogSubsection
+
+logger = get_structured_logger("core.finance")
 
 # Подключение к MongoDB с использованием переменных окружения
 client = AsyncIOMotorClient(settings.MONGO_URI)
@@ -25,9 +26,17 @@ async def log_transaction(data, session=None):
             await transactions_collection.insert_one(data, session=session)
         else:
             await transactions_collection.insert_one(data)
-        logger.info(f"Транзакция успешно залогирована: {data}")
+        logger.info(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.TRANSACTION,
+            message=f"Транзакция успешно сохранена в базе данных: пользователь {data.get('user_id')}, сумма {data.get('amount')} тг, тип {data.get('type')}, описание: {data.get('description')}"
+        )
     except Exception as e:
-        logger.error(f"Ошибка при логировании транзакции: {e}")
+        logger.error(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.TRANSACTION,
+            message=f"ОШИБКА сохранения транзакции в базе данных: {str(e)}"
+        )
 
 
 async def process_referral(user_id, amount, description):
@@ -37,7 +46,11 @@ async def process_referral(user_id, amount, description):
 
     referral = await db.referrals.find_one({"code": user["referred_by"], "active": True})
     if not referral:
-        logger.error(f"[referral] Код {user['referred_by']} не найден или не активен")
+        logger.error(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.REFERRAL,
+            message=f"Реферальный код {user['referred_by']} не найден или неактивен - не можем начислить бонус пользователю {user_id}"
+        )
         return
 
     referral_amount = round(amount * (referral["rate"]["value"] / 100), 2)
@@ -67,7 +80,11 @@ async def process_referral(user_id, amount, description):
                 session=session
             )
 
-    logger.info(f"[referral] Бонус {referral_amount} тг. начислен владельцу {referral['owner_user_id']}")
+    logger.info(
+        section=LogSection.PAYMENT,
+        subsection=LogSubsection.PAYMENT.REFERRAL,
+        message=f"Реферальный бонус {referral_amount} тг успешно начислен владельцу кода {referral['owner_user_id']} за приведенного пользователя {user_id} - ставка {referral['rate']['value']}%"
+    )
 
 
 async def update_user_balance(user_id, amount, description):
@@ -98,13 +115,25 @@ async def update_user_balance(user_id, amount, description):
                         "created_at": datetime.utcnow()
                     }, session=session)
                     
-                    logger.info(f"Баланс пользователя {user_id} обновлён на {amount}.")
+                    logger.info(
+                        section=LogSection.PAYMENT,
+                        subsection=LogSubsection.PAYMENT.BALANCE,
+                        message=f"Баланс пользователя {user_id} успешно изменен на {amount} тг - {description}"
+                    )
                 else:
-                    logger.error(f"Не удалось обновить баланс пользователя {user_id}.")
+                    logger.error(
+                        section=LogSection.PAYMENT,
+                        subsection=LogSubsection.PAYMENT.BALANCE,
+                        message=f"НЕ УДАЛОСЬ обновить баланс пользователя {user_id} на сумму {amount} тг"
+                    )
                     raise Exception("Не удалось обновить баланс пользователя.")
                     
     except Exception as e:
-        logger.error(f"Ошибка при обновлении баланса пользователя: {e}")
+        logger.error(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.BALANCE,
+            message=f"КРИТИЧЕСКАЯ ОШИБКА при обновлении баланса пользователя {user_id}: {str(e)}"
+        )
 
 
 async def get_user_balance(user_id):
@@ -116,13 +145,25 @@ async def get_user_balance(user_id):
     try:
         user = await db.users.find_one({"_id": ObjectId(user_id)})
         if not user:
-            logger.error(f"Пользователь с ID {user_id} не найден.")
+            logger.error(
+                section=LogSection.USER,
+                subsection=LogSubsection.USER.PROFILE,
+                message=f"Пользователь с ID {user_id} не найден при запросе баланса"
+            )
             return None
         balance = round(user.get("money", 0.0), 2)
-        logger.info(f"Баланс пользователя {user_id}: {balance}")
+        logger.debug(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.BALANCE,
+            message=f"Запрос баланса пользователя {user_id}: {balance} тг"
+        )
         return balance
     except Exception as e:
-        logger.error(f"Ошибка при получении баланса пользователя: {e}")
+        logger.error(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.BALANCE,
+            message=f"ОШИБКА получения баланса пользователя {user_id}: {str(e)}"
+        )
         return None
 
 
@@ -159,14 +200,26 @@ async def credit_user_balance(user_id, amount, description, admin_id=None):
                         txn["admin_id"] = admin_id
                     await log_transaction(txn, session=session)
                     
-                    logger.info(f"Баланс пользователя {user_id} увеличен на {amount}.")
+                    logger.info(
+                        section=LogSection.PAYMENT,
+                        subsection=LogSubsection.PAYMENT.CREDIT,
+                        message=f"Пополнение баланса: пользователю {user_id} начислено {amount} тг{f' администратором {admin_id}' if admin_id else ''} - {description}"
+                    )
                     return {"status": "ok", "details": "Транзакция успешна"}
                 else:
-                    logger.error(f"Не удалось увеличить баланс пользователя {user_id}.")
+                    logger.error(
+                        section=LogSection.PAYMENT,
+                        subsection=LogSubsection.PAYMENT.CREDIT,
+                        message=f"НЕ УДАЛОСЬ пополнить баланс пользователя {user_id} на {amount} тг"
+                    )
                     raise Exception("Не удалось обновить баланс пользователя.")
                     
     except Exception as e:
-        logger.error(f"Ошибка при увеличении баланса пользователя: {e}")
+        logger.error(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.CREDIT,
+            message=f"КРИТИЧЕСКАЯ ОШИБКА пополнения баланса пользователя {user_id} на {amount} тг: {str(e)}"
+        )
         return {"status": "error", "details": f"Ошибка сервера: {str(e)}"}
 
 
@@ -183,12 +236,20 @@ async def debit_user_balance(user_id, amount, description, admin_id=None):
         amount = round(amount, 2)
         user = await db.users.find_one({"_id": ObjectId(user_id)})
         if not user:
-            logger.error(f"Пользователь с ID {user_id} не найден.")
+            logger.error(
+                section=LogSection.USER,
+                subsection=LogSubsection.USER.PROFILE,
+                message=f"Пользователь с ID {user_id} не найден при попытке списания {amount} тг"
+            )
             return {"status": "error", "details": "Пользователь не найден"}
 
         current_balance = user.get("money", 0.0)
         if current_balance < amount:
-            logger.error(f"Недостаточно средств на балансе пользователя {user_id}.")
+            logger.warning(
+                section=LogSection.PAYMENT,
+                subsection=LogSubsection.PAYMENT.DEBIT,
+                message=f"Недостаточно средств у пользователя {user_id}: пытается списать {amount} тг при балансе {current_balance} тг"
+            )
             return {"status": "error", "details": "Недостаточно средств на балансе"}
 
         # Выполняем всё в Mongo-транзакции
@@ -212,12 +273,24 @@ async def debit_user_balance(user_id, amount, description, admin_id=None):
                         txn["admin_id"] = admin_id
                     await log_transaction(txn, session=session)
                     
-                    logger.info(f"Баланс пользователя {user_id} уменьшен на {amount}.")
+                    logger.info(
+                        section=LogSection.PAYMENT,
+                        subsection=LogSubsection.PAYMENT.DEBIT,
+                        message=f"Списание с баланса: у пользователя {user_id} списано {amount} тг{f' администратором {admin_id}' if admin_id else ''} - {description}"
+                    )
                     return {"status": "ok", "details": "Транзакция успешна"}
                 else:
-                    logger.error(f"Не удалось уменьшить баланс пользователя {user_id}.")
+                    logger.error(
+                        section=LogSection.PAYMENT,
+                        subsection=LogSubsection.PAYMENT.DEBIT,
+                        message=f"НЕ УДАЛОСЬ списать с баланса пользователя {user_id} сумму {amount} тг"
+                    )
                     raise Exception("Не удалось обновить баланс пользователя.")
                     
     except Exception as e:
-        logger.error(f"Ошибка при уменьшении баланса пользователя: {e}")
+        logger.error(
+            section=LogSection.PAYMENT,
+            subsection=LogSubsection.PAYMENT.DEBIT,
+            message=f"КРИТИЧЕСКАЯ ОШИБКА списания с баланса пользователя {user_id} суммы {amount} тг: {str(e)}"
+        )
         return {"status": "error", "details": f"Ошибка сервера: {str(e)}"} 

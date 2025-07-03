@@ -6,12 +6,12 @@ import jwt
 from app.core.config import settings
 from bson import ObjectId
 import json
-import logging
 import asyncio
 import re
+from app.logging import get_logger, LogSection, LogSubsection
 
 # Настройка логгера
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 def safe_log_message(data: str, max_length: int = 100) -> str:
     """Безопасное логирование сообщений без чувствительных данных"""
@@ -33,21 +33,33 @@ class LobbyConnectionManager:
         self.max_total_connections = 2000
         # Интервал проверки соединений (без пинг/понг)
         self.heartbeat_interval = 15  # секунд
-        logger.info("LobbyConnectionManager initialized with performance optimizations and ping/pong")
+        logger.info(
+            section=LogSection.WEBSOCKET,
+            subsection=LogSubsection.WEBSOCKET.CONNECTION,
+            message="LobbyConnectionManager инициализирован с оптимизациями производительности и ping/pong"
+        )
 
     async def _send_to_connection(self, websocket: WebSocket, message: str, user_id: str):
         """Безопасная отправка сообщения в одно WebSocket соединение"""
         try:
             # Проверяем состояние WebSocket перед отправкой
             if websocket is None:
-                logger.warning(f"WebSocket is None for user {user_id}")
+                logger.warning(
+                    section=LogSection.WEBSOCKET,
+                    subsection=LogSubsection.WEBSOCKET.ERROR,
+                    message=f"WebSocket равен None для пользователя {user_id}"
+                )
                 return False
             
             # Проверяем состояние соединения
             try:
                 client_state = getattr(websocket, 'client_state', None)
                 if client_state and hasattr(client_state, 'name') and client_state.name in ['DISCONNECTED', 'CLOSED']:
-                    logger.warning(f"WebSocket already closed for user {user_id}")
+                    logger.warning(
+                        section=LogSection.WEBSOCKET,
+                        subsection=LogSubsection.WEBSOCKET.DISCONNECTION,
+                        message=f"WebSocket уже закрыт для пользователя {user_id}"
+                    )
                     return False
             except Exception:
                 # Если не можем проверить состояние, пробуем отправить
@@ -59,9 +71,17 @@ class LobbyConnectionManager:
             error_str = str(e)
             # Логируем только если это не ожидаемые ошибки закрытия соединения
             if "1005" not in error_str and "1006" not in error_str and "closed" not in error_str.lower():
-                logger.error(f"Failed to send message to user {user_id}: {error_str}")
+                logger.error(
+                    section=LogSection.WEBSOCKET,
+                    subsection=LogSubsection.WEBSOCKET.ERROR,
+                    message=f"Не удалось отправить сообщение пользователю {user_id}: {error_str}"
+                )
             else:
-                logger.debug(f"Connection closed for user {user_id}: {error_str}")
+                logger.debug(
+                    section=LogSection.WEBSOCKET,
+                    subsection=LogSubsection.WEBSOCKET.DISCONNECTION,
+                    message=f"Соединение закрыто для пользователя {user_id}: {error_str}"
+                )
             return False
 
     async def get_user_info(self, user_id: str):
@@ -97,27 +117,47 @@ class LobbyConnectionManager:
                 return user_info
             else:
                 # Неизвестный формат user_id
-                logger.warning(f"Unknown user_id format: {user_id}")
+                logger.warning(
+                    section=LogSection.SECURITY,
+                    subsection=LogSubsection.SECURITY.VALIDATION,
+                    message=f"Неизвестный формат user_id: {user_id}"
+                )
                 return {"full_name": "Unknown", "email": "", "is_guest": False, "cached_at": datetime.utcnow()}
         except Exception as e:
-            logger.error(f"Error loading user {user_id}: {str(e)}")
+            logger.error(
+                section=LogSection.API,
+                subsection=LogSubsection.API.ERROR,
+                message=f"Ошибка загрузки пользователя {user_id}: {str(e)}"
+            )
             
         # Fallback
         return {"full_name": "Unknown", "email": "", "is_guest": False, "cached_at": datetime.utcnow()}
 
     async def connect(self, lobby_id: str, user_id: str, websocket: WebSocket):
-        logger.info(f"New connection attempt to lobby {lobby_id} from user {user_id}")
+        logger.info(
+            section=LogSection.WEBSOCKET,
+            subsection=LogSubsection.WEBSOCKET.CONNECTION,
+            message=f"Новая попытка подключения к лобби {lobby_id} от пользователя {user_id}"
+        )
         
         # Проверяем лимиты
         current_lobby_connections = len(self.connections.get(lobby_id, []))
         if current_lobby_connections >= self.max_connections_per_lobby:
-            logger.warning(f"Lobby {lobby_id} is full ({current_lobby_connections} connections)")
+            logger.warning(
+                section=LogSection.WEBSOCKET,
+                subsection=LogSubsection.WEBSOCKET.CONNECTION,
+                message=f"Лобби {lobby_id} переполнено ({current_lobby_connections} соединений)"
+            )
             await websocket.close(code=1008, reason="Lobby is full")
             return False
             
         total_connections = sum(len(conns) for conns in self.connections.values())
         if total_connections >= self.max_total_connections:
-            logger.warning(f"Server at capacity ({total_connections} total connections)")
+            logger.warning(
+                section=LogSection.WEBSOCKET,
+                subsection=LogSubsection.WEBSOCKET.CONNECTION,
+                message=f"Сервер достиг максимальной нагрузки ({total_connections} общих соединений)"
+            )
             await websocket.close(code=1008, reason="Server capacity reached")
             return False
         
@@ -133,35 +173,63 @@ class LobbyConnectionManager:
             "is_alive": True
         }
         self.connections[lobby_id].append(connection_info)
-        logger.info(f"Connection accepted. Active connections in lobby {lobby_id}: {len(self.connections[lobby_id])}")
+        logger.info(
+            section=LogSection.WEBSOCKET,
+            subsection=LogSubsection.WEBSOCKET.CONNECTION,
+            message=f"Соединение принято. Активные соединения в лобби {lobby_id}: {len(self.connections[lobby_id])}"
+        )
         
         return True
 
     async def disconnect(self, lobby_id: str, websocket: WebSocket):
-        logger.info(f"Disconnection from lobby {lobby_id}")
+        logger.info(
+            section=LogSection.WEBSOCKET,
+            subsection=LogSubsection.WEBSOCKET.DISCONNECTION,
+            message=f"Отключение от лобби {lobby_id}"
+        )
         if lobby_id in self.connections:
             try:
                 for i, conn in enumerate(self.connections[lobby_id]):
                     if conn["websocket"] == websocket:
                         user_id = conn['user_id']
                         self.connections[lobby_id].pop(i)
-                        logger.info(f"User {user_id} disconnected from lobby {lobby_id}")
+                        logger.info(
+                            section=LogSection.WEBSOCKET,
+                            subsection=LogSubsection.WEBSOCKET.DISCONNECTION,
+                            message=f"Пользователь {user_id} отключился от лобби {lobby_id}"
+                        )
                         break
             except Exception as e:
-                logger.error(f"Error during disconnect: {str(e)}")
+                logger.error(
+                    section=LogSection.WEBSOCKET,
+                    subsection=LogSubsection.WEBSOCKET.ERROR,
+                    message=f"Ошибка при отключении: {str(e)}"
+                )
             if not self.connections[lobby_id]:
                 del self.connections[lobby_id]
-                logger.info(f"Lobby {lobby_id} has no more connections")
+                logger.info(
+                    section=LogSection.WEBSOCKET,
+                    subsection=LogSubsection.WEBSOCKET.DISCONNECTION,
+                    message=f"Лобби {lobby_id} больше не имеет соединений"
+                )
 
     async def send_message(self, lobby_id: str, message: str):
         """Отправка текстового сообщения всем участникам лобби (старый метод - оставляем для совместимости)"""
         if lobby_id in self.connections:
-            logger.debug(f"Sending message to lobby {lobby_id}: {message}")
+            logger.debug(
+                section=LogSection.WEBSOCKET,
+                subsection=LogSubsection.WEBSOCKET.MESSAGE_SEND,
+                message=f"Отправка сообщения в лобби {lobby_id}: {message}"
+            )
             for conn in list(self.connections[lobby_id]):
                 try:
                     await conn["websocket"].send_text(message)
                 except Exception as e:
-                    logger.error(f"Error sending message to user {conn['user_id']}: {str(e)}")
+                    logger.error(
+                        section=LogSection.WEBSOCKET,
+                        subsection=LogSubsection.WEBSOCKET.ERROR,
+                        message=f"Ошибка отправки сообщения пользователю {conn['user_id']}: {str(e)}"
+                    )
 
     async def send_message_parallel(self, lobby_id: str, message: str):
         """Оптимизированная параллельная отправка сообщения всем участникам лобби"""
@@ -172,7 +240,11 @@ class LobbyConnectionManager:
         if not connections:
             return
             
-        logger.debug(f"Sending message in parallel to {len(connections)} users in lobby {lobby_id}")
+        logger.debug(
+            section=LogSection.WEBSOCKET,
+            subsection=LogSubsection.WEBSOCKET.MESSAGE_SEND,
+            message=f"Параллельная отправка сообщения {len(connections)} пользователям в лобби {lobby_id}"
+        )
         
         # Создаем задачи для параллельной отправки
         tasks = []
@@ -184,13 +256,21 @@ class LobbyConnectionManager:
         if tasks:
             results = await asyncio.gather(*tasks, return_exceptions=True)
             success_count = sum(1 for result in results if result is True)
-            logger.debug(f"Parallel broadcast completed: {success_count}/{len(tasks)} successful")
+            logger.debug(
+                section=LogSection.WEBSOCKET,
+                subsection=LogSubsection.WEBSOCKET.MESSAGE_SEND,
+                message=f"Параллельная рассылка завершена: {success_count}/{len(tasks)} успешно"
+            )
 
     async def send_json(self, lobby_id: str, data: dict):
         """Отправка JSON данных (старый метод - оставляем для совместимости)"""
         if lobby_id in self.connections:
             json_str = json.dumps(data)
-            logger.debug(f"Sending JSON to lobby {lobby_id}: {data}")
+            logger.debug(
+                section=LogSection.WEBSOCKET,
+                subsection=LogSubsection.WEBSOCKET.MESSAGE_SEND,
+                message=f"Отправка JSON в лобби {lobby_id}: {data}"
+            )
             await self.send_message(lobby_id, json_str)
 
     async def send_json_parallel(self, lobby_id: str, data: dict):
@@ -200,7 +280,11 @@ class LobbyConnectionManager:
             
         # Сериализуем JSON один раз для всех получателей
         json_str = json.dumps(data)
-        logger.debug(f"Sending JSON in parallel to lobby {lobby_id}: {data}")
+        logger.debug(
+            section=LogSection.WEBSOCKET,
+            subsection=LogSubsection.WEBSOCKET.MESSAGE_SEND,
+            message=f"Параллельная отправка JSON в лобби {lobby_id}: {data}"
+        )
         await self.send_message_parallel(lobby_id, json_str)
 
     async def broadcast_to_lobby(self, lobby_id: str, data: dict):
@@ -230,7 +314,11 @@ class LobbyConnectionManager:
                 "timestamp": datetime.utcnow().isoformat()
             }
         }
-        logger.info(f"Broadcasting answer status for user {user_id} in lobby {lobby_id}")
+        logger.info(
+            section=LogSection.WEBSOCKET,
+            subsection=LogSubsection.WEBSOCKET.LOBBY_EVENTS,
+            message=f"Рассылка статуса ответа для пользователя {user_id} в лобби {lobby_id}"
+        )
         await self.broadcast_to_lobby(lobby_id, message)
 
     async def broadcast_user_status_update(self, lobby_id: str, user_id: str, status: str):
@@ -245,7 +333,11 @@ class LobbyConnectionManager:
                 "timestamp": datetime.utcnow().isoformat()
             }
         }
-        logger.info(f"Broadcasting user status update: {user_id} {status} in lobby {lobby_id}")
+        logger.info(
+            section=LogSection.WEBSOCKET,
+            subsection=LogSubsection.WEBSOCKET.LOBBY_EVENTS,
+            message=f"Рассылка обновления статуса пользователя: {user_id} {status} в лобби {lobby_id}"
+        )
         await self.broadcast_to_lobby(lobby_id, message)
 
     async def check_connections(self, lobby_id: str):
@@ -263,7 +355,11 @@ class LobbyConnectionManager:
                 
                 # Проверяем, что websocket и его состояние не None
                 if websocket is None:
-                    logger.warning(f"WebSocket is None for user {conn['user_id']} in lobby {lobby_id}")
+                    logger.warning(
+                        section=LogSection.WEBSOCKET,
+                        subsection=LogSubsection.WEBSOCKET.ERROR,
+                        message=f"WebSocket равен None для пользователя {conn['user_id']} в лобби {lobby_id}"
+                    )
                     conn["is_alive"] = False
                     connections_to_remove.append(i)
                     continue
@@ -272,19 +368,31 @@ class LobbyConnectionManager:
                 try:
                     client_state = getattr(websocket, 'client_state', None)
                     if client_state is None:
-                        logger.warning(f"WebSocket client_state is None for user {conn['user_id']} in lobby {lobby_id}")
+                        logger.warning(
+                            section=LogSection.WEBSOCKET,
+                            subsection=LogSubsection.WEBSOCKET.ERROR,
+                            message=f"WebSocket client_state равен None для пользователя {conn['user_id']} в лобби {lobby_id}"
+                        )
                         conn["is_alive"] = False
                         connections_to_remove.append(i)
                         continue
                     
                     # Если соединение закрыто, помечаем для удаления
                     if hasattr(client_state, 'name') and client_state.name in ['DISCONNECTED', 'CLOSED']:
-                        logger.warning(f"WebSocket disconnected for user {conn['user_id']} in lobby {lobby_id}")
+                        logger.warning(
+                            section=LogSection.WEBSOCKET,
+                            subsection=LogSubsection.WEBSOCKET.DISCONNECTION,
+                            message=f"WebSocket отключен для пользователя {conn['user_id']} в лобби {lobby_id}"
+                        )
                         conn["is_alive"] = False
                         connections_to_remove.append(i)
                         continue
                 except Exception as state_error:
-                    logger.warning(f"Error checking WebSocket state for user {conn['user_id']}: {str(state_error)}")
+                    logger.warning(
+                        section=LogSection.WEBSOCKET,
+                        subsection=LogSubsection.WEBSOCKET.ERROR,
+                        message=f"Ошибка проверки состояния WebSocket для пользователя {conn['user_id']}: {str(state_error)}"
+                    )
                     conn["is_alive"] = False
                     connections_to_remove.append(i)
                     continue
@@ -292,7 +400,11 @@ class LobbyConnectionManager:
                 # Проверяем активность (если нет активности более 5 минут, считаем неактивным)
                 time_since_activity = (current_time - conn.get("last_activity", current_time)).total_seconds()
                 if time_since_activity > 300:  # 5 минут
-                    logger.warning(f"User {conn['user_id']} inactive for {time_since_activity}s in lobby {lobby_id}")
+                    logger.warning(
+                        section=LogSection.WEBSOCKET,
+                        subsection=LogSubsection.WEBSOCKET.DISCONNECTION,
+                        message=f"Пользователь {conn['user_id']} неактивен {time_since_activity}с в лобби {lobby_id}"
+                    )
                     # Пытаемся отправить тестовое сообщение
                     try:
                         test_message = json.dumps({"type": "heartbeat", "timestamp": current_time.isoformat()})
@@ -304,7 +416,11 @@ class LobbyConnectionManager:
                         connections_to_remove.append(i)
                 
             except Exception as e:
-                logger.error(f"Error checking connection for user {conn['user_id']}: {str(e)}")
+                logger.error(
+                    section=LogSection.WEBSOCKET,
+                    subsection=LogSubsection.WEBSOCKET.ERROR,
+                    message=f"Ошибка проверки соединения для пользователя {conn['user_id']}: {str(e)}"
+                )
                 conn["is_alive"] = False
                 connections_to_remove.append(i)
         
@@ -312,11 +428,19 @@ class LobbyConnectionManager:
         for i in reversed(connections_to_remove):
             if i < len(self.connections[lobby_id]):
                 removed_conn = self.connections[lobby_id].pop(i)
-                logger.info(f"Removed dead connection for user {removed_conn['user_id']}")
+                logger.info(
+                    section=LogSection.WEBSOCKET,
+                    subsection=LogSubsection.WEBSOCKET.DISCONNECTION,
+                    message=f"Удалено мертвое соединение для пользователя {removed_conn['user_id']}"
+                )
                 try:
                     await self.broadcast_user_status_update(lobby_id, removed_conn["user_id"], "left")
                 except Exception as broadcast_error:
-                    logger.error(f"Error broadcasting user left status: {str(broadcast_error)}")
+                    logger.error(
+                        section=LogSection.WEBSOCKET,
+                        subsection=LogSubsection.WEBSOCKET.ERROR,
+                        message=f"Ошибка рассылки статуса выхода пользователя: {str(broadcast_error)}"
+                    )
 
     def update_user_activity(self, lobby_id: str, websocket: WebSocket):
         """Обновление времени последней активности пользователя"""
@@ -358,7 +482,11 @@ class LobbyConnectionManager:
                 if conn.get("is_alive", True) and is_connected and time_since_activity <= 300:  # 5 минут
                     online_users.append(conn["user_id"])
             except Exception as e:
-                logger.error(f"Error checking online status for user {conn.get('user_id', 'unknown')}: {str(e)}")
+                logger.error(
+                    section=LogSection.WEBSOCKET,
+                    subsection=LogSubsection.WEBSOCKET.ERROR,
+                    message=f"Ошибка проверки онлайн статуса для пользователя {conn.get('user_id', 'unknown')}: {str(e)}"
+                )
                 continue
         
         return online_users
@@ -372,7 +500,11 @@ class LobbyConnectionManager:
                 "timestamp": datetime.utcnow().isoformat()
             }
         }
-        logger.info(f"Broadcasting question results for question {question_id} in lobby {lobby_id}")
+        logger.info(
+            section=LogSection.WEBSOCKET,
+            subsection=LogSubsection.WEBSOCKET.LOBBY_EVENTS,
+            message=f"Рассылка результатов вопроса {question_id} в лобби {lobby_id}"
+        )
         await self.broadcast_to_lobby(lobby_id, message)
 
     async def broadcast_final_results(self, lobby_id: str, results: List[dict]):
@@ -383,7 +515,11 @@ class LobbyConnectionManager:
                 "timestamp": datetime.utcnow().isoformat()
             }
         }
-        logger.info(f"Broadcasting final results for lobby {lobby_id}")
+        logger.info(
+            section=LogSection.WEBSOCKET,
+            subsection=LogSubsection.WEBSOCKET.LOBBY_EVENTS,
+            message=f"Рассылка финальных результатов для лобби {lobby_id}"
+        )
         await self.broadcast_to_lobby(lobby_id, message)
 
     async def send_to_user(self, lobby_id: str, user_id: str, data: dict):
@@ -403,7 +539,11 @@ class LobbyConnectionManager:
         message_type = message_data.get("type")
         data = message_data.get("data", {})
         
-        logger.info(f"Handling WebSocket message from user {user_id} in lobby {lobby_id}: {message_type}")
+        logger.info(
+            section=LogSection.WEBSOCKET,
+            subsection=LogSubsection.WEBSOCKET.MESSAGE,
+            message=f"Обработка WebSocket сообщения от пользователя {user_id} в лобби {lobby_id}: {message_type}"
+        )
         
         try:
             if message_type == "ping":
@@ -438,7 +578,11 @@ class LobbyConnectionManager:
                         
             elif message_type == "request_sync":
                 # Запрос синхронизации текущего вопроса
-                logger.info(f"User {user_id} requested sync for lobby {lobby_id}")
+                logger.info(
+                    section=LogSection.WEBSOCKET,
+                    subsection=LogSubsection.WEBSOCKET.MESSAGE,
+                    message=f"Пользователь {user_id} запросил синхронизацию для лобби {lobby_id}"
+                )
                 lobby = await db.lobbies.find_one({"_id": lobby_id})
                 if lobby:
                     current_index = lobby.get("current_index", 0)
@@ -462,7 +606,11 @@ class LobbyConnectionManager:
                                     correct_answer_index = question.get("correct_answer_index")
                                     explanation = question.get("explanation", "")
                             except Exception as e:
-                                logger.error(f"Error fetching correct answer for question {current_question_id}: {str(e)}")
+                                logger.error(
+                                    section=LogSection.API,
+                                    subsection=LogSubsection.API.ERROR,
+                                    message=f"Ошибка получения правильного ответа для вопроса {current_question_id}: {str(e)}"
+                                )
                     
                     sync_data = {
                         "current_question_index": current_index,
@@ -482,7 +630,11 @@ class LobbyConnectionManager:
                         "type": "sync_response",
                         "data": sync_data
                     })
-                    logger.info(f"Sent sync response to user {user_id}: index={current_index}, question_id={current_question_id}, correct_shown={current_question_correct_shown}")
+                    logger.info(
+                        section=LogSection.WEBSOCKET,
+                        subsection=LogSubsection.WEBSOCKET.MESSAGE_SEND,
+                        message=f"Отправлен ответ синхронизации пользователю {user_id}: индекс={current_index}, question_id={current_question_id}, правильный_показан={current_question_correct_shown}"
+                    )
                         
             elif message_type == "request_lobby_status":
                 # Запрос статуса лобби
@@ -526,7 +678,11 @@ class LobbyConnectionManager:
                                         "online": participant_id in self.get_online_users(lobby_id)
                                     })
                         except Exception as e:
-                            logger.error(f"Error getting participant info for {participant_id}: {str(e)}")
+                            logger.error(
+                                section=LogSection.API,
+                                subsection=LogSubsection.API.ERROR,
+                                message=f"Ошибка получения информации об участнике {participant_id}: {str(e)}"
+                            )
                             continue
                     
                     await self.send_to_user(lobby_id, user_id, {
@@ -538,7 +694,11 @@ class LobbyConnectionManager:
                     
             elif message_type == "answer_submitted":
                 # Участник отправил ответ - уведомляем других участников
-                logger.info(f"Broadcasting answer submission from user {user_id} in lobby {lobby_id}")
+                logger.info(
+                    section=LogSection.WEBSOCKET,
+                    subsection=LogSubsection.WEBSOCKET.LOBBY_EVENTS,
+                    message=f"Рассылка отправки ответа от пользователя {user_id} в лобби {lobby_id}"
+                )
                 await self.broadcast_to_lobby(lobby_id, {
                     "type": "answer_submitted",
                     "data": data
@@ -546,7 +706,11 @@ class LobbyConnectionManager:
                 
             elif message_type == "host_next_question":
                 # Хост переходит к следующему вопросу - уведомляем участников
-                logger.info(f"Broadcasting host next question from user {user_id} in lobby {lobby_id}")
+                logger.info(
+                    section=LogSection.WEBSOCKET,
+                    subsection=LogSubsection.WEBSOCKET.LOBBY_EVENTS,
+                    message=f"Рассылка следующего вопроса от хоста {user_id} в лобби {lobby_id}"
+                )
                 await self.broadcast_to_lobby(lobby_id, {
                     "type": "host_next_question", 
                     "data": data
@@ -554,7 +718,11 @@ class LobbyConnectionManager:
                 
             elif message_type == "host_finish_test":
                 # Хост завершает тест - уведомляем участников
-                logger.info(f"Broadcasting host finish test from user {user_id} in lobby {lobby_id}")
+                logger.info(
+                    section=LogSection.WEBSOCKET,
+                    subsection=LogSubsection.WEBSOCKET.LOBBY_EVENTS,
+                    message=f"Рассылка завершения теста от хоста {user_id} в лобби {lobby_id}"
+                )
                 await self.broadcast_to_lobby(lobby_id, {
                     "type": "host_finish_test",
                     "data": data
@@ -562,7 +730,11 @@ class LobbyConnectionManager:
                 
             elif message_type == "show_correct_answer":
                 # Хост показывает правильный ответ
-                logger.info(f"Broadcasting show correct answer from user {user_id} in lobby {lobby_id}")
+                logger.info(
+                    section=LogSection.WEBSOCKET,
+                    subsection=LogSubsection.WEBSOCKET.LOBBY_EVENTS,
+                    message=f"Рассылка показа правильного ответа от пользователя {user_id} в лобби {lobby_id}"
+                )
                 
                 # Получаем информацию о лобби для контекста
                 lobby = await db.lobbies.find_one({"_id": lobby_id})
@@ -578,7 +750,11 @@ class LobbyConnectionManager:
                                 }
                             }
                         )
-                        logger.info(f"Marked correct answer as shown for question {question_id} in lobby {lobby_id}")
+                        logger.info(
+                            section=LogSection.LOBBY,
+                            subsection=LogSubsection.LOBBY.QUESTIONS,
+                            message=f"Отмечен правильный ответ как показанный для вопроса {question_id} в лобби {lobby_id}"
+                        )
                     
                     # Пересылаем сообщение с дополнительным контекстом
                     await self.broadcast_to_lobby(lobby_id, {
@@ -590,13 +766,25 @@ class LobbyConnectionManager:
                         }
                     })
                 else:
-                    logger.warning(f"Non-host user {user_id} tried to show correct answer in lobby {lobby_id}")
+                    logger.warning(
+                        section=LogSection.SECURITY,
+                        subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+                        message=f"Не-хост пользователь {user_id} попытался показать правильный ответ в лобби {lobby_id}"
+                    )
                     
             else:
-                logger.warning(f"Unknown message type: {message_type} from user {user_id} in lobby {lobby_id}")
+                logger.warning(
+                    section=LogSection.WEBSOCKET,
+                    subsection=LogSubsection.WEBSOCKET.MESSAGE,
+                    message=f"Неизвестный тип сообщения: {message_type} от пользователя {user_id} в лобби {lobby_id}"
+                )
                 
         except Exception as e:
-            logger.error(f"Error handling WebSocket message: {str(e)}")
+            logger.error(
+                section=LogSection.WEBSOCKET,
+                subsection=LogSubsection.WEBSOCKET.ERROR,
+                message=f"Ошибка обработки WebSocket сообщения: {str(e)}"
+            )
 
 
 ws_manager = LobbyConnectionManager()
@@ -604,13 +792,21 @@ ws_manager = LobbyConnectionManager()
 
 async def verify_token(token: str):
     """Верифицирует JWT токен и возвращает информацию о пользователе или госте."""
-    logger.info("Verifying token")
+    logger.info(
+        section=LogSection.AUTH,
+        subsection=LogSubsection.AUTH.TOKEN_VALIDATION,
+        message="Верификация токена"
+    )
     try:
         # Сначала пробуем WS токены
         try:
             ws_token = await db.ws_tokens.find_one({"token": token, "used": False})
             if ws_token and ws_token.get("expires_at") > datetime.utcnow():
-                logger.info(f"Found valid WS token for user {ws_token.get('user_id')}")
+                logger.info(
+                    section=LogSection.AUTH,
+                    subsection=LogSubsection.AUTH.TOKEN_VALIDATION,
+                    message=f"Найден действительный WS токен для пользователя {ws_token.get('user_id')}"
+                )
                 await db.ws_tokens.update_one(
                     {"_id": ws_token["_id"]},
                     {"$set": {"used": True, "used_at": datetime.utcnow()}}
@@ -621,7 +817,11 @@ async def verify_token(token: str):
                 if isinstance(user_id, str) and user_id.startswith("guest_"):
                     guest = await db.guests.find_one({"_id": user_id})
                     if guest:
-                        logger.info(f"Guest {user_id} verified successfully")
+                        logger.info(
+                            section=LogSection.AUTH,
+                            subsection=LogSubsection.AUTH.GUEST_VALIDATED,
+                            message=f"Гость {user_id} успешно верифицирован"
+                        )
                         return {
                             "id": guest["_id"],
                             "full_name": guest.get("full_name"),
@@ -632,16 +832,28 @@ async def verify_token(token: str):
                 elif ObjectId.is_valid(user_id):
                     user = await db.users.find_one({"_id": ObjectId(user_id)})
                     if user:
-                        logger.info(f"User {user_id} verified successfully")
+                        logger.info(
+                            section=LogSection.AUTH,
+                            subsection=LogSubsection.AUTH.USER_VALIDATED,
+                            message=f"Пользователь {user_id} успешно верифицирован"
+                        )
                         return {
                             "id": str(user["_id"]),
                             "full_name": user.get("full_name"),
                             "email": user.get("email"),
                             "is_guest": False
                         }
-            logger.warning("WS token not found or expired, falling back to regular token verification")
+            logger.warning(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.TOKEN_VALIDATION,
+                message="WS токен не найден или истек, переходим к обычной верификации токена"
+            )
         except Exception as e:
-            logger.error(f"Error verifying WS token: {str(e)}")
+            logger.error(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.TOKEN_VALIDATION,
+                message=f"Ошибка верификации WS токена: {str(e)}"
+            )
             
         # Обычная проверка JWT токена
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
@@ -652,7 +864,11 @@ async def verify_token(token: str):
         if role == "guest" and isinstance(user_id, str) and user_id.startswith("guest_"):
             token_doc = await db.tokens.find_one({"token": token})
             if not token_doc or token_doc.get("revoked") or token_doc.get("expires_at") < datetime.utcnow():
-                logger.error("Guest token not found, revoked or expired")
+                logger.error(
+                    section=LogSection.AUTH,
+                    subsection=LogSubsection.AUTH.TOKEN_INVALID,
+                    message="Гостевой токен не найден, отозван или истек"
+                )
                 return None
                 
             await db.tokens.update_one(
@@ -662,10 +878,17 @@ async def verify_token(token: str):
             
             guest = await db.guests.find_one({"_id": user_id})
             if not guest:
-                logger.error(f"Guest {user_id} not found")
+                logger.error(
+                    section=LogSection.AUTH,
+                    subsection=LogSubsection.AUTH.USER_NOT_FOUND,
+                    message=f"Гость {user_id} не найден"
+                )
                 return None
-                
-            logger.info(f"Guest {user_id} verified successfully with regular token")
+            logger.info(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.GUEST_VALIDATED,
+                message=f"Гость {user_id} успешно верифицирован с обычным токеном"
+            )
             return {
                 "id": guest["_id"],
                 "full_name": guest.get("full_name"),
@@ -676,12 +899,20 @@ async def verify_token(token: str):
         
         # Обычный пользователь
         if not user_id or not ObjectId.is_valid(user_id):
-            logger.error("Invalid user ID in token")
+            logger.error(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.TOKEN_INVALID,
+                message="Неверный ID пользователя в токене"
+            )
             return None
             
         token_doc = await db.tokens.find_one({"token": token})
         if not token_doc or token_doc.get("revoked") or token_doc.get("expires_at") < datetime.utcnow():
-            logger.error("Token not found, revoked or expired")
+            logger.error(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.TOKEN_INVALID,
+                message="Токен не найден, отозван или истек"
+            )
             return None
             
         await db.tokens.update_one(
@@ -691,15 +922,27 @@ async def verify_token(token: str):
         
         # Проверяем, что это не гость
         if isinstance(user_id, str) and user_id.startswith("guest_"):
-            logger.error("Guest user_id in regular user verification")
+            logger.error(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.TOKEN_INVALID,
+                message="ID гостя в обычной верификации пользователя"
+            )
             return None
         
         user = await db.users.find_one({"_id": ObjectId(user_id)})
         if not user:
-            logger.error(f"User {user_id} not found")
+            logger.error(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.USER_NOT_FOUND,
+                message=f"Пользователь {user_id} не найден"
+            )
             return None
             
-        logger.info(f"User {user_id} verified successfully with regular token")
+        logger.info(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.USER_VALIDATED,
+            message=f"Пользователь {user_id} успешно верифицирован с обычным токеном"
+        )
         return {
             "id": str(user["_id"]),
             "full_name": user.get("full_name"),
@@ -707,29 +950,53 @@ async def verify_token(token: str):
             "is_guest": False
         }
     except Exception as e:
-        logger.error(f"Error verifying token: {str(e)}")
+        logger.error(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.TOKEN_VALIDATION,
+            message=f"Ошибка верификации токена: {str(e)}"
+        )
         return None
 
 
 async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Query(...)):
-    logger.info(f"New WebSocket connection request for lobby {lobby_id}")
+    logger.info(
+        section=LogSection.WEBSOCKET,
+        subsection=LogSubsection.WEBSOCKET.CONNECTION,
+        message=f"Новый запрос WebSocket соединения для лобби {lobby_id}"
+    )
     if not token:
-        logger.error("No token provided")
+        logger.error(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.TOKEN_MISSING,
+            message="Токен не предоставлен"
+        )
         await websocket.close(code=1008, reason="Unauthorized: No token provided")
         return
 
     user_data = await verify_token(token)
     if not user_data:
-        logger.error("Invalid token")
+        logger.error(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.TOKEN_INVALID,
+            message="Неверный токен"
+        )
         await websocket.close(code=1008, reason="Unauthorized: Invalid token")
         return
 
     user_id = str(user_data["id"])
-    logger.info(f"User {user_id} ({user_data.get('full_name', 'Unknown')}) connecting to lobby {lobby_id}")
+    logger.info(
+        section=LogSection.WEBSOCKET,
+        subsection=LogSubsection.WEBSOCKET.CONNECTION,
+        message=f"Пользователь {user_id} ({user_data.get('full_name', 'Unknown')}) подключается к лобби {lobby_id}"
+    )
 
     lobby = await db.lobbies.find_one({"_id": lobby_id})
     if not lobby:
-        logger.error(f"Lobby {lobby_id} not found")
+        logger.error(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ACCESS,
+            message=f"Лобби {lobby_id} не найдено"
+        )
         await websocket.close(code=1008, reason="Lobby not found")
         return
 
@@ -740,20 +1007,32 @@ async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Qu
             "status": {"$nin": ["finished", "closed"]}
         })
         if other_lobbies:
-            logger.warning(f"User {user_id} already in another active lobby")
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.ACCESS,
+                message=f"Пользователь {user_id} уже в другом активном лобби"
+            )
             await websocket.close(code=1008,
                                   reason="У вас уже есть активное лобби. Завершите его перед подключением к новому.")
             return
 
     if user_id not in lobby["participants"]:
         if lobby["status"] == "waiting":
-            logger.info(f"Adding user {user_id} to lobby {lobby_id}")
+            logger.info(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.JOIN,
+                message=f"Добавление пользователя {user_id} в лобби {lobby_id}"
+            )
             await db.lobbies.update_one({"_id": lobby_id}, {
                 "$push": {"participants": user_id},
                 "$set": {f"participants_answers.{user_id}": {}}
             })
         else:
-            logger.error(f"Cannot join lobby {lobby_id}: test already started or finished")
+            logger.error(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.ACCESS,
+                message=f"Невозможно присоединиться к лобби {lobby_id}: тест уже начат или завершен"
+            )
             await websocket.close(code=1008, reason="Невозможно присоединиться: тест уже начат или завершен")
             return
 
@@ -771,7 +1050,11 @@ async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Qu
     
     # Проверяем, что соединение все еще активно перед отправкой сообщений
     if lobby_id not in ws_manager.connections or not any(conn["user_id"] == user_id for conn in ws_manager.connections[lobby_id]):
-        logger.warning(f"User {user_id} disconnected before sending welcome messages")
+        logger.warning(
+            section=LogSection.WEBSOCKET,
+            subsection=LogSubsection.WEBSOCKET.DISCONNECTION,
+            message=f"Пользователь {user_id} отключился перед отправкой приветственных сообщений"
+        )
         return
     
     # Уведомляем всех о подключении пользователя
@@ -789,7 +1072,11 @@ async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Qu
     
     # Проверяем соединение еще раз
     if lobby_id not in ws_manager.connections or not any(conn["user_id"] == user_id for conn in ws_manager.connections[lobby_id]):
-        logger.warning(f"User {user_id} disconnected during welcome sequence")
+        logger.warning(
+            section=LogSection.WEBSOCKET,
+            subsection=LogSubsection.WEBSOCKET.DISCONNECTION,
+            message=f"Пользователь {user_id} отключился во время приветственной последовательности"
+        )
         return
     
     # Отправляем статус пользователя как "online"
@@ -800,7 +1087,11 @@ async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Qu
     
     # Финальная проверка соединения
     if lobby_id not in ws_manager.connections or not any(conn["user_id"] == user_id for conn in ws_manager.connections[lobby_id]):
-        logger.warning(f"User {user_id} disconnected before sending participants update")
+        logger.warning(
+            section=LogSection.WEBSOCKET,
+            subsection=LogSubsection.WEBSOCKET.DISCONNECTION,
+            message=f"Пользователь {user_id} отключился перед отправкой обновления участников"
+        )
         return
     
     # Также отправляем обновленный список участников
@@ -818,7 +1109,11 @@ async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Qu
         current_index = lobby.get("current_index", 0)
         if 0 <= current_index < len(lobby["question_ids"]):
             current_question_id = lobby["question_ids"][current_index]
-            logger.info(f"Sending current question {current_question_id} to user {user_id}")
+            logger.info(
+                section=LogSection.WEBSOCKET,
+                subsection=LogSubsection.WEBSOCKET.MESSAGE_SEND,
+                message=f"Отправка текущего вопроса {current_question_id} пользователю {user_id}"
+            )
             await websocket.send_json({"type": "current_question", "data": {"question_id": current_question_id}})
             if user_id == lobby["host_id"]:
                 answered_users = []
@@ -831,7 +1126,11 @@ async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Qu
     try:
         while True:
             data = await websocket.receive_text()
-            logger.debug(f"Received message from user {user_id}: {safe_log_message(data)}")
+            logger.debug(
+                section=LogSection.WEBSOCKET,
+                subsection=LogSubsection.WEBSOCKET.MESSAGE,
+                message=f"Получено сообщение от пользователя {user_id}: {safe_log_message(data)}"
+            )
 
             # Обновляем активность пользователя при любом сообщении
             ws_manager.update_user_activity(lobby_id, websocket)
@@ -848,7 +1147,11 @@ async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Qu
             if data.startswith("ANSWER:"):
                 _, qid, answer_idx = data.split(":")
                 answer_idx = int(answer_idx)
-                logger.info(f"Processing answer from user {user_id} for question {qid}")
+                logger.info(
+                    section=LogSection.LOBBY,
+                    subsection=LogSubsection.LOBBY.ANSWERS,
+                    message=f"Обработка ответа от пользователя {user_id} для вопроса {qid}"
+                )
 
                 lobby = await db.lobbies.find_one({"_id": lobby_id})
                 if not lobby or lobby["status"] != "in_progress":
@@ -888,21 +1191,37 @@ async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Qu
                             break
 
             elif data.startswith("NEXT_QUESTION"):
-                logger.info(f"Processing next question request from user {user_id}")
+                logger.info(
+                    section=LogSection.LOBBY,
+                    subsection=LogSubsection.LOBBY.QUESTIONS,
+                    message=f"Обработка запроса следующего вопроса от пользователя {user_id}"
+                )
                 lobby = await db.lobbies.find_one({"_id": lobby_id})
                 if not lobby:
-                    logger.error(f"Lobby {lobby_id} not found")
+                    logger.error(
+                        section=LogSection.LOBBY,
+                        subsection=LogSubsection.LOBBY.ACCESS,
+                        message=f"Лобби {lobby_id} не найдено"
+                    )
                     await websocket.send_json({"type": "error", "data": {"message": "Лобби не найдено"}})
                     continue
 
                 if lobby["host_id"] != user_id:
-                    logger.warning(f"Non-host user {user_id} tried to move to next question")
+                    logger.warning(
+                        section=LogSection.SECURITY,
+                        subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+                        message=f"Не-хост пользователь {user_id} попытался перейти к следующему вопросу"
+                    )
                     await websocket.send_json(
                         {"type": "error", "data": {"message": "Только хост может перейти к следующему вопросу"}})
                     continue
 
                 if lobby["status"] != "in_progress":
-                    logger.error(f"Test not active in lobby {lobby_id}")
+                    logger.error(
+                        section=LogSection.LOBBY,
+                        subsection=LogSubsection.LOBBY.STATUS,
+                        message=f"Тест не активен в лобби {lobby_id}"
+                    )
                     await websocket.send_json({"type": "error", "data": {"message": "Тест не активен"}})
                     continue
 
@@ -911,7 +1230,11 @@ async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Qu
 
                 if current_index < total_questions - 1 and current_index < 39:
                     new_index = current_index + 1
-                    logger.info(f"Moving to next question {new_index} in lobby {lobby_id}")
+                    logger.info(
+                        section=LogSection.LOBBY,
+                        subsection=LogSubsection.LOBBY.QUESTIONS,
+                        message=f"Переход к следующему вопросу {new_index} в лобби {lobby_id}"
+                    )
                     await db.lobbies.update_one({"_id": lobby_id}, {"$set": {"current_index": new_index}})
                     next_question_id = lobby["question_ids"][new_index]
                     await ws_manager.broadcast_to_lobby(lobby_id, {
@@ -922,7 +1245,11 @@ async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Qu
                         }
                     })
                 else:
-                    logger.info(f"Test finished in lobby {lobby_id}")
+                    logger.info(
+                        section=LogSection.LOBBY,
+                        subsection=LogSubsection.LOBBY.STATUS,
+                        message=f"Тест завершен в лобби {lobby_id}"
+                    )
                     await db.lobbies.update_one(
                         {"_id": lobby_id},
                         {"$set": {"status": "finished", "finished_at": datetime.utcnow()}}
@@ -947,7 +1274,11 @@ async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Qu
                             "pass_percentage": (correct_count / total_questions * 100) if total_questions > 0 else 0
                         }
                         await db.history.insert_one(history_record)
-                        logger.info(f"Saved history record for user {participant_id}")
+                        logger.info(
+                            section=LogSection.USER,
+                            subsection=LogSubsection.USER.HISTORY,
+                            message=f"Сохранена запись истории для пользователя {participant_id}"
+                        )
 
                     await ws_manager.broadcast_to_lobby(lobby_id, {
                         "type": "test_finished", 
@@ -955,15 +1286,27 @@ async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Qu
                     })
 
             elif data.startswith("GET_ANSWERED_USERS"):
-                logger.info(f"Processing answered users request from user {user_id}")
+                logger.info(
+                    section=LogSection.LOBBY,
+                    subsection=LogSubsection.LOBBY.ANSWERS,
+                    message=f"Обработка запроса ответивших пользователей от пользователя {user_id}"
+                )
                 lobby = await db.lobbies.find_one({"_id": lobby_id})
                 if not lobby or lobby["status"] != "in_progress":
-                    logger.error(f"Test not active in lobby {lobby_id}")
+                    logger.error(
+                        section=LogSection.LOBBY,
+                        subsection=LogSubsection.LOBBY.STATUS,
+                        message=f"Тест не активен в лобби {lobby_id}"
+                    )
                     await websocket.send_json({"type": "error", "data": {"message": "Тест не активен"}})
                     continue
 
                 if lobby["host_id"] != user_id:
-                    logger.warning(f"Non-host user {user_id} tried to get answered users")
+                    logger.warning(
+                        section=LogSection.SECURITY,
+                        subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+                        message=f"Не-хост пользователь {user_id} попытался получить ответивших пользователей"
+                    )
                     await websocket.send_json(
                         {"type": "error", "data": {"message": "У вас нет прав запрашивать статус ответов"}})
                     continue
@@ -976,11 +1319,19 @@ async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Qu
                         if current_question_id in lobby.get("participants_answers", {}).get(participant_id, {}):
                             is_correct = lobby["participants_answers"][participant_id][current_question_id]
                             answered_users.append({"user_id": participant_id, "is_correct": is_correct})
-                    logger.info(f"Sending answered users for question {current_question_id}")
+                    logger.info(
+                        section=LogSection.WEBSOCKET,
+                        subsection=LogSubsection.WEBSOCKET.MESSAGE_SEND,
+                        message=f"Отправка ответивших пользователей для вопроса {current_question_id}"
+                    )
                     await websocket.send_json({"type": "answered_users", "data": answered_users})
 
     except WebSocketDisconnect:
-        logger.info(f"WebSocket disconnected for user {user_id} in lobby {lobby_id}")
+        logger.info(
+            section=LogSection.WEBSOCKET,
+            subsection=LogSubsection.WEBSOCKET.DISCONNECTION,
+            message=f"WebSocket отключен для пользователя {user_id} в лобби {lobby_id}"
+        )
         await ws_manager.disconnect(lobby_id, websocket)
         
         # Удаляем пользователя из лобби в базе данных при отключении
@@ -997,7 +1348,11 @@ async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Qu
                             "$unset": {f"participants_answers.{user_id}": ""}
                         }
                     )
-                    logger.info(f"User {user_id} removed from lobby {lobby_id} database on disconnect")
+                    logger.info(
+                        section=LogSection.LOBBY,
+                        subsection=LogSubsection.LOBBY.LEAVE,
+                        message=f"Пользователь {user_id} удален из лобби {lobby_id} в базе данных при отключении"
+                    )
                     
                     # Отправляем обновленный список участников
                     updated_lobby = await db.lobbies.find_one({"_id": lobby_id})
@@ -1010,10 +1365,18 @@ async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Qu
                             }
                         })
                 else:
-                    logger.info(f"User {user_id} disconnected during test in lobby {lobby_id}, keeping in participants list")
+                    logger.info(
+                        section=LogSection.LOBBY,
+                        subsection=LogSubsection.LOBBY.LEAVE,
+                        message=f"Пользователь {user_id} отключился во время теста в лобби {lobby_id}, остается в списке участников"
+                    )
             
         except Exception as db_error:
-            logger.error(f"Error removing user {user_id} from lobby {lobby_id} database: {str(db_error)}")
+            logger.error(
+                section=LogSection.API,
+                subsection=LogSubsection.API.ERROR,
+                message=f"Ошибка удаления пользователя {user_id} из лобби {lobby_id} в базе данных: {str(db_error)}"
+            )
         
         # Отправляем уведомление о выходе пользователя
         await ws_manager.broadcast_to_lobby(lobby_id, {
@@ -1021,7 +1384,11 @@ async def lobby_ws_endpoint(websocket: WebSocket, lobby_id: str, token: str = Qu
             "data": {"user_id": user_id}
         })
     except Exception as e:
-        logger.error(f"WebSocket error for user {user_id} in lobby {lobby_id}: {str(e)}")
+        logger.error(
+            section=LogSection.WEBSOCKET,
+            subsection=LogSubsection.WEBSOCKET.ERROR,
+            message=f"WebSocket ошибка для пользователя {user_id} в лобби {lobby_id}: {str(e)}"
+        )
         try:
             await ws_manager.disconnect(lobby_id, websocket)
             await websocket.close(code=1011, reason="Internal server error")

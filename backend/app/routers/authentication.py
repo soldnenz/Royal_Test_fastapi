@@ -1,5 +1,4 @@
 import time
-import logging
 from datetime import datetime, timedelta, timezone
 import pytz
 from bson import ObjectId
@@ -23,11 +22,81 @@ from app.admin.utils import decode_token
 from app.admin.permissions import get_current_admin_user
 import string
 import secrets
+import re
 from app.core.response import success
+from app.logging import get_logger, LogSection, LogSubsection
 
+logger = get_logger(__name__)
 router = APIRouter()
-logger = logging.getLogger("auth")
 security = HTTPBearer()
+# -------------------------
+# SECURITY: INPUT VALIDATION
+# -------------------------
+def strict_validate_input(value: str, field_name: str, max_length: int = 100) -> str:
+    """
+    Строгая валидация входных данных для предотвращения NoSQL injection
+    """
+    if not isinstance(value, str):
+        raise HTTPException(
+            status_code=400,
+            detail={"message": f"{field_name} должен быть строкой"}
+        )
+    
+    # Запрещаем MongoDB операторы и специальные символы
+    forbidden_chars = ['$', '{', '}', '[', ']', '<', '>', '|', '&', '*', '?', '^', '\\', '/', '"', "'"]
+    if any(char in value for char in forbidden_chars):
+        raise HTTPException(
+            status_code=400,
+            detail={"message": f"Поле {field_name} содержит запрещённые символы"}
+        )
+    
+    # Проверяем на попытки инъекции
+    injection_patterns = [
+        r'\$\w+',  # MongoDB операторы типа $ne, $gt, etc.
+        r'{\s*\$',  # Начало объекта с $
+        r'"\s*:\s*{',  # JSON объекты
+        r'null',  # null значения
+        r'true|false',  # булевы значения
+    ]
+    
+    for pattern in injection_patterns:
+        if re.search(pattern, value, re.IGNORECASE):
+            raise HTTPException(
+                status_code=400,
+                detail={"message": f"Поле {field_name} содержит подозрительные конструкции"}
+            )
+    
+    # Ограничиваем длину
+    if len(value) > max_length:
+        raise HTTPException(
+            status_code=400,
+            detail={"message": f"Поле {field_name} слишком длинное (максимум {max_length} символов)"}
+        )
+    
+    # Убираем лишние пробелы
+    return value.strip()
+
+def validate_iin(iin: str) -> str:
+    """Валидация ИИН - только 12 цифр"""
+    iin = iin.strip()
+    if not re.match(r'^\d{12}$', iin):
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "ИИН должен содержать ровно 12 цифр"}
+        )
+    return iin
+
+def validate_email(email: str) -> str:
+    """Валидация email"""
+    email = email.strip().lower()
+    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(email_pattern, email):
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "Неверный формат email"}
+        )
+    return email
+
 # -------------------------
 # RATE LIMIT (упрощённо)
 # -------------------------
@@ -49,19 +118,8 @@ def register_attempt(ip: str):
         login_attempts[ip] = []
     login_attempts[ip].append(now)
 
-
-def get_ip(request: Request) -> str:
-    return request.client.host or "unknown"
-
-def get_user_agent(request: Request) -> str:
-    return request.headers.get("User-Agent", "unknown")
-
-def sanitize_input(value: str) -> str:
-    # Определяем запрещённые символы для предотвращения NoSQL инъекций
-    forbidden_characters = ['$','{','}','<','>','|','&','$','*','?','^']
-    if any(c in value for c in forbidden_characters):
-        raise ValueError("Запрещённые символы во входе")
-    return value.strip()
+# Функции get_ip и get_user_agent импортированы из app.admin.utils
+# Функция sanitize_input удалена - используем strict_validate_input
 
 # -------------------------
 # LOGIN
@@ -72,26 +130,61 @@ async def unified_login(data: AuthRequest, request: Request):
     ua = get_user_agent(request)
     now = datetime.utcnow()
 
+    logger.info(
+        section=LogSection.AUTH,
+        subsection=LogSubsection.AUTH.LOGIN_ATTEMPT,
+        message=f"Попытка входа с IP {ip} - логин: {data.username[:10]}..."
+    )
+
+    # СТРОГАЯ ВАЛИДАЦИЯ входных данных
     try:
-        ident = sanitize_input(data.username)
-    except ValueError:
-        logger.warning(f"[LOGIN][{ip}] Некорректный ввод логина")
-        raise HTTPException(
-            status_code=400,
-            detail={"message": "Ввод содержит запрещённые символы"}
+        # Определяем тип ввода (ИИН или email) и валидируем соответственно
+        username_input = strict_validate_input(data.username, "username", 100)
+        password_input = strict_validate_input(data.password, "password", 200)
+        
+        # Дополнительная валидация по типу
+        if re.match(r'^\d{12}$', username_input):
+            # Это ИИН
+            ident = validate_iin(username_input)
+            search_field = "iin"
+        elif '@' in username_input:
+            # Это email
+            ident = validate_email(username_input)
+            search_field = "email"
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail={"message": "Логин должен быть валидным ИИН (12 цифр) или email"}
+            )
+    except HTTPException:
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.LOGIN_FAILED,
+            message=f"Некорректный ввод данных входа с IP {ip} - логин: {data.username[:10]}..."
         )
+        register_attempt(ip)
+        raise
 
     if not check_rate_limit(ip):
-        logger.warning(f"[LOGIN][{ip}] Превышен лимит попыток входа")
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.RATE_LIMIT,
+            message=f"Превышен лимит попыток входа с IP {ip} - заблокировано на 5 минут"
+        )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={"message": "Превышен лимит попыток входа"}
         )
 
-    admin = await db.admins.find_one({"$or": [{"email": ident}, {"iin": ident}]})
+    # БЕЗОПАСНЫЙ поиск админа (используем точное соответствие поля)
+    admin = await db.admins.find_one({search_field: ident})
     if admin:
         if not verify_password(data.password, admin["hashed_password"]):
-            logger.info(f"[LOGIN][{ip}] Неуспешный вход: admin={admin['email'] or admin['iin']}")
+            logger.warning(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.LOGIN_FAILED,
+                message=f"Неверный пароль администратора {admin.get('full_name', 'неизвестен')} ({admin.get('email') or admin.get('iin')}) с IP {ip}"
+            )
             await db.login_logs.insert_one({"ident": ident, "timestamp": now, "success": False})
             raise HTTPException(
                 status_code=401,
@@ -102,7 +195,12 @@ async def unified_login(data: AuthRequest, request: Request):
         if admin.get("active_session") and (
                 admin["active_session"].get("ip") != ip or
                 admin["active_session"].get("user_agent") != ua):
-            logger.info(f"[LOGIN][{ip}] Требуется 2FA: admin={admin['email'] or admin['iin']}")
+            old_ip = admin["active_session"].get("ip", "неизвестен")
+            logger.info(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.TWO_FACTOR_REQUIRED,
+                message=f"Требуется 2FA для администратора {admin.get('full_name', 'неизвестен')} ({admin.get('email') or admin.get('iin')}) - смена IP с {old_ip} на {ip}"
+            )
             await db.admins.update_one({"_id": admin["_id"]}, {"$set": {"is_verified": False}})
             await send_2fa_request(admin, ip, ua)
             raise HTTPException(
@@ -120,7 +218,11 @@ async def unified_login(data: AuthRequest, request: Request):
 
         await db.login_logs.insert_one({"ident": ident, "timestamp": now, "success": True})
 
-        logger.info(f"[LOGIN][{ip}] Успешный вход: admin={admin['email'] or admin['iin']}, role={admin['role']}")
+        logger.info(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.ADMIN_LOGIN_SUCCESS,
+            message=f"Успешный вход администратора {admin.get('full_name', 'неизвестен')} ({admin.get('email') or admin.get('iin')}) с ролью {admin['role']} с IP {ip}"
+        )
 
         response = success(data={"access_token": token, "token_type": "bearer"})
 
@@ -138,15 +240,15 @@ async def unified_login(data: AuthRequest, request: Request):
 
     # ========== USER BLOCK ==========
 
-    user = await db.users.find_one({
-        "$or": [
-            {"iin": ident},
-            {"email": ident.lower()}
-        ]
-    })
+    # БЕЗОПАСНЫЙ поиск пользователя (используем точное соответствие поля)
+    user = await db.users.find_one({search_field: ident})
 
     if not user:
-        logger.info(f"[LOGIN][{ip}] Неуспешный вход: user not found — {ident}")
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.LOGIN_FAILED,
+            message=f"Пользователь не найден с логином {ident} с IP {ip}"
+        )
         register_attempt(ip)
         raise HTTPException(
             status_code=401,
@@ -160,7 +262,11 @@ async def unified_login(data: AuthRequest, request: Request):
         # Формируем сообщение о блокировке
         if ban_info.get("ban_type") == "permanent":
             error_message = "Ваш аккаунт заблокирован навсегда. Причина: " + ban_info.get("reason", "Нарушение правил")
-            logger.info(f"[LOGIN][{ip}] Попытка входа заблокированного пользователя: {user['email'] or user['iin']} (permanent)")
+            logger.warning(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.LOGIN_BLOCKED,
+                message=f"Попытка входа заблокированного навсегда пользователя {user.get('full_name', 'неизвестен')} ({user.get('email') or user.get('iin')}) с IP {ip} - причина блокировки: {ban_info.get('reason', 'Нарушение правил')}"
+            )
             raise HTTPException(status_code=403, detail={"message": error_message, "ban_type": "permanent"})
         else:
             ban_until = ban_info.get("ban_until")
@@ -181,8 +287,13 @@ async def unified_login(data: AuthRequest, request: Request):
                     if minutes > 0:
                         time_str += f"{minutes} мин."
                     
+                    ban_until_str = ban_until.strftime("%H:%M:%S %d.%m.%Y")
                     error_message = f"Ваш аккаунт временно заблокирован. Осталось: {time_str}. Причина: {ban_info.get('reason', 'Нарушение правил')}"
-                    logger.info(f"[LOGIN][{ip}] Попытка входа заблокированного пользователя: {user['email'] or user['iin']} (temporary, {time_str})")
+                    logger.warning(
+                        section=LogSection.AUTH,
+                        subsection=LogSubsection.AUTH.LOGIN_BLOCKED,
+                        message=f"Попытка входа временно заблокированного пользователя {user.get('full_name', 'неизвестен')} ({user.get('email') or user.get('iin')}) с IP {ip} - бан до {ban_until_str}, осталось {time_str}, причина: {ban_info.get('reason', 'Нарушение правил')}"
+                    )
                     raise HTTPException(
                         status_code=403, 
                         detail={"message": error_message, "ban_type": "temporary", "time_left": time_str}
@@ -208,10 +319,18 @@ async def unified_login(data: AuthRequest, request: Request):
                                 }
                             }
                         )
-                    logger.info(f"[LOGIN][{ip}] Автоматическая разблокировка: {user['email'] or user['iin']}")
+                    logger.info(
+                        section=LogSection.AUTH,
+                        subsection=LogSubsection.AUTH.AUTO_UNBAN,
+                        message=f"Автоматическая разблокировка пользователя {user.get('full_name', 'неизвестен')} ({user.get('email') or user.get('iin')}) с IP {ip} - срок временной блокировки истек"
+                    )
 
     if not verify_password(data.password, user["hashed_password"]):
-        logger.info(f"[LOGIN][{ip}] Неверный пароль: user={user['email'] or user['iin']}")
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.LOGIN_FAILED,
+            message=f"Неверный пароль пользователя {user.get('full_name', 'неизвестен')} ({user.get('email') or user.get('iin')}) с IP {ip}"
+        )
         register_attempt(ip)
         raise HTTPException(
             status_code=401,
@@ -228,7 +347,11 @@ async def unified_login(data: AuthRequest, request: Request):
 
     await store_token_in_db(access_token, user["_id"], expires_at, ip, ua)
 
-    logger.info(f"[LOGIN][{ip}] Успешный вход: user={user['email'] or user['iin']}")
+    logger.info(
+        section=LogSection.AUTH,
+        subsection=LogSubsection.AUTH.LOGIN_SUCCESS,
+        message=f"Успешный вход пользователя {user.get('full_name', 'неизвестен')} ({user.get('email') or user.get('iin')}) с IP {ip} - создан токен действующий до {expires_at.strftime('%H:%M:%S %d.%m.%Y')}"
+    )
 
     response = success(data={"access_token": access_token, "token_type": "bearer"})
     response.set_cookie(
@@ -252,8 +375,18 @@ async def unified_login(data: AuthRequest, request: Request):
 async def register_user(user_data: UserCreate, request: Request):
     ip = request.client.host
 
+    logger.info(
+        section=LogSection.AUTH,
+        subsection=LogSubsection.AUTH.REGISTER_ATTEMPT,
+        message=f"Попытка регистрации пользователя с IP {ip} - email: {user_data.email}, ИИН: {user_data.iin[:8]}..."
+    )
+
     if not check_rate_limit(ip):
-        logger.warning(f"[REGISTER][{ip}] Превышен лимит попыток")
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.RATE_LIMIT,
+            message=f"Превышен лимит попыток регистрации с IP {ip} - заблокировано на 5 минут"
+        )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={"message": "Превышен лимит попыток входа"}
@@ -261,48 +394,70 @@ async def register_user(user_data: UserCreate, request: Request):
 
     register_attempt(ip)
 
+    # БЕЗОПАСНАЯ ВАЛИДАЦИЯ входных данных
     try:
-        user_data.iin = sanitize_input(user_data.iin)
-        user_data.email = sanitize_input(user_data.email)
-        user_data.phone = sanitize_input(user_data.phone)
-        user_data.full_name = sanitize_input(user_data.full_name)
+        user_data.iin = validate_iin(user_data.iin)
+        user_data.email = validate_email(user_data.email)
+        user_data.phone = strict_validate_input(user_data.phone, "phone", 20)
+        user_data.full_name = strict_validate_input(user_data.full_name, "full_name", 100)
         if user_data.referred_by:
-            user_data.referred_by = sanitize_input(user_data.referred_by)
-    except ValueError as e:
-        logger.warning(f"[REGISTRATION][{ip}] Ввод содержит запрещённые символы: {e.args[0]}")
+            user_data.referred_by = strict_validate_input(user_data.referred_by, "referred_by", 50)
+    except HTTPException:
+        # strict_validate_input уже вызывает HTTPException
+        raise
+    except Exception as e:
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.REGISTER_FAILED,
+            message=f"Некорректный ввод данных регистрации с IP {ip} - {str(e)}"
+        )
         raise HTTPException(
             status_code=400,
-            detail={"message": f"Ввод содержит запрещённые символы"}
+            detail={"message": "Ввод содержит запрещённые символы"}
         )
     if user_data.password != user_data.confirm_password:
-        logger.info(f"[REGISTER][{ip}] Пароли не совпадают — {user_data.email}")
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.REGISTER_FAILED,
+            message=f"Пароли не совпадают при регистрации с IP {ip} - email: {user_data.email}"
+        )
         raise HTTPException(
             status_code=400,
             detail={"message": "Пароли не совпадают"}
         )
 
+    # БЕЗОПАСНЫЙ поиск существующего пользователя (защита от NoSQL injection)
     existing_user = await db.users.find_one({
         "$or": [
-            {"iin": user_data.iin},
-            {"email": user_data.email.lower()},
-            {"phone": user_data.phone}
+            {"iin": user_data.iin},  # уже валидированный ИИН
+            {"email": user_data.email},  # уже валидированный email
+            {"phone": user_data.phone}  # уже валидированный phone
         ]
     })
     if existing_user:
-        logger.info(f"[REGISTER][{ip}] Уже существует: {user_data.email or user_data.iin}")
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.REGISTER_FAILED,
+            message=f"Попытка регистрации с уже существующими данными с IP {ip} - email: {user_data.email}, ИИН: {user_data.iin}"
+        )
         raise HTTPException(
             status_code=400,
             detail={"message": "Пользователь с таким ИИН, Email или телефоном уже существует"}
         )
 
+    # БЕЗОПАСНЫЙ поиск существующего админа
     existing_admin = await db.admins.find_one({
         "$or": [
-            {"iin": user_data.iin},
-            {"email": user_data.email.lower()}
+            {"iin": user_data.iin},  # уже валидированный ИИН
+            {"email": user_data.email}  # уже валидированный email
         ]
     })
     if existing_admin:
-        logger.warning(f"[REGISTER][{ip}] Попытка регистрации под Admin IIN/Email: {user_data.iin}/{user_data.email}")
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
+            message=f"Попытка регистрации пользователя с данными администратора с IP {ip} - ИИН: {user_data.iin}, email: {user_data.email}"
+        )
         raise HTTPException(
             status_code=400,
             detail={"message": "Пользователь с таким ИИН, Email или телефоном уже существует"}
@@ -313,13 +468,21 @@ async def register_user(user_data: UserCreate, request: Request):
     if user_data.referred_by:
         ref_owner = await db.referrals.find_one({"code": user_data.referred_by})
         if not ref_owner:
-            logger.warning(f"[REGISTER][{ip}] Указанный реферальный код не найден — {user_data.referred_by}")
+            logger.warning(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.REGISTER_FAILED,
+                message=f"Использован несуществующий реферальный код {user_data.referred_by} при регистрации с IP {ip} - email: {user_data.email}"
+            )
             raise HTTPException(
                 status_code=400,
                 detail={"message": "Указанный реферальный код не найден"}
             )
         referred_by = user_data.referred_by  # Привязываем к пользователю, который пригласил
-        logger.info(f"[REGISTER][{ip}] Пользователь привязан к рефералке: {referred_by}")
+        logger.info(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.REFERRAL_USED,
+            message=f"Пользователь {user_data.full_name} ({user_data.email}) использовал реферальный код {referred_by} при регистрации с IP {ip}"
+        )
 
     hashed_password = hash_password(user_data.password)
 
@@ -327,7 +490,7 @@ async def register_user(user_data: UserCreate, request: Request):
         "full_name": user_data.full_name,
         "iin": user_data.iin,
         "phone": user_data.phone,
-        "email": user_data.email.lower(),
+        "email": user_data.email,  # уже приведен к lower() в validate_email
         "hashed_password": hashed_password,
         "role": "user",
         "created_at": datetime.utcnow(),
@@ -340,7 +503,11 @@ async def register_user(user_data: UserCreate, request: Request):
     result = await db.users.insert_one(new_user)
     user_id = result.inserted_id
 
-    logger.info(f"[REGISTER][{ip}] Успешно: {user_data.email} (ID: {user_id})")
+    logger.info(
+        section=LogSection.AUTH,
+        subsection=LogSubsection.AUTH.REGISTER_SUCCESS,
+        message=f"Успешная регистрация пользователя {user_data.full_name} ({user_data.email}) с ID {user_id} с IP {ip}"
+    )
 
     token_data = {
         "sub": str(user_id),
@@ -374,8 +541,18 @@ async def guest_register(data: dict, request: Request):
     """Register a guest user for School lobbies"""
     ip = request.client.host
 
+    logger.info(
+        section=LogSection.AUTH,
+        subsection=LogSubsection.AUTH.GUEST_REGISTER_ATTEMPT,
+        message=f"Попытка гостевой регистрации с IP {ip} - имя: {data.get('name', 'неизвестно')[:20]}..., лобби: {data.get('lobby_id', 'неизвестно')[:10]}..."
+    )
+
     if not check_rate_limit(ip):
-        logger.warning(f"[GUEST-REGISTER][{ip}] Превышен лимит попыток")
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.RATE_LIMIT,
+            message=f"Превышен лимит попыток гостевой регистрации с IP {ip} - заблокировано на 5 минут"
+        )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={"message": "Превышен лимит попыток входа"}
@@ -405,9 +582,16 @@ async def guest_register(data: dict, request: Request):
         )
 
     try:
-        name = sanitize_input(name)
-    except ValueError:
-        logger.warning(f"[GUEST-REGISTER][{ip}] Некорректный ввод имени")
+        name = strict_validate_input(name, "name", 50)
+    except HTTPException:
+        # strict_validate_input уже вызывает HTTPException, просто перебрасываем
+        raise
+    except Exception as e:
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.GUEST_REGISTER_FAILED,
+            message=f"Некорректное имя при гостевой регистрации с IP {ip}: {str(e)}"
+        )
         raise HTTPException(
             status_code=400,
             detail={"message": "Имя содержит запрещённые символы"}
@@ -416,6 +600,11 @@ async def guest_register(data: dict, request: Request):
     # Check if lobby exists and allows guests (School subscription)
     lobby = await db.lobbies.find_one({"_id": lobby_id})
     if not lobby:
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.GUEST_REGISTER_FAILED,
+            message=f"Попытка регистрации в несуществующее лобби {lobby_id} с IP {ip}"
+        )
         raise HTTPException(
             status_code=404,
             detail={"message": "Лобби не найдено"}
@@ -424,6 +613,11 @@ async def guest_register(data: dict, request: Request):
     # Check if lobby host has School subscription
     host = await db.users.find_one({"_id": ObjectId(lobby["host_id"])})
     if not host:
+        logger.error(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.GUEST_REGISTER_FAILED,
+            message=f"Хост лобби {lobby['host_id']} не найден при гостевой регистрации в лобби {lobby_id} с IP {ip}"
+        )
         raise HTTPException(
             status_code=404,
             detail={"message": "Хост лобби не найден"}
@@ -437,6 +631,11 @@ async def guest_register(data: dict, request: Request):
     })
 
     if not host_subscription or host_subscription.get("subscription_type", "").lower() != "school":
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.GUEST_REGISTER_FAILED,
+            message=f"Попытка гостевой регистрации в лобби {lobby_id} без School подписки хоста {host.get('full_name', 'неизвестен')} ({lobby['host_id']}) с IP {ip}"
+        )
         raise HTTPException(
             status_code=403,
             detail={"message": "Только лобби с подпиской School разрешают гостевой доступ"}
@@ -459,7 +658,11 @@ async def guest_register(data: dict, request: Request):
 
     await db.guests.insert_one(guest_user)
 
-    logger.info(f"[GUEST-REGISTER][{ip}] Успешно: {name} (ID: {guest_id}) для лобби {lobby_id}")
+    logger.info(
+        section=LogSection.AUTH,
+        subsection=LogSubsection.AUTH.GUEST_REGISTER_SUCCESS,
+        message=f"Успешная гостевая регистрация: {name} (ID: {guest_id}) для лобби {lobby_id} хоста {host.get('full_name', 'неизвестен')} с IP {ip}"
+    )
 
     # Create token for guest
     token_data = {
@@ -485,10 +688,17 @@ async def guest_register(data: dict, request: Request):
 # -------------------------
 @router.post("/logout")
 async def logout_user(request: Request):
+    ip = request.client.host
+    
     # Получаем токен из cookies
     token = request.cookies.get("access_token")
 
     if not token:
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.LOGOUT_FAILED,
+            message=f"Попытка выхода без токена с IP {ip}"
+        )
         raise HTTPException(
             status_code=401,
             detail={"message": "Не передан токен (cookie)", "hint": "Добавьте токен в cookie"}
@@ -498,6 +708,11 @@ async def logout_user(request: Request):
     try:
         payload = decode_token(token)
     except Exception as e:
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.LOGOUT_FAILED,
+            message=f"Ошибка декодирования токена при выходе с IP {ip}: {str(e)}"
+        )
         raise HTTPException(
             status_code=403,
             detail={"message": "Ошибка декодирования токена", "hint": str(e)}
@@ -508,7 +723,11 @@ async def logout_user(request: Request):
 
     # Проверка роли
     if role not in ["user", "admin", "moderator", "manager", "super_admin", "guest"]:
-        logger.warning(f"[LOGOUT][{request.client.host}] Недопустимая роль: {role}")
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
+            message=f"Недопустимая роль {role} при выходе пользователя {user_id} с IP {ip}"
+        )
         raise HTTPException(
             status_code=403,
             detail={"message": "Недопустимая роль"}
@@ -522,7 +741,11 @@ async def logout_user(request: Request):
     if role in ["user", "guest"]:
         token_doc = await db.tokens.find_one({"token": token})
         if not token_doc:
-            logger.info(f"[LOGOUT][{request.client.host}] Пользователь не найден по токену. user_id={user_id}")
+            logger.warning(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.LOGOUT_FAILED,
+                message=f"Токен не найден в БД при выходе пользователя {user_id} с ролью {role} с IP {ip}"
+            )
             raise HTTPException(
                 status_code=404,
                 detail={"message": "Пользователь не найден по токену"}
@@ -535,16 +758,34 @@ async def logout_user(request: Request):
 
         # Для гостей также удаляем запись из коллекции guests
         if role == "guest":
+            guest = await db.guests.find_one({"_id": user_id})
+            guest_name = guest.get("full_name", "неизвестен") if guest else "неизвестен"
             await db.guests.delete_one({"_id": user_id})
-            logger.info(f"[LOGOUT][{request.client.host}] Гостевой пользователь удален: guest_id={user_id}")
+            logger.info(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.LOGOUT_SUCCESS,
+                message=f"Успешный выход гостя {guest_name} ({user_id}) с IP {ip} - запись удалена из БД"
+            )
+        else:
+            # Получаем информацию о пользователе для лога
+            user = await db.users.find_one({"_id": ObjectId(user_id)})
+            user_name = user.get("full_name", "неизвестен") if user else "неизвестен"
+            logger.info(
+                section=LogSection.AUTH,
+                subsection=LogSubsection.AUTH.LOGOUT_SUCCESS,
+                message=f"Успешный выход пользователя {user_name} ({user_id}) с IP {ip} - токен отозван"
+            )
 
-        logger.info(f"[LOGOUT][{request.client.host}] Успешный выход: user_id={user_id}, role={role}")
         return response
 
     # Логика для администраторов
     admin = await db.admins.find_one({"_id": ObjectId(user_id)})
     if not admin:
-        logger.warning(f"[LOGOUT][{request.client.host}] Админ не найден. user_id={user_id}")
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.LOGOUT_FAILED,
+            message=f"Администратор {user_id} не найден при выходе с IP {ip}"
+        )
         raise HTTPException(
             status_code=404,
             detail={"message": "Админ не найден"}
@@ -555,7 +796,11 @@ async def logout_user(request: Request):
         {"$set": {"active_session": None}}
     )
 
-    logger.info(f"[LOGOUT][{request.client.host}] Успешный выход: admin_id={user_id}, role={role}")
+    logger.info(
+        section=LogSection.AUTH,
+        subsection=LogSubsection.AUTH.LOGOUT_SUCCESS,
+        message=f"Успешный выход администратора {admin.get('full_name', 'неизвестен')} ({user_id}) с ролью {role} с IP {ip} - сессия закрыта"
+    )
     return response
 
 
@@ -569,8 +814,16 @@ async def validate_admin(admin = Depends(get_current_admin_user)):
     Используется Nginx‑ом в auth_request.
     """
     if admin["role"] not in ["admin", "moderator", "super_admin", "tests_creator"]:
-        logger.warning(f"[VALIDATE-ADMIN] Недостаточно прав: user_id={admin['_id']}, role={admin['role']}")
+        logger.warning(
+            section=LogSection.AUTH,
+            subsection=LogSubsection.AUTH.ADMIN_VALIDATION_FAILED,
+            message=f"Недостаточно прав для доступа к админ-панели: {admin.get('full_name', 'неизвестен')} ({admin['_id']}) с ролью {admin['role']}"
+        )
         return Response(status_code=404)
     
-    logger.info(f"[VALIDATE-ADMIN] Успешная валидация: user_id={admin['_id']}, role={admin['role']}")
+    logger.info(
+        section=LogSection.AUTH,
+        subsection=LogSubsection.AUTH.ADMIN_VALIDATION_SUCCESS,
+        message=f"Успешная валидация доступа к админ-панели: {admin.get('full_name', 'неизвестен')} ({admin['_id']}) с ролью {admin['role']}"
+    )
     return Response(status_code=204)

@@ -57,7 +57,19 @@ const TestModal = ({ isOpen, onClose, category, subscription, translations: t, i
     {"uid":"osnovy-upravleniya","title":t['testModal.sections.osnovy-upravleniya'] || "Основы управления транспортным средством и безопасность движения"}
   ];
 
-  const [selectedSections, setSelectedSections] = useState(PDD_SECTIONS.map(section => section.uid));
+  // Initialize selected sections - empty by default
+  const [selectedSections, setSelectedSections] = useState([]);
+  
+  // Update selected sections when user permissions change
+  useEffect(() => {
+    if (canSelectSections) {
+      // Select all sections for users with permission
+      setSelectedSections(PDD_SECTIONS.map(section => section.uid));
+    } else {
+      // Clear sections for users without permission
+      setSelectedSections([]);
+    }
+  }, [canSelectSections]);
   
   // Check for active lobby on component mount
   useEffect(() => {
@@ -217,18 +229,22 @@ const TestModal = ({ isOpen, onClose, category, subscription, translations: t, i
         }
       }
 
+      // Prepare PDD sections only if user has permission
+      const pddSections = canSelectSections && selectedSections.length > 0 ? selectedSections : null;
+
       console.log("Creating new lobby with:", { 
         mode: 'solo', 
         categories, 
-        pdd_sections: selectedSections.length > 0 ? selectedSections : null,
-        exam_mode: examMode
+        pdd_sections: pddSections,
+        exam_mode: examMode,
+        canSelectSections
       });
 
       // Create lobby
       const response = await api.post('/global-lobby/lobbies', {
         mode: 'solo',
         categories: categories,
-        pdd_section_uids: selectedSections.length > 0 ? selectedSections : null,
+        pdd_section_uids: pddSections,
         exam_mode: examMode
       });
 

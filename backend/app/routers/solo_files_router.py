@@ -7,11 +7,11 @@ from bson import ObjectId, errors
 import base64
 from app.core.security import get_current_actor
 from app.core.response import success
-import logging
+from app.logging import get_logger, LogSection, LogSubsection
 from app.core.config import settings
 
 router = APIRouter(tags=["Solo Files"])
-logger = logging.getLogger("solo_files_router")
+logger = get_logger(__name__)
 
 # Список разрешенных типов медиа
 ALLOWED_MEDIA_TYPES = settings.allowed_media_types
@@ -61,7 +61,11 @@ async def get_question_media_secure(
     - Проверяет, что вопрос является текущим или уже отвеченным
     """
     user_id = get_user_id(current_user)
-    logger.info(f"[SECURE_MEDIA] Пользователь {user_id} запрашивает медиа для вопроса {question_id} в лобби {lobby_id}")
+    logger.info(
+        section=LogSection.FILES,
+        subsection=LogSubsection.FILES.ACCESS,
+        message=f"Запрос медиа-файла: пользователь {user_id} запрашивает медиа для вопроса {question_id} в лобби {lobby_id or 'любом'}"
+    )
     
     try:
         # Находим вопрос в базе данных - пробуем сначала как строку, потом как ObjectId
@@ -78,19 +82,31 @@ async def get_question_media_secure(
                 pass
         
         if not question:
-            logger.error(f"[SECURE_MEDIA] Вопрос {question_id} не найден в базе данных")
+            logger.error(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.VALIDATION,
+                message=f"Вопрос не найден в базе данных: попытка доступа к несуществующему вопросу {question_id}"
+            )
             return StreamingResponse(
                 iter([b'']),
                 media_type='image/svg+xml',
                 headers={'Content-Disposition': 'inline; filename=not_found.svg'}
             )
         
-        logger.info(f"[SECURE_MEDIA] Вопрос {question_id} найден: {question.get('_id')},  media_file_id: {question.get('media_file_id')}")
+        logger.info(
+            section=LogSection.FILES,
+            subsection=LogSubsection.FILES.VALIDATION,
+            message=f"Вопрос найден в базе данных: ID {question.get('_id')}, медиа-файл ID {question.get('media_file_id')}"
+        )
         
         # Проверяем наличие медиа-файла
         media_file_id = question.get("media_file_id")
         if not media_file_id:
-            logger.warning(f"У вопроса {question_id} нет media_file_id")
+            logger.warning(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.VALIDATION,
+                message=f"Медиа-файл отсутствует: у вопроса {question_id} нет привязанного медиа-файла"
+            )
             return StreamingResponse(
                 iter([b'']),
                 media_type='image/svg+xml',
@@ -110,9 +126,17 @@ async def get_question_media_secure(
             })
             if specific_lobby:
                 active_lobbies = [specific_lobby]
-                logger.info(f"Найдено конкретное лобби {lobby_id} для пользователя {user_id} с вопросом {question_id}")
+                logger.info(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.ACCESS,
+                    message=f"Найдено конкретное лобби: пользователь {user_id} имеет доступ к лобби {lobby_id} с вопросом {question_id}"
+                )
             else:
-                logger.warning(f"Конкретное лобби {lobby_id} не найдено или пользователь {user_id} не имеет к нему доступа")
+                logger.warning(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.SECURITY,
+                    message=f"Доступ к лобби запрещён: лобби {lobby_id} не найдено или пользователь {user_id} не является участником"
+                )
         else:
             # Ищем среди всех активных лобби пользователя
             active_lobbies = await db.lobbies.find({
@@ -120,7 +144,7 @@ async def get_question_media_secure(
                 "question_ids": question_id,
                 "status": "in_progress"
             }).to_list(None)
-            logger.info(f"Найдено {len(active_lobbies)} активных лобби для пользователя {user_id} с вопросом {question_id}")
+
         
         if not active_lobbies:
             # Дополнительная проверка - может быть лобби в другом статусе
@@ -130,11 +154,11 @@ async def get_question_media_secure(
                 
             all_user_lobbies = await db.lobbies.find(search_filter).to_list(None)
             
-            logger.warning(f"Пользователь {user_id} запрашивает медиа для вопроса {question_id} в лобби {lobby_id or 'любом'}. Активных лобби: 0, всего лобби с этим вопросом: {len(all_user_lobbies)}")
-            
-            if all_user_lobbies:
-                for lobby in all_user_lobbies:
-                    logger.info(f"Лобби {lobby['_id']}: статус={lobby.get('status')}, участники={len(lobby.get('participants', []))}")
+            logger.warning(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.SECURITY,
+                message=f"Отсутствие доступа к файлу: пользователь {user_id} не имеет активных лобби с вопросом {question_id}, всего найдено лобби с этим вопросом: {len(all_user_lobbies)}"
+            )
             
             return StreamingResponse(
                 iter([b'']),
@@ -154,16 +178,20 @@ async def get_question_media_secure(
             is_current = question_id == current_question_id
             is_answered = question_id in user_answers
             
-            logger.info(f"Проверка доступа в лобби {lobby['_id']}: is_host={is_host}, is_current={is_current} (current_q={current_question_id}), is_answered={is_answered}")
+
             
             if is_host or is_current or is_answered:
                 has_access = True
                 active_lobby = lobby
-                logger.info(f"Доступ разрешен в лобби {lobby['_id']}")
+
                 break
                 
         if not has_access:
-            logger.warning(f"Пользователь {user_id} не имеет доступа к медиа для вопроса {question_id}")
+            logger.warning(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.SECURITY,
+                message=f"Доступ к медиа запрещён: пользователь {user_id} не имеет прав доступа к файлу вопроса {question_id}"
+            )
             
             # ВРЕМЕННОЕ РЕШЕНИЕ: Разрешаем доступ к медиа если файл существует и пользователь участник лобби с этим вопросом
             search_filter = {"participants": user_id, "question_ids": question_id}
@@ -173,7 +201,7 @@ async def get_question_media_secure(
             any_lobby_with_question = await db.lobbies.find_one(search_filter)
             
             if any_lobby_with_question:
-                logger.info(f"ВРЕМЕННЫЙ ДОСТУП: Разрешаем доступ к медиа для пользователя {user_id} в лобби {any_lobby_with_question['_id']}")
+
                 active_lobby = any_lobby_with_question
                 has_access = True
             else:
@@ -185,23 +213,35 @@ async def get_question_media_secure(
             
         # Получаем медиа-файл из GridFS
         try:
-            logger.info(f"Получение медиа-файла с ID {media_file_id} для вопроса {question_id}")
+
             
             # Проверяем существование файла в GridFS перед попыткой получения
             file_exists = await db.fs.files.find_one({"_id": ObjectId(media_file_id)})
             if not file_exists:
-                logger.error(f"Медиа-файл {media_file_id} не найден в fs.files коллекции")
+                logger.error(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.GRIDFS,
+                    message=f"Медиа-файл не найден в GridFS: файл ID {media_file_id} отсутствует в коллекции fs.files"
+                )
                 return StreamingResponse(
                     iter([b'']),
                     media_type='image/svg+xml',
                     headers={'Content-Disposition': 'inline; filename=not_found.svg'}
                 )
             
-            logger.info(f"Файл найден в fs.files: {file_exists.get('filename', 'unknown')} размер: {file_exists.get('length', 0)} байт")
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.GRIDFS,
+                message=f"Медиа-файл найден в GridFS: имя '{file_exists.get('filename', 'неизвестно')}', размер {file_exists.get('length', 0)} байт"
+            )
             
             media_data = await get_media_file(str(media_file_id), db)
             if not media_data:
-                logger.error(f"Медиа-файл {media_file_id} не найден в GridFS или пуст")
+                logger.error(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.GRIDFS,
+                    message=f"Ошибка загрузки медиа-файла: файл ID {media_file_id} найден в метаданных, но содержимое отсутствует или повреждено"
+                )
                 return StreamingResponse(
                     iter([b'']),
                     media_type='image/svg+xml',
@@ -211,7 +251,11 @@ async def get_question_media_secure(
             # Получение информации о файле (content type)
             file_info = await db.fs.files.find_one({"_id": ObjectId(media_file_id)})
             if not file_info:
-                logger.error(f"Информация о файле {media_file_id} не найдена в GridFS")
+                logger.error(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.GRIDFS,
+                    message=f"Метаданные файла отсутствуют: информация о файле ID {media_file_id} не найдена в GridFS"
+                )
                 content_type = "application/octet-stream"
                 filename = "media_file"
             else:
@@ -238,14 +282,14 @@ async def get_question_media_secure(
                     elif lower_filename.endswith('.mov'):
                         content_type = "video/quicktime"
             
-            logger.info(f"Тип содержимого медиа-файла: {content_type}")
+
             
             # Проверяем, является ли это видеофайлом
             is_video = content_type.startswith("video/")
             
             # Добавляем эту информацию в вопрос, если has_media не установлен
             if not question.get("has_media") and media_data:
-                logger.info(f"Обновляем информацию о медиа для вопроса {question_id}")
+
                 question_update_id = question_id
                 try:
                     question_update_id = ObjectId(question_id)
@@ -262,7 +306,7 @@ async def get_question_media_secure(
                 
                 # Также обновляем кэшированную информацию в лобби
                 if active_lobby and active_lobby.get("questions_data") and active_lobby["questions_data"].get(question_id):
-                    logger.info(f"Обновляем кэшированную информацию о медиа в лобби {active_lobby['_id']}")
+
                     await db.lobbies.update_one(
                         {"_id": active_lobby["_id"]},
                         {"$set": {
@@ -279,7 +323,7 @@ async def get_question_media_secure(
             except UnicodeEncodeError:
                 # Только если есть кириллица - генерируем случайное имя
                 safe_filename = generate_safe_filename(filename)
-                logger.info(f"Основной файл с кириллическим именем переименован: {filename} -> {safe_filename}")
+
             
             content_disposition = f"inline; filename={safe_filename}"
             
@@ -295,24 +339,28 @@ async def get_question_media_secure(
             }
             
             # Return streaming response similar to the admin endpoint
-            # Безопасное логирование заголовка
-            safe_content_disposition = content_disposition.encode('ascii', errors='ignore').decode('ascii')
-            logger.info(f"Возвращаем StreamingResponse с заголовком: Content-Disposition: {safe_content_disposition}")
             try:
                 response = StreamingResponse(
                     iter([media_data]),
                     media_type=content_type,
                     headers=headers
                 )
-                safe_filename = filename.encode('ascii', errors='ignore').decode('ascii')
-                logger.info(f"StreamingResponse успешно создан для основного медиа файла {safe_filename}")
+
                 return response
             except Exception as stream_error:
-                logger.error(f"Ошибка при создании StreamingResponse для основного медиа: {str(stream_error)}")
+                logger.error(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.ERROR,
+                    message=f"Ошибка создания потокового ответа: не удалось создать StreamingResponse для медиа-файла - {str(stream_error)}"
+                )
                 raise stream_error
             
         except Exception as e:
-            logger.error(f"Ошибка при получении медиа-файла для вопроса {question_id}: {str(e)}")
+            logger.error(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.ERROR,
+                message=f"Критическая ошибка получения медиа: не удалось загрузить файл для вопроса {question_id} - {str(e)}"
+            )
             return StreamingResponse(
                 iter([b'']),
                 media_type='image/svg+xml',
@@ -324,7 +372,11 @@ async def get_question_media_secure(
     except Exception as e:
         # Безопасное логирование ошибки без кириллических символов
         error_msg = str(e).encode('ascii', errors='ignore').decode('ascii')
-        logger.error(f"Непредвиденная ошибка при получении медиа для вопроса {question_id}: {error_msg}")
+        logger.error(
+            section=LogSection.FILES,
+            subsection=LogSubsection.FILES.ERROR,
+            message=f"Непредвиденная системная ошибка: сбой при обработке запроса медиа для вопроса {question_id} - {error_msg}"
+        )
         return StreamingResponse(
             iter([b'']),
             media_type='image/svg+xml',
@@ -347,7 +399,7 @@ async def get_after_answer_media_secure(
     - Не позволяет получить медиа, если пользователь не ответил на вопрос
     """
     user_id = get_user_id(current_user)
-    logger.info(f"Пользователь {user_id} запрашивает медиа после ответа для вопроса {question_id} в лобби {lobby_id or 'любом'}")
+
     
     try:
         # Находим вопрос в базе данных - пробуем сначала как строку, потом как ObjectId
@@ -364,7 +416,11 @@ async def get_after_answer_media_secure(
                 pass
         
         if not question:
-            logger.warning(f"Вопрос {question_id} не найден")
+            logger.warning(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.VALIDATION,
+                message=f"Вопрос не найден: попытка получения дополнительного медиа для несуществующего вопроса {question_id}"
+            )
             return StreamingResponse(
                 iter([b'']),
                 media_type='image/svg+xml',
@@ -374,7 +430,11 @@ async def get_after_answer_media_secure(
         # Проверяем наличие дополнительного медиа-файла
         after_answer_media_id = question.get("after_answer_media_file_id") or question.get("after_answer_media_id")
         if not after_answer_media_id:
-            logger.warning(f"У вопроса {question_id} нет дополнительного медиа-файла")
+            logger.warning(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.VALIDATION,
+                message=f"Дополнительный медиа-файл отсутствует: у вопроса {question_id} нет файла для показа после ответа"
+            )
             return StreamingResponse(
                 iter([b'']),
                 media_type='image/svg+xml',
@@ -388,7 +448,11 @@ async def get_after_answer_media_secure(
             # Проверяем конкретное лобби
             lobby = await db.lobbies.find_one({"_id": lobby_id, "participants": user_id})
             if not lobby:
-                logger.warning(f"Лобби {lobby_id} не найдено или пользователь {user_id} не является его участником")
+                logger.warning(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.SECURITY,
+                    message=f"Доступ к лобби запрещён: лобби {lobby_id} не найдено или пользователь {user_id} не является участником"
+                )
                 return StreamingResponse(
                     iter([b'']),
                     media_type='image/svg+xml',
@@ -397,7 +461,11 @@ async def get_after_answer_media_secure(
                 
             # Проверяем, входит ли вопрос в это лобби
             if question_id not in lobby.get("question_ids", []):
-                logger.warning(f"Вопрос {question_id} не входит в лобби {lobby_id}")
+                logger.warning(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.SECURITY,
+                    message=f"Вопрос не связан с лобби: вопрос {question_id} не входит в состав лобби {lobby_id}"
+                )
                 return StreamingResponse(
                     iter([b'']),
                     media_type='image/svg+xml',
@@ -408,7 +476,11 @@ async def get_after_answer_media_secure(
             participant_answers = lobby.get("participants_answers", {}).get(user_id, {})
             has_answered = question_id in participant_answers
             
-            logger.info(f"Проверка ответа в лобби {lobby_id}: пользователь {user_id}, ответы: {list(participant_answers.keys())}, искомый вопрос: {question_id}, has_answered: {has_answered}")
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.SECURITY,
+                message=f"Проверка права доступа к файлу после ответа: лобби {lobby_id}, пользователь {user_id}, количество ответов: {len(participant_answers)}, ответ на вопрос {question_id} дан: {has_answered}"
+            )
             
         else:
             # Проверяем все активные лобби пользователя
@@ -424,15 +496,22 @@ async def get_after_answer_media_secure(
                     break
         
         if not has_answered:
-            logger.warning(f"Пользователь {user_id} пытается получить медиа после ответа, не ответив на вопрос {question_id}")
-            
             # ВРЕМЕННОЕ РЕШЕНИЕ: Разрешаем доступ к медиа после ответа если пользователь участник лобби с этим вопросом
             if lobby_id:
                 lobby = await db.lobbies.find_one({"_id": lobby_id, "participants": user_id, "question_ids": question_id})
                 if lobby:
-                    logger.info(f"ВРЕМЕННЫЙ ДОСТУП: Разрешаем доступ к медиа после ответа для пользователя {user_id} в лобби {lobby_id}")
+                    logger.info(
+                        section=LogSection.FILES,
+                        subsection=LogSubsection.FILES.ACCESS,
+                        message=f"Временный доступ к дополнительному медиа: пользователь {user_id} получил доступ в лобби {lobby_id} (временная мера)"
+                    )
                     has_answered = True
                 else:
+                    logger.warning(
+                        section=LogSection.FILES,
+                        subsection=LogSubsection.FILES.SECURITY,
+                        message=f"Нет права на дополнительный медиа: пользователь {user_id} пытается получить файл после ответа, не ответив на вопрос {question_id}"
+                    )
                     return StreamingResponse(
                         iter([b'']),
                         media_type='image/svg+xml',
@@ -449,7 +528,11 @@ async def get_after_answer_media_secure(
         if lobby_id:
             lobby = await db.lobbies.find_one({"_id": lobby_id})
             if lobby and lobby.get("exam_mode", False) and lobby["status"] != "finished":
-                logger.warning(f"Пользователь {user_id} пытается получить медиа после ответа в экзаменационном режиме до завершения теста")
+                logger.warning(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.SECURITY,
+                    message=f"Блокировка в экзаменационном режиме: пользователь {user_id} пытается получить дополнительный медиа до завершения экзамена в лобби {lobby_id}"
+                )
                 return StreamingResponse(
                     iter([b'']),
                     media_type='image/svg+xml',
@@ -458,23 +541,39 @@ async def get_after_answer_media_secure(
         
         # Получаем медиа-файл из GridFS
         try:
-            logger.info(f"Получение дополнительного медиа-файла с ID {after_answer_media_id} для вопроса {question_id}")
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.GRIDFS,
+                message=f"Загрузка дополнительного медиа: начинаем получение файла ID {after_answer_media_id} для показа после ответа на вопрос {question_id}"
+            )
             
             # Проверяем существование файла в GridFS перед попыткой получения
             file_exists = await db.fs.files.find_one({"_id": ObjectId(after_answer_media_id)})
             if not file_exists:
-                logger.error(f"Дополнительный медиа-файл {after_answer_media_id} не найден в fs.files коллекции")
+                logger.error(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.GRIDFS,
+                    message=f"Дополнительный медиа-файл не найден в GridFS: файл ID {after_answer_media_id} отсутствует в коллекции fs.files"
+                )
                 return StreamingResponse(
                     iter([b'']),
                     media_type='image/svg+xml',
                     headers={'Content-Disposition': 'inline; filename=not_found.svg'}
                 )
             
-            logger.info(f"Дополнительный файл найден в fs.files: {file_exists.get('filename', 'unknown')} размер: {file_exists.get('length', 0)} байт")
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.GRIDFS,
+                message=f"Дополнительный медиа-файл найден в GridFS: имя '{file_exists.get('filename', 'неизвестно')}', размер {file_exists.get('length', 0)} байт"
+            )
             
             media_data = await get_media_file(str(after_answer_media_id), db)
             if not media_data:
-                logger.error(f"Дополнительный медиа-файл {after_answer_media_id} не найден в GridFS или пуст")
+                logger.error(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.GRIDFS,
+                    message=f"Ошибка загрузки дополнительного медиа: файл ID {after_answer_media_id} найден в метаданных, но содержимое отсутствует или повреждено"
+                )
                 return StreamingResponse(
                     iter([b'']),
                     media_type='image/svg+xml',
@@ -510,7 +609,11 @@ async def get_after_answer_media_secure(
                     elif lower_filename.endswith('.mov'):
                         content_type = "video/quicktime"
             
-            logger.info(f"Тип содержимого после-ответного медиа-файла: {content_type}")
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.GRIDFS,
+                message=f"Обнаружен тип дополнительного медиа-контента: {content_type} для файла {filename}"
+            )
             
             # Генерируем безопасное случайное имя файла для HTTP заголовка
             try:
@@ -520,7 +623,11 @@ async def get_after_answer_media_secure(
             except UnicodeEncodeError:
                 # Только если есть кириллица - генерируем случайное имя
                 safe_filename = generate_safe_filename(filename)
-                logger.info(f"Дополнительный файл с кириллическим именем переименован: {filename} -> {safe_filename}")
+                logger.info(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.VALIDATION,
+                    message=f"Переименование дополнительного файла: кириллическое имя '{filename[:20]}...' заменено на безопасное имя '{safe_filename}'"
+                )
             
             content_disposition = f"inline; filename={safe_filename}"
             
@@ -538,7 +645,11 @@ async def get_after_answer_media_secure(
             # Return streaming response for after-answer media
             # Безопасное логирование заголовка
             safe_content_disposition = content_disposition.encode('ascii', errors='ignore').decode('ascii')
-            logger.info(f"Возвращаем StreamingResponse с заголовком: Content-Disposition: {safe_content_disposition}")
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.ACCESS,
+                message=f"Успешная отдача дополнительного файла: подготовлен StreamingResponse с заголовком Content-Disposition: {safe_content_disposition}"
+            )
             try:
                 response = StreamingResponse(
                     iter([media_data]),
@@ -546,16 +657,28 @@ async def get_after_answer_media_secure(
                     headers=headers
                 )
                 safe_filename = filename.encode('ascii', errors='ignore').decode('ascii')
-                logger.info(f"StreamingResponse успешно создан для файла {safe_filename}")
+                logger.info(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.ACCESS,
+                    message=f"Дополнительный медиа-файл успешно отдан: StreamingResponse создан для файла '{safe_filename}' размером {len(media_data)} байт"
+                )
                 return response
             except Exception as stream_error:
-                logger.error(f"Ошибка при создании StreamingResponse: {str(stream_error)}")
+                logger.error(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.ERROR,
+                    message=f"Ошибка создания потокового ответа для дополнительного медиа: не удалось создать StreamingResponse - {str(stream_error)}"
+                )
                 raise stream_error
             
         except Exception as e:
             # Безопасное логирование ошибки без кириллических символов
             error_msg = str(e).encode('ascii', errors='ignore').decode('ascii')
-            logger.error(f"Ошибка при получении дополнительного медиа-файла для вопроса {question_id}: {error_msg}")
+            logger.error(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.ERROR,
+                message=f"Критическая ошибка получения дополнительного медиа: не удалось загрузить файл для вопроса {question_id} - {error_msg}"
+            )
             return StreamingResponse(
                 iter([b'']),
                 media_type='image/svg+xml',
@@ -567,7 +690,11 @@ async def get_after_answer_media_secure(
     except Exception as e:
         # Безопасное логирование ошибки без кириллических символов
         error_msg = str(e).encode('ascii', errors='ignore').decode('ascii')
-        logger.error(f"Непредвиденная ошибка при получении дополнительного медиа для вопроса {question_id}: {error_msg}")
+        logger.error(
+            section=LogSection.FILES,
+            subsection=LogSubsection.FILES.ERROR,
+            message=f"Непредвиденная системная ошибка дополнительного медиа: сбой при обработке запроса файла после ответа для вопроса {question_id} - {error_msg}"
+        )
         return StreamingResponse(
             iter([b'']),
             media_type='image/svg+xml',

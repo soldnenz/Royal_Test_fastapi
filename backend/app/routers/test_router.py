@@ -23,7 +23,7 @@ from app.core.gridfs_utils import save_media_to_gridfs, get_media_file, delete_m
 import base64
 from app.core.config import settings
 from app.core.response import success
-import logging
+from app.logging import get_logger, LogSection, LogSubsection
 import time
 
 
@@ -34,12 +34,7 @@ router = APIRouter()
 ALLOWED_TYPES = settings.allowed_media_types
 MAX_FILE_SIZE_MB = 50  # Ограничение размера файла до 50 МБ
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger("test_router")
+logger = get_logger(__name__)
 
 def generate_uid(length: int = 10) -> str:
     """
@@ -94,19 +89,40 @@ async def create_question(
     try:
         question_data = QuestionCreate.parse_raw(question_data_str)
     except Exception as e:
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.VALIDATION,
+            message=f"Ошибка парсинга JSON при создании вопроса от пользователя {current_user.get('iin', 'неизвестен')}: {str(e)}"
+        )
         raise HTTPException(status_code=400, detail=f"Ошибка парсинга JSON: {e}")
 
     # Проверка прав доступа (требуется роль "admin" или "tests_creator")
     if not current_user or current_user.get("role") not in ["admin", "tests_creator"]:
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка создания вопроса от пользователя без прав: {current_user.get('iin', 'неизвестен')} (роль: {current_user.get('role', 'неизвестна')})"
+        )
         raise HTTPException(status_code=403, detail="Доступ запрещён. Требуется роль администратора или создателя тестов.")
 
     # Проверка наличия обязательных полей у пользователя
     if "full_name" not in current_user or "iin" not in current_user:
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.VALIDATION,
+            message=f"Пользователь с неполными данными пытался создать вопрос: {current_user}"
+        )
         raise HTTPException(status_code=400, detail="Данные пользователя неполные.")
 
     uid = generate_uid(10)
     created_by_name = current_user["full_name"]
     created_by_iin = current_user["iin"]
+    
+    logger.info(
+        section=LogSection.TEST,
+        subsection=LogSubsection.TEST.QUESTION_CREATE,
+        message=f"Пользователь {created_by_name} (IIN: {created_by_iin}) начинает создание вопроса с UID {uid} - валидация данных пройдена"
+    )
 
     # Обработка основного медиафайла
     media_file_id = None
@@ -114,14 +130,34 @@ async def create_question(
     if file:
         # Проверка MIME типа
         if file.content_type not in ALLOWED_TYPES:
+            logger.warning(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.VALIDATION,
+                message=f"Отклонён недопустимый тип основного файла {file.content_type} от пользователя {created_by_iin}"
+            )
             raise HTTPException(status_code=400, detail=f"Недопустимый тип файла: {file.content_type}")
         # Проверка размера файла
         if file.size and file.size > MAX_FILE_SIZE_MB * 1024 * 1024:
+            logger.warning(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.VALIDATION,
+                message=f"Отклонён слишком большой основной файл {file.size} байт от пользователя {created_by_iin} (лимит: {MAX_FILE_SIZE_MB} МБ)"
+            )
             raise HTTPException(status_code=400, detail=f"Превышен допустимый размер файла (макс. {MAX_FILE_SIZE_MB} МБ)")
         try:
             media_file_id = await save_media_to_gridfs(file, db)
             media_filename = file.filename
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.UPLOAD,
+                message=f"Успешно загружен основной медиафайл {media_filename} (ID: {media_file_id}) для вопроса {uid} пользователем {created_by_iin}"
+            )
         except Exception as e:
+            logger.error(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.ERROR,
+                message=f"Ошибка сохранения основного медиафайла для вопроса {uid} пользователем {created_by_iin}: {str(e)}"
+            )
             raise HTTPException(status_code=500, detail=f"Ошибка сохранения файла: {e}")
 
     # Обработка дополнительного медиафайла (после ответа)
@@ -130,21 +166,46 @@ async def create_question(
     if after_answer_file:
         # Проверка MIME типа
         if after_answer_file.content_type not in ALLOWED_TYPES:
+            logger.warning(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.VALIDATION,
+                message=f"Отклонён недопустимый тип дополнительного файла {after_answer_file.content_type} от пользователя {created_by_iin}"
+            )
             raise HTTPException(status_code=400, detail=f"Недопустимый тип дополнительного файла: {after_answer_file.content_type}")
         # Проверка размера файла
         if after_answer_file.size and after_answer_file.size > MAX_FILE_SIZE_MB * 1024 * 1024:
+            logger.warning(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.VALIDATION,
+                message=f"Отклонён слишком большой дополнительный файл {after_answer_file.size} байт от пользователя {created_by_iin} (лимит: {MAX_FILE_SIZE_MB} МБ)"
+            )
             raise HTTPException(status_code=400, detail=f"Превышен допустимый размер дополнительного файла (макс. {MAX_FILE_SIZE_MB} МБ)")
         try:
             after_answer_media_file_id = await save_media_to_gridfs(after_answer_file, db)
             after_answer_media_filename = after_answer_file.filename
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.UPLOAD,
+                message=f"Успешно загружен дополнительный медиафайл {after_answer_media_filename} (ID: {after_answer_media_file_id}) для вопроса {uid} пользователем {created_by_iin}"
+            )
         except Exception as e:
             # Если произошла ошибка при сохранении дополнительного файла, но основной был сохранен,
             # нужно удалить основной файл, чтобы не создавать "мусор" в GridFS
             if media_file_id:
                 try:
                     await delete_media_file(str(media_file_id), db)
+                    logger.info(
+                        section=LogSection.FILES,
+                        subsection=LogSubsection.FILES.DELETE,
+                        message=f"Удалён основной медиафайл {media_file_id} из-за ошибки сохранения дополнительного файла"
+                    )
                 except Exception:
                     pass  # Игнорируем ошибку при удалении
+            logger.error(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.ERROR,
+                message=f"Ошибка сохранения дополнительного медиафайла для вопроса {uid} пользователем {created_by_iin}: {str(e)}"
+            )
             raise HTTPException(status_code=500, detail=f"Ошибка сохранения дополнительного файла: {e}")
 
     # Формирование вариантов ответа с метками (A, B, C, …)
@@ -204,6 +265,12 @@ async def create_question(
     try:
         result = await db.questions.insert_one(question_dict)
         question_dict["id"] = str(result.inserted_id)
+        
+        logger.info(
+            section=LogSection.TEST,
+            subsection=LogSubsection.TEST.QUESTION_CREATE,
+            message=f"Успешно создан вопрос {uid} (ID: {result.inserted_id}) пользователем {created_by_name} (IIN: {created_by_iin}) с {len(question_data.options)} вариантами ответа"
+        )
     except Exception as e:
         # Если произошла ошибка при записи в БД, удаляем сохраненные медиафайлы
         if media_file_id:
@@ -216,6 +283,11 @@ async def create_question(
                 await delete_media_file(str(after_answer_media_file_id), db)
             except Exception:
                 pass
+        logger.error(
+            section=LogSection.DATABASE,
+            subsection=LogSubsection.DATABASE.ERROR,
+            message=f"Критическая ошибка при записи вопроса {uid} в базу данных пользователем {created_by_iin}: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail=f"Ошибка записи в базу: {e}")
 
     return success(data=jsonable_encoder(question_dict, custom_encoder={ObjectId: str}))
@@ -233,16 +305,37 @@ async def edit_question(
     try:
         payload_data = QuestionEdit.parse_raw(payload)
     except Exception as e:
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.VALIDATION,
+            message=f"Ошибка парсинга JSON при редактировании вопроса от пользователя {current_user.get('iin', 'неизвестен')}: {str(e)}"
+        )
         raise HTTPException(status_code=400, detail=f"Ошибка парсинга JSON: {e}")
+    
+    logger.info(
+        section=LogSection.TEST,
+        subsection=LogSubsection.TEST.QUESTION_UPDATE,
+        message=f"Пользователь {current_user['full_name']} (IIN: {current_user['iin']}) начинает редактирование вопроса {payload_data.question_id}"
+    )
 
     update_fields = {}
     labels = list(string.ascii_uppercase)
 
     if not current_user or current_user.get("role") not in ["admin", "tests_creator"]:
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка редактирования вопроса от пользователя без прав: {current_user.get('iin', 'неизвестен')} (роль: {current_user.get('role', 'неизвестна')})"
+        )
         raise HTTPException(status_code=403, detail="Доступ запрещён. Требуется роль администратора или создателя тестов.")
 
     # Проверка наличия обязательных данных пользователя
     if "full_name" not in current_user or "iin" not in current_user:
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.VALIDATION,
+            message=f"Пользователь с неполными данными пытался отредактировать вопрос: {current_user}"
+        )
         raise HTTPException(status_code=400, detail="Данные пользователя неполные.")
 
     if payload_data.new_question_text:
@@ -274,6 +367,11 @@ async def edit_question(
     # Получаем текущие данные вопроса
     existing_question = await db.questions.find_one({"uid": payload_data.question_id})
     if not existing_question:
+        logger.warning(
+            section=LogSection.TEST,
+            subsection=LogSubsection.TEST.VALIDATION,
+            message=f"Пользователь {current_user['iin']} пытался отредактировать несуществующий вопрос: {payload_data.question_id}"
+        )
         raise HTTPException(status_code=404, detail="Вопрос не найден")
 
     # Если пользователь решил удалить основное медиа, удаляем соответствующие поля
@@ -285,8 +383,17 @@ async def edit_question(
                 file_exists = await db.fs.files.find_one({"_id": ObjectId(media_file_id)})
                 if file_exists:
                     await delete_media_file(media_file_id, db)
+                    logger.info(
+                        section=LogSection.FILES,
+                        subsection=LogSubsection.FILES.DELETE,
+                        message=f"Удалён основной медиафайл {media_file_id} по запросу пользователя {current_user['iin']}"
+                    )
                 else:
-                    logger.warning(f"File {media_file_id} not found when trying to delete it")
+                    logger.warning(
+                        section=LogSection.FILES,
+                        subsection=LogSubsection.FILES.ERROR,
+                        message=f"Медиафайл {media_file_id} не найден при попытке удаления по запросу пользователя {current_user['iin']}"
+                    )
                 update_fields["media_file_id"] = None
                 update_fields["media_filename"] = None
         except RuntimeError as e:
@@ -385,7 +492,18 @@ async def edit_question(
         {"$set": update_fields}
     )
     if result.modified_count == 0:
+        logger.error(
+            section=LogSection.DATABASE,
+            subsection=LogSubsection.DATABASE.ERROR,
+            message=f"Не удалось обновить вопрос {payload_data.question_id} в базе данных - операция не внесла изменений (пользователь: {current_user['iin']})"
+        )
         raise HTTPException(status_code=400, detail="Ошибка при обновлении вопроса")
+    
+    logger.info(
+        section=LogSection.TEST,
+        subsection=LogSubsection.TEST.QUESTION_UPDATE,
+        message=f"Успешно обновлён вопрос {payload_data.question_id} пользователем {current_user['full_name']} (IIN: {current_user['iin']})"
+    )
     
     # Получаем обновленные данные вопроса
     updated_question = await db.questions.find_one({"uid": payload_data.question_id})
@@ -423,15 +541,27 @@ async def delete_question(
     """
     # Используем данные текущего пользователя для deleted_by
     deleted_by = current_user.get("full_name", "Неизвестный пользователь")
-    logger.info(f"Delete request received for question: {payload.question_id} by {deleted_by}")
+    logger.info(
+        section=LogSection.TEST,
+        subsection=LogSubsection.TEST.QUESTION_DELETE,
+        message=f"Получен запрос на удаление вопроса {payload.question_id} от пользователя {deleted_by} (IIN: {current_user.get('iin', 'неизвестен')})"
+    )
     
     if not current_user or current_user.get("role") not in ["admin", "tests_creator"]:
-        logger.warning(f"Access denied for user role: {current_user.get('role')}")
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка удаления вопроса от пользователя без прав: {current_user.get('iin', 'неизвестен')} (роль: {current_user.get('role', 'неизвестна')})"
+        )
         raise HTTPException(status_code=403, detail="Доступ запрещён. Требуется роль администратора или создателя тестов.")
 
     # Проверка наличия обязательных полей у пользователя
     if "full_name" not in current_user or "iin" not in current_user:
-        logger.warning(f"Incomplete user data for deletion request")
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.VALIDATION,
+            message=f"Пользователь с неполными данными пытался удалить вопрос: {current_user}"
+        )
         raise HTTPException(status_code=400, detail="Данные пользователя неполные.")
 
     # Сначала ищем вопрос по uid (предпочтительный формат)
@@ -442,22 +572,42 @@ async def delete_question(
         try:
             question_obj_id = ObjectId(payload.question_id)
             existing_question = await db.questions.find_one({"_id": question_obj_id})
-            logger.info(f"Found question by ObjectId: {question_obj_id}")
+            logger.info(
+                section=LogSection.TEST,
+                subsection=LogSubsection.TEST.QUESTION_DELETE,
+                message=f"Найден вопрос по ObjectId: {question_obj_id}"
+            )
         except Exception as e:
-            logger.error(f"Invalid question ID format: {payload.question_id}, error: {e}")
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.VALIDATION,
+                message=f"Неверный формат идентификатора вопроса {payload.question_id} от пользователя {current_user['iin']}: {str(e)}"
+            )
             raise HTTPException(status_code=400, detail=f"Неверный формат идентификатора: {e}")
     else:
-        logger.info(f"Found question by UID: {payload.question_id}")
+        logger.info(
+            section=LogSection.TEST,
+            subsection=LogSubsection.TEST.QUESTION_DELETE,
+            message=f"Найден вопрос по UID: {payload.question_id}"
+        )
     
     if not existing_question:
-        logger.warning(f"Question not found: {payload.question_id}")
+        logger.warning(
+            section=LogSection.TEST,
+            subsection=LogSubsection.TEST.VALIDATION,
+            message=f"Вопрос {payload.question_id} не найден для удаления пользователем {current_user['iin']}"
+        )
         raise HTTPException(status_code=404, detail="Вопрос не найден")
     
     # Получаем информацию о наличии медиафайлов
     has_main_media = bool(existing_question.get("media_file_id"))
     has_additional_media = bool(existing_question.get("after_answer_media_file_id"))
     
-    logger.info(f"Question {payload.question_id} has main media: {has_main_media}, additional media: {has_additional_media}")
+    logger.info(
+        section=LogSection.TEST,
+        subsection=LogSubsection.TEST.MEDIA_PROCESSING,
+        message=f"Вопрос {payload.question_id} содержит основной медиафайл: {has_main_media}, дополнительный медиафайл: {has_additional_media}"
+    )
     
     # Удаляем медиа-файлы из GridFS
     deleted_main_media = False
@@ -467,17 +617,33 @@ async def delete_question(
         try:
             await delete_media_file(existing_question["media_file_id"], db)
             deleted_main_media = True
-            logger.info(f"Successfully deleted main media file: {existing_question['media_file_id']}")
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.DELETE,
+                message=f"Успешно удалён основной медиафайл {existing_question['media_file_id']} при удалении вопроса {payload.question_id}"
+            )
         except Exception as e:
-            logger.error(f"Error deleting main media: {e}")
+            logger.error(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.ERROR,
+                message=f"Ошибка удаления основного медиафайла {existing_question['media_file_id']}: {str(e)}"
+            )
     
     if has_additional_media:
         try:
             await delete_media_file(existing_question["after_answer_media_file_id"], db)
             deleted_additional_media = True
-            logger.info(f"Successfully deleted additional media file: {existing_question['after_answer_media_file_id']}")
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.DELETE,
+                message=f"Успешно удалён дополнительный медиафайл {existing_question['after_answer_media_file_id']} при удалении вопроса {payload.question_id}"
+            )
         except Exception as e:
-            logger.error(f"Error deleting additional media: {e}")
+            logger.error(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.ERROR,
+                message=f"Ошибка удаления дополнительного медиафайла {existing_question['after_answer_media_file_id']}: {str(e)}"
+            )
 
     # Обновляем флаги удаления в документе
     update_fields = {
@@ -499,10 +665,18 @@ async def delete_question(
         )
     
     if result.modified_count == 0:
-        logger.error(f"Failed to update question deletion status: {payload.question_id}")
+        logger.error(
+            section=LogSection.DATABASE,
+            subsection=LogSubsection.DATABASE.ERROR,
+            message=f"Не удалось обновить статус удаления вопроса {payload.question_id} в базе данных"
+        )
         raise HTTPException(status_code=400, detail="Ошибка при удалении вопроса")
     
-    logger.info(f"Successfully marked question as deleted: {payload.question_id}")
+    logger.info(
+        section=LogSection.TEST,
+        subsection=LogSubsection.TEST.QUESTION_DELETE,
+        message=f"Вопрос {payload.question_id} успешно помечен как удалённый пользователем {deleted_by} (IIN: {current_user['iin']})"
+    )
     
     # Формируем детальный ответ
     response_data = {
@@ -525,13 +699,22 @@ async def get_question_by_uid(
     start_time = time.time()
     
     if current_user["role"] not in {"admin", "moderator", "tests_creator"}:
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка получения вопроса от пользователя без прав: {current_user.get('iin', 'неизвестен')} (роль: {current_user.get('role', 'неизвестна')})"
+        )
         raise HTTPException(status_code=403, detail="Доступ запрещён")
 
     # Stage 1: Database lookup
     db_start_time = time.time()
     question = await db.questions.find_one({"uid": uid, "deleted": False})
     db_time = time.time() - db_start_time
-    logger.info(f"Database lookup for question {uid} took {db_time:.4f} seconds")
+    logger.info(
+        section=LogSection.API,
+        subsection=LogSubsection.API.PERFORMANCE,
+        message=f"Поиск вопроса {uid} в базе данных занял {db_time:.4f} секунд"
+    )
     
     if not question:
         raise HTTPException(status_code=404, detail="Вопрос не найден")
@@ -555,7 +738,11 @@ async def get_question_by_uid(
     question["has_after_media"] = question["has_after_answer_media"]  # Для совместимости
     
     processing_time = time.time() - processing_start_time
-    logger.info(f"Processing basic question data took {processing_time:.4f} seconds")
+    logger.info(
+        section=LogSection.API,
+        subsection=LogSubsection.API.PERFORMANCE,
+        message=f"Обработка базовых данных вопроса {uid} заняла {processing_time:.4f} секунд"
+    )
 
     # Stage 3: Loading main media file
     if question.get("media_file_id"):
@@ -566,13 +753,25 @@ async def get_question_by_uid(
                 question["media_file_base64"] = base64.b64encode(file_data).decode("utf-8")
             else:
                 question["media_file_base64"] = None
-                logger.warning(f"Media file {question['media_file_id']} not found or empty")
+                logger.warning(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.ERROR,
+                    message=f"Основной медиафайл {question['media_file_id']} не найден или пуст для вопроса {uid}"
+                )
         except Exception as e:
-            logger.error(f"Error loading main media: {e}")
+            logger.error(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.ERROR,
+                message=f"Ошибка загрузки основного медиафайла для вопроса {uid}: {str(e)}"
+            )
             question["media_file_base64"] = None
         
         media_time = time.time() - media_start_time
-        logger.info(f"Loading main media file took {media_time:.4f} seconds")
+        logger.info(
+            section=LogSection.API,
+            subsection=LogSubsection.API.PERFORMANCE,
+            message=f"Загрузка основного медиафайла для вопроса {uid} заняла {media_time:.4f} секунд"
+        )
     
     # Stage 4: Loading after-answer media file
     if question.get("after_answer_media_file_id"):
@@ -583,13 +782,25 @@ async def get_question_by_uid(
                 question["after_answer_media_base64"] = base64.b64encode(file_data).decode("utf-8")
             else:
                 question["after_answer_media_base64"] = None
-                logger.warning(f"After-answer media file {question['after_answer_media_file_id']} not found or empty")
+                logger.warning(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.ERROR,
+                    message=f"Дополнительный медиафайл {question['after_answer_media_file_id']} не найден или пуст для вопроса {uid}"
+                )
         except Exception as e:
-            logger.error(f"Error loading after-answer media: {e}")
+            logger.error(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.ERROR,
+                message=f"Ошибка загрузки дополнительного медиафайла для вопроса {uid}: {str(e)}"
+            )
             question["after_answer_media_base64"] = None
         
         after_media_time = time.time() - after_media_start_time
-        logger.info(f"Loading after-answer media file took {after_media_time:.4f} seconds")
+        logger.info(
+            section=LogSection.API,
+            subsection=LogSubsection.API.PERFORMANCE,
+            message=f"Загрузка дополнительного медиафайла для вопроса {uid} заняла {after_media_time:.4f} секунд"
+        )
 
     # Stage 5: Multilingual text processing
     ml_start_time = time.time()
@@ -620,10 +831,18 @@ async def get_question_by_uid(
                 }
     
     ml_time = time.time() - ml_start_time
-    logger.info(f"Processing multilingual text took {ml_time:.4f} seconds")
+    logger.info(
+        section=LogSection.API,
+        subsection=LogSubsection.API.PERFORMANCE,
+        message=f"Обработка многоязычного текста для вопроса {uid} заняла {ml_time:.4f} секунд"
+    )
 
     total_time = time.time() - start_time
-    logger.info(f"Total processing time for question {uid}: {total_time:.4f} seconds")
+    logger.info(
+        section=LogSection.API,
+        subsection=LogSubsection.API.PERFORMANCE,
+        message=f"Общее время обработки запроса вопроса {uid}: {total_time:.4f} секунд"
+    )
 
     return success(data=jsonable_encoder(question))
 
@@ -638,7 +857,18 @@ async def get_all_questions(
     Доступ для admin, moderator и tests_creator.
     """
     if "role" not in current_user or current_user["role"] not in {"admin", "moderator", "tests_creator"}:
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка получения списка вопросов от пользователя без прав: {current_user.get('iin', 'неизвестен')} (роль: {current_user.get('role', 'неизвестна')})"
+        )
         raise HTTPException(status_code=403, detail="Доступ запрещён")
+
+    logger.info(
+        section=LogSection.TEST,
+        subsection=LogSubsection.TEST.QUESTION_LOAD,
+        message=f"Пользователь {current_user.get('full_name', 'неизвестен')} (IIN: {current_user.get('iin', 'неизвестен')}) запрашивает список всех вопросов"
+    )
 
     cursor = db.questions.find({"deleted": False})
     questions = []
@@ -692,6 +922,12 @@ async def get_all_questions(
         q.pop("after_answer_media_filename", None)
         questions.append(q)
 
+    logger.info(
+        section=LogSection.TEST,
+        subsection=LogSubsection.TEST.QUESTION_LOAD,
+        message=f"Возвращено {len(questions)} вопросов пользователю {current_user.get('full_name', 'неизвестен')} (IIN: {current_user.get('iin', 'неизвестен')})"
+    )
+
     return success(data=jsonable_encoder(questions))
 
 @router.get("/media/{media_id}", response_model=dict)
@@ -705,7 +941,18 @@ async def get_media_by_id(
     Доступ только для администраторов.
     """
     if current_user["role"] not in {"admin", "moderator", "tests_creator"}:
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+            message=f"Попытка получения медиафайла от пользователя без прав: {current_user.get('iin', 'неизвестен')} (роль: {current_user.get('role', 'неизвестна')})"
+        )
         raise HTTPException(status_code=403, detail="Доступ запрещён")
+
+    logger.info(
+        section=LogSection.FILES,
+        subsection=LogSubsection.FILES.ACCESS,
+        message=f"Пользователь {current_user.get('full_name', 'неизвестен')} (IIN: {current_user.get('iin', 'неизвестен')}) запрашивает медиафайл {media_id}"
+    )
 
     try:
         # Получаем информацию о файле
@@ -728,9 +975,19 @@ async def get_media_by_id(
         except UnicodeEncodeError:
             # Только если есть кириллица - генерируем случайное имя
             safe_filename = generate_safe_filename(filename)
-            logger.info(f"Файл с кириллическим именем переименован: {filename} -> {safe_filename}")
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.SECURITY,
+                message=f"Файл с кириллическим именем переименован для безопасности: {filename} → {safe_filename}"
+            )
         
         content_disposition = f"inline; filename={safe_filename}"
+        
+        logger.info(
+            section=LogSection.FILES,
+            subsection=LogSubsection.FILES.DOWNLOAD,
+            message=f"Успешно предоставлен медиафайл {media_id} ({content_type}, {file_info.get('length', 0)} байт) пользователю {current_user.get('iin', 'неизвестен')}"
+        )
         
         # Создаем потоковый ответ
         return StreamingResponse(
@@ -742,4 +999,9 @@ async def get_media_by_id(
             }
         )
     except Exception as e:
+        logger.error(
+            section=LogSection.FILES,
+            subsection=LogSubsection.FILES.ERROR,
+            message=f"Ошибка при получении медиафайла {media_id} пользователем {current_user.get('iin', 'неизвестен')}: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail=f"Ошибка при получении медиафайла: {str(e)}")

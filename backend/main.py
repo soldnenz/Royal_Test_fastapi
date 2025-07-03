@@ -1,6 +1,5 @@
 # app/main.py
 
-import logging
 import asyncio
 from app.core.validation_translator import translate_error_ru
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, Query
@@ -20,7 +19,7 @@ from aiogram import Dispatcher
 from datetime import datetime, timedelta
 import json
 
-from app.core.logging_config import setup_logging
+from app.logging import setup_application_logging, get_logger, LogSection, LogSubsection, close_all_rabbitmq_connections
 from app.core.security import security_background_tasks
 from app.core.response import error
 from app.routers import authentication, user, reset_password, admin_router, test_router, subscription_router, referrals_router, transaction_router, admin_router
@@ -37,9 +36,9 @@ from app.websocket.lobby_ws import lobby_ws_endpoint, ws_manager
 from app.websocket.ping_task import ping_task
 from app.db.database import db
 
-# Инициализация логирования
-setup_logging()
-logger = logging.getLogger(__name__)
+# Инициализация новой структурированной системы логирования
+setup_application_logging()
+logger = get_logger("main")
 
 # Создаём приложение
 app = FastAPI(
@@ -51,17 +50,24 @@ app = FastAPI(
     openapi_url=None
 )
 
-# CORS middleware
+# CORS middleware - БЕЗОПАСНАЯ КОНФИГУРАЦИЯ
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://localhost",
         "https://royal-test.duckdns.org",
-        "*"  # Временно разрешаем все источники для тестирования WebSocket
+        "https://localhost:5173",  # Frontend dev server
+        "https://localhost:3000",  # Alternative dev port
+        # НЕ ИСПОЛЬЗУЕМ "*" в продакшене!
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],  # Убираем OPTIONS из явного списка
+    allow_headers=[
+        "Content-Type",
+        "Authorization", 
+        "X-Requested-With",
+        "Accept",
+        "X-CSRF-Token"  # Для будущей CSRF защиты
+    ],
 )
 
 # Подключаем роутеры
@@ -93,6 +99,12 @@ async def websocket_endpoint(
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     path = request.url.path
     code = exc.status_code
+    
+    logger.warning(
+        section=LogSection.API,
+        subsection=LogSubsection.API.ERROR,
+        message=f"HTTP исключение {code} для пути {path} (метод: {request.method})"
+    )
 
     # Если detail — это просто строка
     if isinstance(exc.detail, str):
@@ -136,6 +148,12 @@ async def validation_exception_handler(request, exc: RequestValidationError):
         if message.startswith(prefix):
             message = message[len(prefix):]
         error_list.append({"field": field, "message": message})
+    
+    logger.warning(
+        section=LogSection.API,
+        subsection=LogSubsection.API.VALIDATION,
+        message=f"Ошибка валидации запроса для пути {request.url.path} (метод: {request.method})"
+    )
 
     # Форматируем каждую ошибку в строку и объединяем через "; "
     formatted_error_details = "; ".join(
@@ -155,6 +173,11 @@ async def start_bot():
 
 async def check_stalled_lobbies():
     """Автоматически завершает зависшие тесты"""
+    logger.info(
+        section=LogSection.SYSTEM,
+        subsection=LogSubsection.SYSTEM.MAINTENANCE,
+        message="Запуск задачи проверки зависших лобби"
+    )
     while True:
         try:
             # Ищем лобби, которые в статусе in_progress более 2 часов
@@ -167,6 +190,12 @@ async def check_stalled_lobbies():
             
             for lobby in stalled_lobbies:
                 lobby_id = lobby["_id"]
+                
+                logger.info(
+                    section=LogSection.SYSTEM,
+                    subsection=LogSubsection.SYSTEM.CLEANUP,
+                    message=f"Автоматическое завершение зависшего лобби {lobby_id}"
+                )
                 
                 # Подсчитываем результаты
                 results = {}
@@ -199,6 +228,12 @@ async def check_stalled_lobbies():
                         "auto_finished": True
                     }}
                 )
+                
+                logger.info(
+                    section=LogSection.SYSTEM,
+                    subsection=LogSubsection.SYSTEM.CLEANUP,
+                    message=f"Лобби {lobby_id} отмечено как автоматически завершенное"
+                )
 
                 # Формируем JSON-сообщение о завершении
                 finish_payload = {
@@ -214,32 +249,83 @@ async def check_stalled_lobbies():
                 try:
                     await ws_manager.broadcast_to_lobby(lobby_id, finish_payload)
                 except Exception as ws_err:
-                    logger.error(f"WS broadcast error for stalled lobby {lobby_id}: {ws_err}")
+                    logger.error(
+                        section=LogSection.WEBSOCKET,
+                        subsection=LogSubsection.WEBSOCKET.ERROR,
+                        message=f"Ошибка WebSocket рассылки для зависшего лобби {lobby_id}: {str(ws_err)}"
+                    )
 
                 # Закрываем все WS-соединения для этого лобби
                 if lobby_id in ws_manager.connections:
+                    connection_count = len(ws_manager.connections[lobby_id])
                     for conn in list(ws_manager.connections[lobby_id]):
                         try:
                             await conn["websocket"].close(code=1000, reason="Lobby auto-finished")
                         except Exception:
                             pass
                     ws_manager.connections.pop(lobby_id, None)
+                    
+                    logger.info(
+                        section=LogSection.SYSTEM,
+                        subsection=LogSubsection.SYSTEM.CLEANUP,
+                        message=f"Закрыто {connection_count} WebSocket соединений для лобби {lobby_id}"
+                    )
 
         except Exception as e:
-            logger.error(f"Ошибка при проверке зависших лобби: {e}")
+            logger.error(
+                section=LogSection.SYSTEM,
+                subsection=LogSubsection.SYSTEM.CLEANUP,
+                message=f"Ошибка проверки зависших лобби: {str(e)}"
+            )
         
         # Проверяем раз в 30 минут
         await asyncio.sleep(1800)
 
 @app.on_event("startup")
 async def startup_event():
+    logger.info(
+        section=LogSection.SYSTEM,
+        subsection=LogSubsection.SYSTEM.STARTUP,
+        message="Запуск приложения Royal API"
+    )
     asyncio.create_task(start_bot())
     asyncio.create_task(check_stalled_lobbies())  # Запускаем проверку зависших лобби
     # Запуск фоновых задач безопасности
     asyncio.create_task(security_background_tasks())
     asyncio.create_task(start_background_tasks())  # Запускаем задачи фоновой обработки
     await ping_task.start()  # Запускаем задачу пинга WebSocket соединений
+    logger.info(
+        section=LogSection.SYSTEM,
+        subsection=LogSubsection.SYSTEM.STARTUP,
+        message="Все фоновые задачи запущены успешно"
+    )
 
 @app.on_event("shutdown")
 async def shutdown_event():
+    logger.info(
+        section=LogSection.SYSTEM,
+        subsection=LogSection.SYSTEM.SHUTDOWN,
+        message="Завершение работы приложения Royal API"
+    )
+    
+    # Закрываем RabbitMQ соединения
+    try:
+        await close_all_rabbitmq_connections()
+        logger.info(
+            section=LogSection.SYSTEM,
+            subsection=LogSection.SYSTEM.SHUTDOWN,
+            message="RabbitMQ соединения закрыты"
+        )
+    except Exception as e:
+        logger.error(
+            section=LogSection.SYSTEM,
+            subsection=LogSection.SYSTEM.SHUTDOWN,
+            message=f"Ошибка закрытия RabbitMQ соединений: {str(e)}"
+        )
+    
     await ping_task.stop()  # Останавливаем задачу пинга при завершении
+    logger.info(
+        section=LogSection.SYSTEM,
+        subsection=LogSection.SYSTEM.SHUTDOWN,
+        message="Приложение Royal API успешно завершено"
+    )

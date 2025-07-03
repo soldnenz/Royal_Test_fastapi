@@ -287,9 +287,6 @@ body:has(.dashboard-sidebar.compact:not(.closed)) .dashboard-content {
   min-width: 200px;
   z-index: 20;
 }
-.profile-dropdown:hover .dropdown-menu {
-  display: block;
-}
 .dropdown-item {
   display: flex;
   align-items: center;
