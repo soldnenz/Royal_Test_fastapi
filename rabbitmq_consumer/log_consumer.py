@@ -1,0 +1,107 @@
+import os
+import json
+import asyncio
+import signal
+from typing import Optional
+
+import aio_pika
+
+# ---------------------------------------------------------------------------
+# Конфигурация из переменных окружения с разумными значениями по умолчанию
+# ---------------------------------------------------------------------------
+RABBITMQ_URL: str = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+EXCHANGE_NAME: str = os.getenv("RABBITMQ_EXCHANGE", "logs")
+ROUTING_KEY: str = os.getenv("RABBITMQ_ROUTING_KEY", "application.logs")
+QUEUE_NAME: str = os.getenv("RABBITMQ_QUEUE", "log_consumer_queue")
+
+
+async def _consume() -> None:
+    """Подключается к RabbitMQ, настраивает очередь и начинает слушать сообщения."""
+
+    # Устанавливаем соединение и открываем канал
+    connection: aio_pika.RobustConnection = await aio_pika.connect_robust(RABBITMQ_URL)
+    channel: aio_pika.abc.AbstractChannel = await connection.channel()
+
+    # Объявляем exchange (тип topic) — такие же параметры, как и у издателя
+    exchange: aio_pika.Exchange = await channel.declare_exchange(
+        EXCHANGE_NAME,
+        aio_pika.ExchangeType.TOPIC,
+        durable=True,
+    )
+
+    # Объявляем durable-очередь
+    queue: aio_pika.Queue = await channel.declare_queue(
+        QUEUE_NAME,
+        durable=True,
+    )
+
+    # Биндим очередь к exchange c нужным routing-key
+    await queue.bind(exchange, ROUTING_KEY)
+
+    print(
+        f" [*] Waiting for messages on exchange '{EXCHANGE_NAME}' with routing key "
+        f"'{ROUTING_KEY}'. To exit press CTRL+C"
+    )
+
+    # Итератор очереди обеспечивает удобное получение и ack сообщений
+    async with queue.iterator() as queue_iter:
+        async for message in queue_iter:
+            async with message.process():
+                _handle_message(message.body)
+
+    # Если вышли из цикла — закрываем соединение
+    await connection.close()
+
+
+def _handle_message(body: bytes) -> None:
+    """Разбирает тело сообщения как JSON и выводит в консоль."""
+    try:
+        data = json.loads(body.decode())
+        pretty = json.dumps(data, indent=2, ensure_ascii=False)
+        print(f"\nReceived log message:\n{pretty}\n")
+    except json.JSONDecodeError:
+        # Если сообщение не JSON, выводим как строку
+        print(f"\nReceived non-JSON message: {body!r}\n")
+
+
+# ---------------------------------------------------------------------------
+# Точка входа
+# ---------------------------------------------------------------------------
+
+def _setup_signal_handlers(loop: asyncio.AbstractEventLoop, task: asyncio.Task) -> None:
+    """Регистрация graceful-shutdown через сигналы ОС.
+
+    На Windows метод `loop.add_signal_handler` не реализован, поэтому
+    оборачиваем вызов в try/except и тихо пропускаем при `NotImplementedError`.
+    """
+
+    def _signal_handler(_: int, __: Optional[object]) -> None:  # noqa: D401, E501
+        task.cancel()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, _signal_handler, sig, None)
+        except (NotImplementedError, ValueError):
+            # Windows / некоторые event-loop'ы не поддерживают сигнал-хендлеры.
+            # В этом случае полагаемся на KeyboardInterrupt (SIGINT) для корректного
+            # завершения, а SIGTERM обычно не посылается в интерактивной среде.
+            pass
+
+
+async def _main() -> None:
+    consumer = asyncio.create_task(_consume())
+    loop = asyncio.get_running_loop()
+    _setup_signal_handlers(loop, consumer)
+
+    try:
+        await consumer
+    except asyncio.CancelledError:
+        print("\nReceived shutdown signal, closing consumer…")
+    except KeyboardInterrupt:
+        print("\nKeyboard interrupt received, shutting down…")
+        consumer.cancel()
+        await consumer
+
+
+if __name__ == "__main__":
+    asyncio.run(_main()) 

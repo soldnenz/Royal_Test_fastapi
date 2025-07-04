@@ -424,6 +424,10 @@ const MultiplayerTestPage = () => {
       setMediaLoading(true);
       setVideoError(false);
       
+      // Add loading class to prevent container collapse
+      const mediaContainers = document.querySelectorAll('.media-container');
+      mediaContainers.forEach(container => container.classList.add('loading'));
+      
       const response = await api.get(`/lobbies/lobbies/${lobbyId}/questions/${questionId}`);
       
       if (response.data.status === "ok") {
@@ -466,9 +470,17 @@ const MultiplayerTestPage = () => {
         }
         
         setMediaLoading(false);
+        
+        // Remove loading class
+        const mediaContainers = document.querySelectorAll('.media-container');
+        mediaContainers.forEach(container => container.classList.remove('loading'));
       } else {
         setError(response.data.message || 'Failed to load question');
         setMediaLoading(false);
+        
+        // Remove loading class
+        const mediaContainers = document.querySelectorAll('.media-container');
+        mediaContainers.forEach(container => container.classList.remove('loading'));
       }
     } catch (err) {
       console.error('Error fetching question:', err);
@@ -488,6 +500,10 @@ const MultiplayerTestPage = () => {
         setError(err.response?.data?.message || 'Failed to load question');
       }
       setMediaLoading(false);
+      
+      // Remove loading class
+      const mediaContainers = document.querySelectorAll('.media-container');
+      mediaContainers.forEach(container => container.classList.remove('loading'));
     }
   }, [lobbyId, questions, currentQuestionIndex, userAnswers, isExamMode, navigate]);
 
@@ -1474,120 +1490,116 @@ const MultiplayerTestPage = () => {
                     </div>
                   </div>
                   
-                  {/* Media Section */}
-                  {mediaLoading ? (
-                    <div className="loading-container" style={{ height: '200px' }}>
-                      <div className="loading-bar-container">
-                        <div className="loading-bar"></div>
-                      </div>
-                      <div className="loading-text">{getTranslation('loadingMedia')}</div>
-                    </div>
-                  ) : (
-                    <div className="question-media">
-                      {answerSubmitted && !isExamMode && afterAnswerMedia ? (
-                        currentQuestion.after_answer_media_type === 'video' ? (
-                          <div className="media-container">
-                            <div className="video-container">
+                  {/* Media Section - Always show container to prevent layout jumps */}
+                  <div className="question-media">
+                    <div className="media-container stable-container">
+                      {mediaLoading ? (
+                        <div className="loading-container" style={{ height: '100%', width: '100%' }}>
+                          <div className="loading-bar-container">
+                            <div className="loading-bar"></div>
+                          </div>
+                          <div className="loading-text">{getTranslation('loadingMedia')}</div>
+                        </div>
+                      ) : (
+                        <>
+                          {answerSubmitted && !isExamMode && afterAnswerMedia ? (
+                            currentQuestion.after_answer_media_type === 'video' ? (
                               <video 
                                 ref={afterVideoRef}
                                 className="question-video"
                                 src={afterAnswerMedia}
-                                onError={() => setVideoError(true)}
+                                onError={e => {
+                                  setAfterAnswerMedia('/static/no_image.MP4');
+                                }}
+                                onLoadedData={() => {}}
                                 preload="metadata"
                                 playsInline
                                 muted
                                 loop
                               />
-                            </div>
-                          </div>
-                        ) : (
-                          <img 
-                            src={afterAnswerMedia}
-                            alt="Explanation"
-                            className="question-image"
-                            onError={(e) => {
-                              console.log('After-answer image failed to load:', afterAnswerMedia);
-                              e.target.style.display = 'none';
-                              // Показываем заглушку NO IMAGE
-                              const placeholder = e.target.parentElement.querySelector('.no-media-placeholder');
-                              if (!placeholder) {
-                                const noMediaDiv = document.createElement('div');
-                                noMediaDiv.className = 'no-media-placeholder';
-                                noMediaDiv.innerHTML = `
-                                  <div style="display: flex; align-items: center; justify-content: center; font-size: 16px; color: #666;">
-                                    <span style="margin-right: 8px;">📷</span>
-                                    NO IMAGE
-                                  </div>
-                                `;
-                                e.target.parentElement.appendChild(noMediaDiv);
-                              }
-                            }}
-                          />
-                        )
-                      ) : (
-                        currentQuestion.has_media && currentQuestion.media_url ? (
-                          currentQuestion.media_type === 'video' ? (
-                            videoError ? (
-                              <div className="no-media-placeholder">
-                                <FaExclamationTriangle style={{ marginRight: 'var(--space-sm)' }} />
-                                {getTranslation('videoError')}
-                              </div>
                             ) : (
-                              <div className="media-container">
-                                <div className="video-container">
+                              <img 
+                                src={afterAnswerMedia}
+                                alt="Explanation"
+                                className="question-image"
+                                onError={e => {
+                                  setAfterAnswerMedia('/static/no_image.MP4');
+                                }}
+                                onLoad={() => {}}
+                              />
+                            )
+                          ) : (
+                            (() => {
+                              if (!currentQuestion.has_media) {
+                                return (
+                                  <video 
+                                    className="fallback-video"
+                                    src="/static/no_image.MP4"
+                                    preload="metadata"
+                                    playsInline
+                                    muted
+                                    loop
+                                    autoPlay
+                                  />
+                                );
+                              }
+                              if (currentQuestion.has_media && !currentQuestion.media_url) {
+                                return (
+                                  <video 
+                                    className="fallback-video"
+                                    src="/static/no_image.MP4"
+                                    preload="metadata"
+                                    playsInline
+                                    muted
+                                    loop
+                                    autoPlay
+                                  />
+                                );
+                              }
+                              if (currentQuestion.media_type === 'video') {
+                                return (
                                   <video 
                                     ref={videoRef}
                                     className="question-video"
                                     src={currentQuestion.media_url}
-                                    onError={() => setVideoError(true)}
+                                    onError={e => {
+                                      // При любой ошибке загрузки показываем заглушку
+                                      setVideoError(false);
+                                      setCurrentQuestion(q => ({ ...q, media_url: '/static/no_image.MP4', media_type: 'video' }));
+                                      e.target.style.display = 'none';
+                                    }}
+                                    onLoadedData={() => {
+                                      setVideoError(false);
+                                    }}
                                     preload="metadata"
                                     playsInline
                                     muted
                                     loop
                                   />
-                                </div>
-                              </div>
-                            )
-                          ) : (
-                            <img 
-                              src={currentQuestion.media_url}
-                              alt="Question"
-                              className="question-image"
-                              onError={(e) => {
-                                console.log('Image failed to load:', currentQuestion.media_url);
-                                e.target.style.display = 'none';
-                                // Показываем заглушку NO IMAGE
-                                const placeholder = e.target.parentElement.querySelector('.no-media-placeholder');
-                                if (!placeholder) {
-                                  const noMediaDiv = document.createElement('div');
-                                  noMediaDiv.className = 'no-media-placeholder';
-                                  noMediaDiv.innerHTML = `
-                                    <div style="display: flex; align-items: center; justify-content: center; font-size: 16px; color: #666;">
-                                      <span style="margin-right: 8px;">📷</span>
-                                      NO IMAGE
-                                    </div>
-                                  `;
-                                  e.target.parentElement.appendChild(noMediaDiv);
-                                }
-                              }}
-                            />
-                          )
-                        ) : currentQuestion.has_media ? (
-                          <div className="no-media-placeholder">
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', color: '#666' }}>
-                              <span style={{ marginRight: '8px' }}>📷</span>
-                              NO IMAGE
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="no-media-placeholder">
-                            <FaQuestionCircle style={{ marginRight: 'var(--space-sm)' }} />
-                            {getTranslation('noMedia')}
-                          </div>
-                        )
+                                );
+                              } else {
+                                return (
+                                  <img 
+                                    src={currentQuestion.media_url}
+                                    alt="Question"
+                                    className="question-image"
+                                    onError={e => {
+                                      // При любой ошибке загрузки показываем заглушку
+                                      setCurrentQuestion(q => ({ ...q, media_url: '/static/no_image.MP4', media_type: 'video' }));
+                                      e.target.style.display = 'none';
+                                    }}
+                                    onLoad={() => {
+                                      setVideoError(false);
+                                    }}
+                                  />
+                                );
+                              }
+                            })()
+                          )}
+                        </>
                       )}
                     </div>
-                  )}
+                  </div>
                   
                   {/* Answer Options */}
                   <div className="answer-options">

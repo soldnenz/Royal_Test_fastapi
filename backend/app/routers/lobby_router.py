@@ -1300,10 +1300,9 @@ async def get_question_media(
                 subsection=LogSubsection.FILES.VALIDATION,
                 message=f"Вопрос не найден: пользователь {user_id} запрашивает медиа для несуществующего вопроса {question_id}"
             )
-            return StreamingResponse(
-                iter([b'']),
-                media_type='image/svg+xml',
-                headers={'Content-Disposition': 'inline; filename=not_found.svg'}
+            raise HTTPException(
+                status_code=404,
+                detail="Вопрос не найден"
             )
         
         # Проверяем наличие медиа-файла
@@ -1314,10 +1313,9 @@ async def get_question_media(
                 subsection=LogSubsection.FILES.VALIDATION,
                 message=f"Медиа файл отсутствует: вопрос {question_id} не имеет media_file_id"
             )
-            return StreamingResponse(
-                iter([b'']),
-                media_type='image/svg+xml',
-                headers={'Content-Disposition': 'inline; filename=no_media.svg'}
+            raise HTTPException(
+                status_code=404,
+                detail="Медиа-файл для данного вопроса отсутствует"
             )
         
         # Проверяем, что вопрос принадлежит хотя бы одному активному лобби пользователя
@@ -1361,10 +1359,9 @@ async def get_question_media(
                 message=f"Нет доступа к медиа: пользователь {user_id} запрашивает медиа для вопроса {question_id}, но нет активных лобби с этим вопросом"
             )
             
-            return StreamingResponse(
-                iter([b'']),
-                media_type='image/svg+xml',
-                headers={'Content-Disposition': 'inline; filename=no_access.svg'}
+            raise HTTPException(
+                status_code=403,
+                detail="Доступ к медиа-файлу запрещен"
             )
         
         # Проверяем доступ к вопросу по каждому лобби
@@ -1417,10 +1414,9 @@ async def get_question_media(
                 active_lobby = any_lobby_with_question
                 has_access = True
             else:
-                return StreamingResponse(
-                    iter([b'']),
-                    media_type='image/svg+xml',
-                    headers={'Content-Disposition': 'inline; filename=no_access.svg'}
+                raise HTTPException(
+                    status_code=403,
+                    detail="Доступ к медиа-файлу запрещен"
                 )
             
         # Получаем медиа-файл из GridFS
@@ -1439,10 +1435,9 @@ async def get_question_media(
                     subsection=LogSubsection.FILES.GRIDFS,
                     message=f"Медиа файл не найден в GridFS: файл {media_file_id} отсутствует в fs.files"
                 )
-                return StreamingResponse(
-                    iter([b'']),
-                    media_type='image/svg+xml',
-                    headers={'Content-Disposition': 'inline; filename=not_found.svg'}
+                raise HTTPException(
+                    status_code=404,
+                    detail="Медиа-файл не найден"
                 )
             
             logger.info(
@@ -1458,10 +1453,9 @@ async def get_question_media(
                     subsection=LogSubsection.FILES.GRIDFS,
                     message=f"Медиа файл пуст или повреждён: файл {media_file_id} не загружается из GridFS"
                 )
-                return StreamingResponse(
-                    iter([b'']),
-                    media_type='image/svg+xml',
-                    headers={'Content-Disposition': 'inline; filename=not_found.svg'}
+                raise HTTPException(
+                    status_code=404,
+                    detail="Медиа-файл поврежден или недоступен"
                 )
                 
             # Получение информации о файле (content type)
@@ -1591,10 +1585,9 @@ async def get_question_media(
                 subsection=LogSubsection.FILES.ERROR,
                 message=f"Ошибка получения медиа: вопрос {question_id}, файл {media_file_id}, ошибка {str(e)}"
             )
-            return StreamingResponse(
-                iter([b'']),
-                media_type='image/svg+xml',
-                headers={'Content-Disposition': 'inline; filename=error.svg'}
+            raise HTTPException(
+                status_code=500,
+                detail="Внутренняя ошибка сервера"
             )
             
     except HTTPException:
@@ -1605,10 +1598,9 @@ async def get_question_media(
             subsection=LogSubsection.FILES.ERROR,
             message=f"Критическая ошибка получения медиа: вопрос {question_id}, пользователь {user_id}, ошибка {str(e)}"
         )
-        return StreamingResponse(
-            iter([b'']),
-            media_type='image/svg+xml',
-            headers={'Content-Disposition': 'inline; filename=server_error.svg'}
+        raise HTTPException(
+            status_code=500,
+            detail="Внутренняя ошибка сервера"
         )
 
 @router.get("/files/after-answer-media/{question_id}", summary="Получить дополнительный медиа-файл после ответа")
@@ -1641,10 +1633,9 @@ async def get_after_answer_media(
                 subsection=LogSubsection.FILES.VALIDATION,
                 message=f"Вопрос не найден: запрашиваемый вопрос {question_id} отсутствует в базе данных"
             )
-            return StreamingResponse(
-                iter([b'']),
-                media_type='image/svg+xml',
-                headers={'Content-Disposition': 'inline; filename=not_found.svg'}
+            raise HTTPException(
+                status_code=404,
+                detail="Вопрос не найден"
             )
         
         # Проверяем наличие дополнительного медиа-файла
@@ -1655,10 +1646,9 @@ async def get_after_answer_media(
                 subsection=LogSubsection.FILES.VALIDATION,
                 message=f"Нет дополнительного медиа: вопрос {question_id} не содержит after_answer_media_file_id"
             )
-            return StreamingResponse(
-                iter([b'']),
-                media_type='image/svg+xml',
-                headers={'Content-Disposition': 'inline; filename=no_media.svg'}
+            raise HTTPException(
+                status_code=404,
+                detail="Дополнительный медиа-файл для данного вопроса отсутствует"
             )
         
         # Проверяем, ответил ли пользователь на этот вопрос в указанном или любом лобби
@@ -1673,10 +1663,9 @@ async def get_after_answer_media(
                     subsection=LogSubsection.FILES.SECURITY,
                     message=f"Доступ запрещён: лобби {lobby_id} не найдено или пользователь {user_id} не является участником"
                 )
-                return StreamingResponse(
-                    iter([b'']),
-                    media_type='image/svg+xml',
-                    headers={'Content-Disposition': 'inline; filename=no_access.svg'}
+                raise HTTPException(
+                    status_code=403,
+                    detail="Доступ к лобби запрещен"
                 )
                 
             # Проверяем, входит ли вопрос в это лобби
@@ -1686,10 +1675,9 @@ async def get_after_answer_media(
                     subsection=LogSubsection.FILES.SECURITY,
                     message=f"Вопрос не в лобби: вопрос {question_id} не входит в состав лобби {lobby_id}"
                 )
-                return StreamingResponse(
-                    iter([b'']),
-                    media_type='image/svg+xml',
-                    headers={'Content-Disposition': 'inline; filename=question_not_in_lobby.svg'}
+                raise HTTPException(
+                    status_code=403,
+                    detail="Вопрос не связан с данным лобби"
                 )
                 
             # Проверяем, ответил ли пользователь на этот вопрос
@@ -1735,16 +1723,14 @@ async def get_after_answer_media(
                     )
                     has_answered = True
                 else:
-                    return StreamingResponse(
-                        iter([b'']),
-                        media_type='image/svg+xml',
-                        headers={'Content-Disposition': 'inline; filename=answer_first.svg'}
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Необходимо сначала ответить на вопрос"
                     )
             else:
-                return StreamingResponse(
-                    iter([b'']),
-                    media_type='image/svg+xml',
-                    headers={'Content-Disposition': 'inline; filename=answer_first.svg'}
+                raise HTTPException(
+                    status_code=403,
+                    detail="Необходимо сначала ответить на вопрос"
                 )
         
         # Дополнительная проверка для экзаменационного режима
@@ -1756,10 +1742,9 @@ async def get_after_answer_media(
                     subsection=LogSubsection.FILES.SECURITY,
                     message=f"Блокировка экзаменационного режима: пользователь {user_id} пытается получить медиа после ответа до завершения экзамена"
                 )
-                return StreamingResponse(
-                    iter([b'']),
-                    media_type='image/svg+xml',
-                    headers={'Content-Disposition': 'inline; filename=exam_mode_blocked.svg'}
+                raise HTTPException(
+                    status_code=403,
+                    detail="Доступ к дополнительному медиа заблокирован в экзаменационном режиме"
                 )
         
         # Получаем медиа-файл из GridFS
@@ -1778,10 +1763,9 @@ async def get_after_answer_media(
                     subsection=LogSubsection.FILES.GRIDFS,
                     message=f"Дополнительный медиа файл не найден: файл {after_answer_media_id} отсутствует в fs.files коллекции"
                 )
-                return StreamingResponse(
-                    iter([b'']),
-                    media_type='image/svg+xml',
-                    headers={'Content-Disposition': 'inline; filename=not_found.svg'}
+                raise HTTPException(
+                    status_code=404,
+                    detail="Дополнительный медиа-файл не найден"
                 )
             
             logger.info(
@@ -1797,10 +1781,9 @@ async def get_after_answer_media(
                     subsection=LogSubsection.FILES.GRIDFS,
                     message=f"Дополнительный медиа файл пуст: файл {after_answer_media_id} не загружается из GridFS или содержит 0 байт"
                 )
-                return StreamingResponse(
-                    iter([b'']),
-                    media_type='image/svg+xml',
-                    headers={'Content-Disposition': 'inline; filename=not_found.svg'}
+                raise HTTPException(
+                    status_code=404,
+                    detail="Дополнительный медиа-файл поврежден или недоступен"
                 )
                 
             # Получение информации о файле (content type)
@@ -1910,10 +1893,9 @@ async def get_after_answer_media(
             subsection=LogSubsection.FILES.ERROR,
             message=f"Критическая ошибка получения дополнительного медиа: вопрос {question_id}, пользователь {user_id}, ошибка {error_msg}"
         )
-        return StreamingResponse(
-            iter([b'']),
-            media_type='image/svg+xml',
-            headers={'Content-Disposition': 'inline; filename=server_error.svg'}
+        raise HTTPException(
+            status_code=500,
+            detail="Внутренняя ошибка сервера"
         )
 
 
