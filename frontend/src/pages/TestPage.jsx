@@ -371,6 +371,14 @@ const TestPage = () => {
   // Fetch lobby information with security checks
   useEffect(() => {
     const fetchLobbyInfo = async () => {
+      // Prevent duplicate requests
+      if (fetchLobbyInfo.isLoading) {
+        console.log(`[DEBOUNCE] Skipping duplicate lobby info request for ${lobbyId}`);
+        return;
+      }
+      
+      fetchLobbyInfo.isLoading = true;
+      
       try {
         console.log(`[SECURITY] Fetching secure lobby info for ID: ${lobbyId}`);
         setSyncing(true);
@@ -443,11 +451,13 @@ const TestPage = () => {
         
         setLoading(false);
         setSyncing(false);
+        fetchLobbyInfo.isLoading = false;
       } catch (err) {
         console.error('[SECURITY] Error fetching secure lobby info:', err);
         setError(err.response?.data?.message || 'Failed to load test information');
         setLoading(false);
         setSyncing(false);
+        fetchLobbyInfo.isLoading = false;
       }
     };
 
@@ -459,6 +469,16 @@ const TestPage = () => {
     if (!questions.length || currentQuestionIndex >= questions.length) return;
     
     const questionId = questions[currentQuestionIndex];
+    
+    // Prevent duplicate requests for the same question
+    const requestKey = `${questionId}_${currentQuestionIndex}`;
+    if (fetchCurrentQuestion.requestKey === requestKey && fetchCurrentQuestion.isLoading) {
+      console.log(`[DEBOUNCE] Skipping duplicate request for question ${questionId}`);
+      return;
+    }
+    
+    fetchCurrentQuestion.requestKey = requestKey;
+    fetchCurrentQuestion.isLoading = true;
     
     try {
       setMediaLoading(true);
@@ -486,6 +506,8 @@ const TestPage = () => {
         
         // Security: Only show media if user has access
         if (questionData.has_media && questionData.media_access_granted) {
+          // Используем обновленный solo_files_router для безопасного доступа к медиа
+          // Кэшируем URL для предотвращения повторных запросов
           const mediaUrl = `/api/files_solo/secure/media/${questionId}?lobby_id=${lobbyId}&t=${Date.now()}`;
           questionData.media_url = mediaUrl;
           
@@ -529,6 +551,7 @@ const TestPage = () => {
         }
         
         setMediaLoading(false);
+        fetchCurrentQuestion.isLoading = false;
         
         // Remove loading class
         const mediaContainers = document.querySelectorAll('.media-container');
@@ -537,6 +560,7 @@ const TestPage = () => {
         console.error(`[SECURITY] Failed to load question ${questionId}:`, response.data.message);
         setError(response.data.message || 'Failed to load question');
         setMediaLoading(false);
+        fetchCurrentQuestion.isLoading = false;
         
         // Remove loading class
         const mediaContainers = document.querySelectorAll('.media-container');
@@ -555,6 +579,7 @@ const TestPage = () => {
         setError(err.response?.data?.message || 'Failed to load question');
       }
       setMediaLoading(false);
+      fetchCurrentQuestion.isLoading = false;
       
       // Remove loading class
       const mediaContainers = document.querySelectorAll('.media-container');
@@ -647,14 +672,38 @@ const TestPage = () => {
     };
   }, [isExamMode, testCompleted, lobbyId]);
 
-  const fetchCorrectAnswerSecure = async (questionId) => {
+  const fetchCorrectAnswerSecure = async (questionId, updatedAnswersParam = null) => {
+    // Prevent duplicate requests
+    if (fetchCorrectAnswerSecure.isLoading && fetchCorrectAnswerSecure.currentQuestionId === questionId) {
+      console.log(`[DEBOUNCE] Skipping duplicate correct answer request for question ${questionId}`);
+      return;
+    }
+    
+    fetchCorrectAnswerSecure.isLoading = true;
+    fetchCorrectAnswerSecure.currentQuestionId = questionId;
+    
     try {
       console.log(`[SECURITY] Fetching secure correct answer for question: ${questionId}`);
+      console.log(`[DEBUG] userAnswers:`, userAnswers);
+      console.log(`[DEBUG] selectedAnswer:`, selectedAnswer);
+      console.log(`[DEBUG] currentQuestionIndex:`, currentQuestionIndex);
+      console.log(`[DEBUG] updatedAnswersParam:`, updatedAnswersParam);
       
-              const response = await api.get(`/lobby_solo/${lobbyId}/secure/correct-answer`, {
+      // Используем переданные обновленные ответы или текущие
+      const answersToUse = updatedAnswersParam || userAnswers;
+      
+      // Включаем текущий ответ пользователя в проверку доступа
+      const currentAnswers = { ...answersToUse };
+      if (selectedAnswer !== null) {
+        currentAnswers[questionId] = selectedAnswer;
+      }
+      
+      console.log(`[DEBUG] currentAnswers:`, currentAnswers);
+      
+      const response = await api.get(`/lobby_solo/${lobbyId}/secure/correct-answer`, {
         params: { 
           question_id: questionId,
-          user_answers: JSON.stringify(userAnswers),
+          user_answers: JSON.stringify(currentAnswers),
           exam_mode: isExamMode
         }
       });
@@ -684,7 +733,7 @@ const TestPage = () => {
         // Security: Only fetch after-answer media if access is granted
         if (correctData.has_after_answer_media && correctData.after_media_access_granted) {
           console.log('[SECURITY] Fetching secure after answer media for question:', questionId);
-          fetchAfterAnswerMediaSecure(questionId);
+          fetchAfterAnswerMediaSecure(questionId, updatedAnswersParam);
         } else if (correctData.has_after_answer_media && !correctData.after_media_access_granted) {
           console.log('[SECURITY] After answer media access denied for question:', questionId);
         }
@@ -697,20 +746,45 @@ const TestPage = () => {
       } else if (err.response?.status === 429) {
         console.log('[SECURITY] Rate limit exceeded for correct answer');
       }
+    } finally {
+      fetchCorrectAnswerSecure.isLoading = false;
     }
   };
 
-  const fetchAfterAnswerMediaSecure = async (questionId) => {
+  const fetchAfterAnswerMediaSecure = async (questionId, updatedAnswersParam = null) => {
+    // Prevent duplicate requests
+    if (fetchAfterAnswerMediaSecure.isLoading && fetchAfterAnswerMediaSecure.currentQuestionId === questionId) {
+      console.log(`[DEBOUNCE] Skipping duplicate after answer media request for question ${questionId}`);
+      return;
+    }
+    
+    fetchAfterAnswerMediaSecure.isLoading = true;
+    fetchAfterAnswerMediaSecure.currentQuestionId = questionId;
+    
     try {
-      setMediaLoading(true);
+      setVideoError(false);
       
       console.log(`[SECURITY] Fetching secure after answer media for question: ${questionId}`);
+      console.log(`[DEBUG] userAnswers:`, userAnswers);
+      console.log(`[DEBUG] selectedAnswer:`, selectedAnswer);
+      console.log(`[DEBUG] updatedAnswersParam:`, updatedAnswersParam);
+      
+      // Используем переданные обновленные ответы или текущие
+      const answersToUse = updatedAnswersParam || userAnswers;
       
       // Security: Check access before fetching media
-              const accessResponse = await api.get(`/lobby_solo/${lobbyId}/secure/after-answer-media-access`, {
+      // Включаем текущий ответ пользователя в проверку доступа
+      const currentAnswers = { ...answersToUse };
+      if (selectedAnswer !== null) {
+        currentAnswers[questionId] = selectedAnswer;
+      }
+      
+      console.log(`[DEBUG] currentAnswers:`, currentAnswers);
+      
+      const accessResponse = await api.get(`/lobby_solo/${lobbyId}/secure/after-answer-media-access`, {
         params: {
           question_id: questionId,
-          user_answers: JSON.stringify(userAnswers)
+          user_answers: JSON.stringify(currentAnswers)
         }
       });
       
@@ -718,13 +792,14 @@ const TestPage = () => {
         const questionResponse = await api.get(`/lobby_solo/${lobbyId}/questions/${questionId}/secure`, {
           params: {
             current_index: currentQuestionIndex,
-            user_answers: JSON.stringify(userAnswers)
+            user_answers: JSON.stringify(currentAnswers)
           }
         });
         
         if (questionResponse.data.status === "ok") {
           const questionData = questionResponse.data.data;
           
+          // Используем обновленный solo_files_router для безопасного доступа к дополнительному медиа
           const mediaUrl = `/api/files_solo/secure/after-answer-media/${questionId}?lobby_id=${lobbyId}&t=${Date.now()}`;
           console.log('[SECURITY] Setting secure after answer media URL:', mediaUrl);
           setAfterAnswerMedia(mediaUrl);
@@ -748,18 +823,27 @@ const TestPage = () => {
         setAfterAnswerMediaType('image');
       }
       
-      setMediaLoading(false);
+      setVideoError(false);
     } catch (err) {
       console.error('[SECURITY] Error fetching secure after-answer media:', err);
       setAfterAnswerMedia(null);
       setAfterAnswerMediaType('image');
-      setMediaLoading(false);
+      setVideoError(false);
+    } finally {
+      fetchAfterAnswerMediaSecure.isLoading = false;
     }
   };
 
   const handleAnswerSubmit = async (answerIndex) => {
     if (answerSubmitted) return;
     
+    // Prevent duplicate submissions
+    if (handleAnswerSubmit.isSubmitting) {
+      console.log('[DEBOUNCE] Skipping duplicate answer submission');
+      return;
+    }
+    
+    handleAnswerSubmit.isSubmitting = true;
     setSelectedAnswer(answerIndex);
     setSyncing(true);
     
@@ -789,7 +873,8 @@ const TestPage = () => {
         
         if (shouldShowAnswer) {
           try {
-            await fetchCorrectAnswerSecure(questionId);
+            // Передаем обновленные ответы напрямую
+            await fetchCorrectAnswerSecure(questionId, updatedAnswers);
           } catch (err) {
             console.warn("[SECURITY] Could not fetch secure correct answer", err);
           }
@@ -811,10 +896,11 @@ const TestPage = () => {
       }
     } finally {
       setSyncing(false);
+      handleAnswerSubmit.isSubmitting = false;
     }
   };
 
-  // Fetch current question effect
+  // Fetch current question effect with debouncing
   useEffect(() => {
     if (testCompleted) return;
     
@@ -827,29 +913,44 @@ const TestPage = () => {
       return;
     }
     
-    fetchCurrentQuestion().catch(err => {
-      if (err.response?.status === 400 && 
-          (err.response?.data?.message?.includes("не активен") || 
-           err.response?.data?.message?.includes("не запущен"))) {
-        console.log("Test status changed to inactive");
-        if (isLastQuestion) {
-          setError(null);
+    // Debounce to prevent multiple rapid requests
+    const timeoutId = setTimeout(() => {
+      fetchCurrentQuestion().catch(err => {
+        if (err.response?.status === 400 && 
+            (err.response?.data?.message?.includes("не активен") || 
+             err.response?.data?.message?.includes("не запущен"))) {
+          console.log("Test status changed to inactive");
+          if (isLastQuestion) {
+            setError(null);
+          }
+        } else {
+          console.error('Error fetching question:', err);
+          setError(err.response?.data?.message || 'Failed to load question');
         }
-      } else {
-        console.error('Error fetching question:', err);
-        setError(err.response?.data?.message || 'Failed to load question');
-      }
-    });
+      });
+    }, 100); // 100ms debounce
+    
+    return () => clearTimeout(timeoutId);
   }, [lobbyId, questions, currentQuestionIndex, userAnswers, isExamMode, testCompleted]);
 
   const handleNextQuestion = () => {
     if (currentQuestionIndex < questions.length - 1) {
+      // Reset loading states
+      fetchCurrentQuestion.isLoading = false;
+      fetchCorrectAnswerSecure.isLoading = false;
+      fetchAfterAnswerMediaSecure.isLoading = false;
+      
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     }
   };
 
   const handlePrevQuestion = () => {
     if (currentQuestionIndex > 0) {
+      // Reset loading states
+      fetchCurrentQuestion.isLoading = false;
+      fetchCorrectAnswerSecure.isLoading = false;
+      fetchAfterAnswerMediaSecure.isLoading = false;
+      
       const newIndex = currentQuestionIndex - 1;
       setCurrentQuestionIndex(newIndex);
       setAnswerSubmitted(true); // Automatically show answer for previous questions

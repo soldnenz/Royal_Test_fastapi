@@ -195,18 +195,18 @@ async def unified_login(data: AuthRequest, request: Request):
         requires_2fa = False
         old_ip = "неизвестен"
         
-        # Проверяем активную сессию
-        if admin.get("active_session"):
-            if (admin["active_session"].get("ip") != ip or
-                admin["active_session"].get("user_agent") != ua):
-                requires_2fa = True
-                old_ip = admin["active_session"].get("ip", "неизвестен")
-        # Если нет активной сессии, проверяем last_login
-        elif admin.get("last_login"):
-            if (admin["last_login"].get("ip") != ip or
-                admin["last_login"].get("user_agent") != ua):
-                requires_2fa = True
-                old_ip = admin["last_login"].get("ip", "неизвестен")
+        # # Проверяем активную сессию
+        # if admin.get("active_session"):
+        #     if (admin["active_session"].get("ip") != ip or
+        #         admin["active_session"].get("user_agent") != ua):
+        #         requires_2fa = True
+        #         old_ip = admin["active_session"].get("ip", "неизвестен")
+        # # Если нет активной сессии, проверяем last_login
+        # elif admin.get("last_login"):
+        #     if (admin["last_login"].get("ip") != ip or
+        #         admin["last_login"].get("user_agent") != ua):
+        #         requires_2fa = True
+        #         old_ip = admin["last_login"].get("ip", "неизвестен")
         
         if requires_2fa:
             logger.info(

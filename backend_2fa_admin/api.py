@@ -36,6 +36,10 @@ request_counts = {}
 
 def check_rate_limit(ip: str) -> bool:
     """Проверка rate limit"""
+    # Нормализуем IP адрес для rate limiting
+    if not ip or ip.lower() in ["unknown", "none", "null", ""]:
+        ip = "unknown"
+    
     now = time.time()
     if ip not in request_counts:
         request_counts[ip] = []
@@ -105,7 +109,7 @@ async def send_2fa_request_endpoint(
     db=Depends(get_database)
 ):
     """Отправка 2FA запроса"""
-    ip = http_request.client.host
+    ip = http_request.client.host if http_request.client and http_request.client.host else "unknown"
     
     logger.info(
         section=LogSection.API,

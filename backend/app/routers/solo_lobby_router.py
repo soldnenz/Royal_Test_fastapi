@@ -122,13 +122,8 @@ async def get_secure_lobby(
             )
             raise HTTPException(status_code=403, detail="Access denied")
         
-        # Get user answers
-        user_answers_doc = await db.user_answers.find_one({
-            "lobby_id": lobby_id,
-            "user_id": user_id
-        })
-        
-        user_answers = user_answers_doc.get('answers', {}) if user_answers_doc else {}
+        # Get user answers from lobby
+        user_answers = lobby.get("participants_raw_answers", {}).get(user_id, {})
         
         logger.info(
             section=LogSection.LOBBY,
@@ -339,23 +334,7 @@ async def submit_secure_answer(
                 )
                 raise HTTPException(status_code=400, detail="Exam time has expired")
         
-        # Save answer in both places like the old code
-        # 1. Save in user_answers collection
-        await db.user_answers.update_one(
-            {
-                "lobby_id": lobby_id,
-                "user_id": user_id
-            },
-            {
-                "$set": {
-                    f"answers.{question_id}": answer_index,
-                    "updated_at": datetime.utcnow()
-                }
-            },
-            upsert=True
-        )
-        
-        # 2. Save in lobby's participants_raw_answers
+        # Save answer in lobby's participants_raw_answers
         await db.lobbies.update_one(
             {"_id": lobby_id},
             {
@@ -539,8 +518,17 @@ async def check_secure_after_media_access(
         except:
             user_answers_dict = {}
         
-        # Check if user has answered this question
-        access_granted = question_id in user_answers_dict
+        # Check if user has answered this question (check both URL params and saved data)
+        # Get lobby to check saved answers
+        lobby = await db.lobbies.find_one({"_id": lobby_id})
+        if not lobby:
+            raise HTTPException(status_code=404, detail="Lobby not found")
+        
+        # Check saved answers in lobby
+        participants_raw_answers = lobby.get("participants_raw_answers", {})
+        user_saved_answers = participants_raw_answers.get(user_id, {})
+        
+        access_granted = (question_id in user_answers_dict or question_id in user_saved_answers)
         
         if not access_granted:
             logger.info(
@@ -790,11 +778,8 @@ async def get_secure_test_results(
         if not lobby:
             raise HTTPException(status_code=404, detail="Lobby not found")
         
-        # Get user answers
-        user_answers_doc = await db.user_answers.find_one({
-            "lobby_id": lobby_id,
-            "user_id": user_id
-        })
+        # Get user answers from lobby
+        user_answers = lobby.get("participants_raw_answers", {}).get(user_id, {})
         
         # Get user profile for additional info
         user_profile = await db.users.find_one({"_id": user_id})
@@ -827,7 +812,7 @@ async def get_secure_test_results(
         question_ids = lobby.get('question_ids', [])
         total_questions = len(question_ids)
         
-        if not user_answers_doc:
+        if not user_answers:
             # No answers - early exit or didn't start
             return success(
                 data={
@@ -863,7 +848,6 @@ async def get_secure_test_results(
                 message="No answers found - test not started or completed"
             )
         
-        user_answers = user_answers_doc.get('answers', {})
         answered_count = len(user_answers)
         
         # Detailed answer analysis

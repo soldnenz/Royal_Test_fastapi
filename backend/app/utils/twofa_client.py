@@ -53,8 +53,8 @@ class TwoFAClient:
                 "admin_name": admin_data.get("full_name", "Неизвестный админ"),
                 "admin_email": admin_data.get("email"),
                 "telegram_id": str(admin_data.get("telegram_id")) if admin_data.get("telegram_id") else None,
-                "ip_address": ip_address,
-                "user_agent": user_agent
+                "ip_address": ip_address if ip_address else "unknown",
+                "user_agent": user_agent if user_agent else "unknown"
             }
             
             # Проверяем обязательные поля

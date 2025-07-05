@@ -20,15 +20,8 @@ const TestsList = () => {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [initialLoading, setInitialLoading] = useState(true);
   const [modalInfo, setModalInfo] = useState(null);
-  const [mediaLoading, setMediaLoading] = useState(false);
-  const [mediaUrl, setMediaUrl] = useState(null);
-  const [mediaType, setMediaType] = useState(null);
-  const [language, setLanguage] = useState('ru');
-  const [afterAnswerMediaLoading, setAfterAnswerMediaLoading] = useState(false);
-  const [afterAnswerMediaUrl, setAfterAnswerMediaUrl] = useState(null);
-  const [afterAnswerMediaType, setAfterAnswerMediaType] = useState(null);
-  const [afterAnswerLoadingProgress, setAfterAnswerLoadingProgress] = useState(0);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [language, setLanguage] = useState('ru');
   const abortControllerRef = useRef(null);
   const navigate = useNavigate();
 
@@ -120,80 +113,6 @@ const TestsList = () => {
     setLanguage(e.target.value);
   };
 
-  const loadMedia = async (mediaId, isAfterAnswer = false) => {
-    if (!mediaId || !modalInfo || !modalInfo.uid) return;
-    
-    if (!isAfterAnswer) {
-      setMediaLoading(true);
-      setMediaUrl(null);
-      setLoadingProgress(0);
-    } else {
-      setAfterAnswerMediaLoading(true);
-      setAfterAnswerMediaUrl(null);
-      setAfterAnswerLoadingProgress(0);
-    }
-    
-    try {
-      const response = await axios.get(`/api/tests/by_uid/${modalInfo.uid}`, {
-        onDownloadProgress: (progressEvent) => {
-          if (progressEvent.total) {
-            const percentCompleted = Math.round(
-              (progressEvent.loaded * 100) / progressEvent.total
-            );
-            if (isAfterAnswer) {
-              setAfterAnswerLoadingProgress(percentCompleted);
-            } else {
-              setLoadingProgress(percentCompleted);
-            }
-          }
-        }
-      });
-      
-      if (isAfterAnswer) {
-        setAfterAnswerLoadingProgress(100);
-      } else {
-        setLoadingProgress(100);
-      }
-      
-      const data = response.data.data;
-      
-      if (!isAfterAnswer && data.media_file_base64) {
-        const isVideo = data.media_filename?.endsWith('.mp4');
-        const contentType = isVideo ? 'video/mp4' : 'image/jpeg';
-        
-        const mediaUrl = `data:${contentType};base64,${data.media_file_base64}`;
-        setMediaUrl(mediaUrl);
-        setMediaType(contentType);
-      } else if (isAfterAnswer && data.after_answer_media_base64) {
-        const isVideo = data.after_answer_media_filename?.endsWith('.mp4');
-        const contentType = isVideo ? 'video/mp4' : 'image/jpeg';
-        
-        const mediaUrl = `data:${contentType};base64,${data.after_answer_media_base64}`;
-        setAfterAnswerMediaUrl(mediaUrl);
-        setAfterAnswerMediaType(contentType);
-      } else {
-        if (!isAfterAnswer) {
-          message.error('Основной медиафайл отсутствует в ответе API');
-        } else {
-          message.error('Дополнительный медиафайл отсутствует в ответе API');
-        }
-      }
-    } catch (error) {
-      if (!isAfterAnswer) {
-        message.error('Ошибка при загрузке основного медиафайла');
-      } else {
-        message.error('Ошибка при загрузке дополнительного медиафайла');
-      }
-      console.error('Error loading media:', error);
-    } finally {
-      if (!isAfterAnswer) {
-        setMediaLoading(false);
-      } else {
-        setAfterAnswerMediaLoading(false);
-      }
-    }
-  };
-
   const sectionMap = Object.fromEntries(PDD_SECTIONS.map(s => [s.uid, s.title]));
 
   const filteredTests = tests.filter(test => {
@@ -271,12 +190,6 @@ const TestsList = () => {
 
   const handleViewDetails = async (record) => {
     setModalInfo(record);
-    setMediaUrl(null);
-    setMediaLoading(false);
-    setLoadingProgress(0);
-    setAfterAnswerMediaUrl(null);
-    setAfterAnswerMediaLoading(false);
-    setAfterAnswerLoadingProgress(0);
     setDetailsLoading(true);
     
     if (abortControllerRef.current) {
@@ -294,7 +207,6 @@ const TestsList = () => {
               (progressEvent.loaded * 100) / progressEvent.total
             );
             setLoadingProgress(percentCompleted);
-            setAfterAnswerLoadingProgress(percentCompleted);
           }
         },
         signal: abortControllerRef.current.signal
@@ -307,79 +219,9 @@ const TestsList = () => {
         after_answer_media_id: responseData.after_answer_media_id,
         has_after_answer_media: responseData.has_after_answer_media,
         has_after_media: responseData.has_after_media,
-        after_answer_media_filename: responseData.after_answer_media_filename,
-        after_answer_media_base64: responseData.after_answer_media_base64 ? 'present' : 'missing'
+        after_answer_media_filename: responseData.after_answer_media_filename
       });
       setModalInfo(responseData);
-      
-      // Обрабатываем основное медиа
-      if (responseData.media_file_id && responseData.media_file_base64) {
-        console.log('Loading main media from base64');
-        
-        // Определяем правильный тип контента на основе расширения файла
-        let contentType = 'image/jpeg'; // по умолчанию
-        if (responseData.media_filename) {
-          const filename = responseData.media_filename.toLowerCase();
-          if (filename.endsWith('.mp4') || filename.endsWith('.webm') || filename.endsWith('.mov')) {
-            contentType = 'video/mp4';
-          } else if (filename.endsWith('.png')) {
-            contentType = 'image/png';
-          } else if (filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
-            contentType = 'image/jpeg';
-          } else if (filename.endsWith('.gif')) {
-            contentType = 'image/gif';
-          } else if (filename.endsWith('.webp')) {
-            contentType = 'image/webp';
-          }
-        }
-        
-        console.log('Main media content type:', contentType);
-        const mediaUrl = `data:${contentType};base64,${responseData.media_file_base64}`;
-        setMediaUrl(mediaUrl);
-        setMediaType(contentType);
-      } else if (responseData.media_file_id) {
-        console.log('Main media ID found but no base64 data:', responseData.media_file_id);
-      }
-      
-      // Обрабатываем дополнительное медиа (после ответа)
-      const afterAnswerMediaId = responseData.after_answer_media_file_id || responseData.after_answer_media_id;
-      if (afterAnswerMediaId && responseData.after_answer_media_base64) {
-        console.log('Loading after-answer media from base64');
-        console.log('After-answer media filename:', responseData.after_answer_media_filename);
-        const isVideo = responseData.after_answer_media_filename?.toLowerCase().endsWith('.mp4') || 
-                       responseData.after_answer_media_filename?.toLowerCase().endsWith('.webm') || 
-                       responseData.after_answer_media_filename?.toLowerCase().endsWith('.mov');
-        console.log('Is video?', isVideo);
-        const contentType = isVideo ? 'video/mp4' : 'image/jpeg';
-        // Определяем правильный тип контента на основе расширения файла
-        let actualContentType = 'image/jpeg'; // по умолчанию
-        if (responseData.after_answer_media_filename) {
-          const filename = responseData.after_answer_media_filename.toLowerCase();
-          if (filename.endsWith('.mp4') || filename.endsWith('.webm') || filename.endsWith('.mov')) {
-            actualContentType = 'video/mp4';
-          } else if (filename.endsWith('.png')) {
-            actualContentType = 'image/png';
-          } else if (filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
-            actualContentType = 'image/jpeg';
-          } else if (filename.endsWith('.gif')) {
-            actualContentType = 'image/gif';
-          } else if (filename.endsWith('.webp')) {
-            actualContentType = 'image/webp';
-          }
-        }
-        
-        console.log('Detected content type:', actualContentType);
-        console.log('Base64 data length:', responseData.after_answer_media_base64.length);
-        console.log('Base64 data sample (first 100 chars):', responseData.after_answer_media_base64.substring(0, 100));
-        const mediaUrl = `data:${actualContentType};base64,${responseData.after_answer_media_base64}`;
-        console.log('Generated media URL length:', mediaUrl.length);
-        setAfterAnswerMediaUrl(mediaUrl);
-        setAfterAnswerMediaType(actualContentType);
-      } else if (afterAnswerMediaId) {
-        console.log('After-answer media ID found but no base64 data:', afterAnswerMediaId);
-      } else if (responseData.has_after_answer_media || responseData.has_after_media) {
-        console.log('Has after answer media flag set but no media ID found');
-      }
       
     } catch (error) {
       if (!axios.isCancel(error)) {
@@ -396,10 +238,14 @@ const TestsList = () => {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
       setDetailsLoading(false);
-      setMediaLoading(false);
-      setAfterAnswerMediaLoading(false);
       message.info('Запрос отменен');
     }
+  };
+
+  // Функция для получения URL медиафайла
+  const getMediaUrl = (mediaId) => {
+    if (!mediaId) return null;
+    return `/api/tests/media/${mediaId}`;
   };
 
   const columns = [
@@ -521,6 +367,31 @@ const TestsList = () => {
     const hasMainMedia = !!modalInfo.media_file_id;
     const hasAfterAnswerMedia = !!(modalInfo.after_answer_media_file_id || modalInfo.after_answer_media_id || modalInfo.has_after_answer_media || modalInfo.has_after_media);
     
+    // Получаем URL для медиафайлов
+    const mainMediaUrl = getMediaUrl(modalInfo.media_file_id);
+    const afterAnswerMediaUrl = getMediaUrl(modalInfo.after_answer_media_file_id || modalInfo.after_answer_media_id);
+    
+    // Определяем тип контента на основе расширения файла
+    const getContentType = (filename) => {
+      if (!filename) return 'image/jpeg';
+      const ext = filename.toLowerCase();
+      if (ext.endsWith('.mp4') || ext.endsWith('.webm') || ext.endsWith('.mov')) {
+        return 'video/mp4';
+      } else if (ext.endsWith('.png')) {
+        return 'image/png';
+      } else if (ext.endsWith('.jpg') || ext.endsWith('.jpeg')) {
+        return 'image/jpeg';
+      } else if (ext.endsWith('.gif')) {
+        return 'image/gif';
+      } else if (ext.endsWith('.webp')) {
+        return 'image/webp';
+      }
+      return 'image/jpeg';
+    };
+    
+    const mainMediaType = getContentType(modalInfo.media_filename);
+    const afterAnswerMediaType = getContentType(modalInfo.after_answer_media_filename);
+    
     return (
       <Modal
         open={!!modalInfo}
@@ -536,8 +407,6 @@ const TestsList = () => {
         onCancel={() => {
           cancelRequest();
           setModalInfo(null);
-          setMediaUrl(null);
-          setAfterAnswerMediaUrl(null);
         }}
         footer={[
           detailsLoading ? (
@@ -700,24 +569,18 @@ const TestsList = () => {
                   } : {}}
                   headStyle={isDark ? { color: 'var(--text-light, #fff)' } : {}}
                 >
-                  {mediaLoading ? (
-                    <div className="media-loading">
-                      <Spin />
-                      <Progress percent={loadingProgress} status="active" />
-                      <div style={isDark ? { color: 'var(--text-light, #fff)' } : {}}>Загрузка основного медиа...</div>
-                    </div>
-                  ) : mediaUrl ? (
+                  {mainMediaUrl ? (
                     <div className="media-container">
-                      {mediaType?.startsWith('video/') ? (
+                      {mainMediaType.startsWith('video/') ? (
                         <video controls className="detail-media" crossOrigin="anonymous">
-                          <source src={mediaUrl} type={mediaType} />
+                          <source src={mainMediaUrl} type={mainMediaType} />
                           Ваш браузер не поддерживает видео.
                         </video>
                       ) : (
-                        <img src={mediaUrl} alt="Медиа" className="detail-media" />
+                        <img src={mainMediaUrl} alt="Медиа" className="detail-media" />
                       )}
                     </div>
-                  ) : modalInfo.media_file_id ? (
+                  ) : (
                     <div className="media-placeholder" style={isDark ? { color: 'var(--text-light, #fff)' } : {}}>
                       <PlayCircleOutlined style={isDark ? { color: 'var(--text-light, #fff)' } : {}} />
                       <div>Медиафайл не может быть загружен</div>
@@ -726,11 +589,6 @@ const TestsList = () => {
                         {modalInfo.media_filename && <br />}
                         {modalInfo.media_filename && `Файл: ${modalInfo.media_filename}`}
                       </div>
-                    </div>
-                  ) : (
-                    <div className="media-placeholder" style={isDark ? { color: 'var(--text-light, #fff)' } : {}}>
-                      <PlayCircleOutlined style={isDark ? { color: 'var(--text-light, #fff)' } : {}} />
-                      <div>Медиафайл отсутствует</div>
                     </div>
                   )}
                 </Card>
@@ -756,15 +614,9 @@ const TestsList = () => {
                   } : {}}
                   headStyle={isDark ? { color: 'var(--text-light, #fff)' } : {}}
                 >
-                  {afterAnswerMediaLoading ? (
-                    <div className="media-loading">
-                      <Spin />
-                      <Progress percent={afterAnswerLoadingProgress} status="active" />
-                      <div style={isDark ? { color: 'var(--text-light, #fff)' } : {}}>Загрузка дополнительного медиа...</div>
-                    </div>
-                  ) : afterAnswerMediaUrl ? (
+                  {afterAnswerMediaUrl ? (
                     <div className="media-container">
-                      {afterAnswerMediaType?.startsWith('video/') ? (
+                      {afterAnswerMediaType.startsWith('video/') ? (
                         <video 
                           controls 
                           className="detail-media" 
@@ -786,7 +638,7 @@ const TestsList = () => {
                         />
                       )}
                     </div>
-                  ) : (modalInfo.after_answer_media_file_id || modalInfo.after_answer_media_id) ? (
+                  ) : (
                     <div className="media-placeholder" style={isDark ? { color: 'var(--text-light, #fff)' } : {}}>
                       <PlayCircleOutlined style={isDark ? { color: 'var(--text-light, #fff)' } : {}} />
                       <div>Дополнительный медиафайл не может быть загружен</div>
@@ -795,11 +647,6 @@ const TestsList = () => {
                         {modalInfo.after_answer_media_filename && <br />}
                         {modalInfo.after_answer_media_filename && `Файл: ${modalInfo.after_answer_media_filename}`}
                       </div>
-                    </div>
-                  ) : (
-                    <div className="media-placeholder" style={isDark ? { color: 'var(--text-light, #fff)' } : {}}>
-                      <PlayCircleOutlined style={isDark ? { color: 'var(--text-light, #fff)' } : {}} />
-                      <div>Дополнительный медиафайл отсутствует</div>
                     </div>
                   )}
                 </Card>

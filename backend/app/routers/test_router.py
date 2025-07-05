@@ -19,7 +19,7 @@ from app.schemas.test_schemas import (
 )
 from app.admin.permissions import get_current_admin_user
 from app.db.database import get_database
-from app.core.gridfs_utils import save_media_to_gridfs, get_media_file, delete_media_file
+from app.core.media_manager import media_manager
 import base64
 from app.core.config import settings
 from app.core.response import success
@@ -31,8 +31,8 @@ load_dotenv()
 
 router = APIRouter()
 
-ALLOWED_TYPES = settings.allowed_media_types
-MAX_FILE_SIZE_MB = 50  # Ограничение размера файла до 50 МБ
+ALLOWED_TYPES = settings.MEDIA_ALLOWED_TYPES
+MAX_FILE_SIZE_MB = settings.MEDIA_MAX_FILE_SIZE_MB  # Используем настройку из конфига
 
 logger = get_logger(__name__)
 
@@ -81,7 +81,7 @@ async def create_question(
       - Проверяет, что пользователь имеет достаточные права (админ или создатель тестов).
       - Валидирует MIME‑тип и размер файла, если он передан.
       - Генерирует уникальный 10-значный uid.
-      - Сохраняет медиафайлы в GridFS (если переданы) с обработкой ошибок.
+      - Сохраняет медиафайлы через MediaManager (если переданы) с обработкой ошибок.
       - Формирует варианты ответа с метками (A, B, ...).
       - Возвращает созданный вопрос с преобразованием ObjectId в строку.
     """
@@ -145,13 +145,31 @@ async def create_question(
             )
             raise HTTPException(status_code=400, detail=f"Превышен допустимый размер файла (макс. {MAX_FILE_SIZE_MB} МБ)")
         try:
-            media_file_id = await save_media_to_gridfs(file, db)
+            # Создаем информацию о создателе для MediaManager
+            created_by = {
+                "full_name": created_by_name,
+                "iin": created_by_iin,
+                "role": current_user.get("role", "admin")
+            }
+            
+            # Сохраняем основной медиафайл через MediaManager
+            media_result = await media_manager.save_media_file(file, db, created_by)
+            media_file_id = media_result["id"]
             media_filename = file.filename
-            logger.info(
-                section=LogSection.FILES,
-                subsection=LogSubsection.FILES.UPLOAD,
-                message=f"Успешно загружен основной медиафайл {media_filename} (ID: {media_file_id}) для вопроса {uid} пользователем {created_by_iin}"
-            )
+            
+            # Проверяем, был ли это дубликат
+            if media_result.get("is_duplicate"):
+                logger.info(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.UPLOAD,
+                    message=f"Использован существующий медиафайл {media_filename} (ID: {media_file_id}) для вопроса {uid} пользователем {created_by_iin} (дубликат)"
+                )
+            else:
+                logger.info(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.UPLOAD,
+                    message=f"Успешно загружен основной медиафайл {media_filename} (ID: {media_file_id}) для вопроса {uid} пользователем {created_by_iin}"
+                )
         except Exception as e:
             logger.error(
                 section=LogSection.FILES,
@@ -181,20 +199,38 @@ async def create_question(
             )
             raise HTTPException(status_code=400, detail=f"Превышен допустимый размер дополнительного файла (макс. {MAX_FILE_SIZE_MB} МБ)")
         try:
-            after_answer_media_file_id = await save_media_to_gridfs(after_answer_file, db)
+            # Создаем информацию о создателе для MediaManager
+            created_by = {
+                "full_name": created_by_name,
+                "iin": created_by_iin,
+                "role": current_user.get("role", "admin")
+            }
+            
+            # Сохраняем дополнительный медиафайл через MediaManager
+            after_answer_media_result = await media_manager.save_media_file(after_answer_file, db, created_by)
+            after_answer_media_file_id = after_answer_media_result["id"]
             after_answer_media_filename = after_answer_file.filename
-            logger.info(
-                section=LogSection.FILES,
-                subsection=LogSubsection.FILES.UPLOAD,
-                message=f"Успешно загружен дополнительный медиафайл {after_answer_media_filename} (ID: {after_answer_media_file_id}) для вопроса {uid} пользователем {created_by_iin}"
-            )
+            
+            # Проверяем, был ли это дубликат
+            if after_answer_media_result.get("is_duplicate"):
+                logger.info(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.UPLOAD,
+                    message=f"Использован существующий дополнительный медиафайл {after_answer_media_filename} (ID: {after_answer_media_file_id}) для вопроса {uid} пользователем {created_by_iin} (дубликат)"
+                )
+            else:
+                logger.info(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.UPLOAD,
+                    message=f"Успешно загружен дополнительный медиафайл {after_answer_media_filename} (ID: {after_answer_media_file_id}) для вопроса {uid} пользователем {created_by_iin}"
+                )
         except Exception as e:
             # Если произошла ошибка при сохранении дополнительного файла, но основной был сохранен,
-            # нужно удалить основной файл, чтобы не создавать "мусор" в GridFS
+            # нужно удалить основной файл, чтобы не создавать "мусор" в MediaManager
             if media_file_id:
                 try:
-                    await delete_media_file(str(media_file_id), db)
-                    logger.info(
+                    await media_manager.delete_media_file(str(media_file_id), db)
+                    logger.error(
                         section=LogSection.FILES,
                         subsection=LogSubsection.FILES.DELETE,
                         message=f"Удалён основной медиафайл {media_file_id} из-за ошибки сохранения дополнительного файла"
@@ -219,12 +255,12 @@ async def create_question(
         # Если произошла ошибка, нужно удалить сохраненные медиафайлы
         if media_file_id:
             try:
-                await delete_media_file(str(media_file_id), db)
+                await media_manager.delete_media_file(str(media_file_id), db)
             except Exception:
                 pass
         if after_answer_media_file_id:
             try:
-                await delete_media_file(str(after_answer_media_file_id), db)
+                await media_manager.delete_media_file(str(after_answer_media_file_id), db)
             except Exception:
                 pass
         raise HTTPException(status_code=400, detail=f"Ошибка формирования вариантов ответа: {e}")
@@ -275,12 +311,12 @@ async def create_question(
         # Если произошла ошибка при записи в БД, удаляем сохраненные медиафайлы
         if media_file_id:
             try:
-                await delete_media_file(str(media_file_id), db)
+                await media_manager.delete_media_file(str(media_file_id), db)
             except Exception:
                 pass
         if after_answer_media_file_id:
             try:
-                await delete_media_file(str(after_answer_media_file_id), db)
+                await media_manager.delete_media_file(str(after_answer_media_file_id), db)
             except Exception:
                 pass
         logger.error(
@@ -380,9 +416,9 @@ async def edit_question(
             if existing_question.get("media_file_id"):
                 media_file_id = existing_question["media_file_id"]
                 # Проверяем существует ли файл перед удалением
-                file_exists = await db.fs.files.find_one({"_id": ObjectId(media_file_id)})
+                file_exists = await media_manager.get_media_file(media_file_id, db)
                 if file_exists:
-                    await delete_media_file(media_file_id, db)
+                    await media_manager.delete_media_file(media_file_id, db)
                     logger.info(
                         section=LogSection.FILES,
                         subsection=LogSubsection.FILES.DELETE,
@@ -396,8 +432,12 @@ async def edit_question(
                     )
                 update_fields["media_file_id"] = None
                 update_fields["media_filename"] = None
-        except RuntimeError as e:
-            logger.error(f"Error deleting media file: {e}")
+        except Exception as e:
+            logger.error(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.ERROR,
+                message=f"Ошибка удаления основного медиафайла {media_file_id}: {str(e)}"
+            )
             update_fields["media_file_id"] = None
             update_fields["media_filename"] = None
 
@@ -407,15 +447,23 @@ async def edit_question(
             if existing_question.get("after_answer_media_file_id"):
                 after_answer_media_file_id = existing_question["after_answer_media_file_id"]
                 # Проверяем существует ли файл перед удалением
-                file_exists = await db.fs.files.find_one({"_id": ObjectId(after_answer_media_file_id)})
+                file_exists = await media_manager.get_media_file(after_answer_media_file_id, db)
                 if file_exists:
-                    await delete_media_file(after_answer_media_file_id, db)
+                    await media_manager.delete_media_file(after_answer_media_file_id, db)
                 else:
-                    logger.warning(f"File {after_answer_media_file_id} not found when trying to delete it")
+                    logger.warning(
+                        section=LogSection.FILES,
+                        subsection=LogSubsection.FILES.ERROR,
+                        message=f"Файл {after_answer_media_file_id} не найден при попытке удаления"
+                    )
                 update_fields["after_answer_media_file_id"] = None
                 update_fields["after_answer_media_filename"] = None
-        except RuntimeError as e:
-            logger.error(f"Error deleting after answer media file: {e}")
+        except Exception as e:
+            logger.error(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.ERROR,
+                message=f"Ошибка удаления дополнительного медиафайла {after_answer_media_file_id}: {str(e)}"
+            )
             update_fields["after_answer_media_file_id"] = None
             update_fields["after_answer_media_filename"] = None
 
@@ -427,13 +475,21 @@ async def edit_question(
                 try:
                     media_file_id = existing_question["media_file_id"]
                     # Проверяем существует ли файл перед удалением
-                    file_exists = await db.fs.files.find_one({"_id": ObjectId(media_file_id)})
+                    file_exists = await media_manager.get_media_file(media_file_id, db)
                     if file_exists:
-                        await delete_media_file(media_file_id, db)
+                        await media_manager.delete_media_file(media_file_id, db)
                     else:
-                        logger.warning(f"File {media_file_id} not found when trying to replace it")
+                        logger.warning(
+                            section=LogSection.FILES,
+                            subsection=LogSubsection.FILES.ERROR,
+                            message=f"Файл {media_file_id} не найден при попытке замены"
+                        )
                 except Exception as e:
-                    logger.error(f"Error deleting old main media file: {e}")
+                    logger.error(
+                        section=LogSection.FILES,
+                        subsection=LogSubsection.FILES.ERROR,
+                        message=f"Ошибка удаления старого основного медиафайла {media_file_id}: {str(e)}"
+                    )
         elif existing_question.get("media_file_id"):
             # Если файл уже существует и replace_media=false - не заменяем
             raise HTTPException(status_code=400, detail="Основной медиафайл уже существует. Для замены укажите replace_media=true")
@@ -444,8 +500,16 @@ async def edit_question(
         if new_file.size and new_file.size > MAX_FILE_SIZE_MB * 1024 * 1024:
             raise HTTPException(status_code=400, detail=f"Превышен допустимый размер основного файла (макс. {MAX_FILE_SIZE_MB} МБ)")
         try:
-            # Сохраняем новый основной файл в GridFS
-            file_id = await save_media_to_gridfs(new_file, db)
+            # Создаем информацию о создателе для MediaManager
+            created_by = {
+                "full_name": current_user["full_name"],
+                "iin": current_user["iin"],
+                "role": current_user.get("role", "admin")
+            }
+            
+            # Сохраняем новый основной файл через MediaManager
+            media_result = await media_manager.save_media_file(new_file, db, created_by)
+            file_id = media_result["id"]
             update_fields["media_file_id"] = str(file_id)
             update_fields["media_filename"] = new_file.filename
         except Exception as e:
@@ -459,13 +523,21 @@ async def edit_question(
                 try:
                     after_answer_media_file_id = existing_question["after_answer_media_file_id"]
                     # Проверяем существует ли файл перед удалением
-                    file_exists = await db.fs.files.find_one({"_id": ObjectId(after_answer_media_file_id)})
+                    file_exists = await media_manager.get_media_file(after_answer_media_file_id, db)
                     if file_exists:
-                        await delete_media_file(after_answer_media_file_id, db)
+                        await media_manager.delete_media_file(after_answer_media_file_id, db)
                     else:
-                        logger.warning(f"File {after_answer_media_file_id} not found when trying to replace it")
+                        logger.warning(
+                            section=LogSection.FILES,
+                            subsection=LogSubsection.FILES.ERROR,
+                            message=f"Файл {after_answer_media_file_id} не найден при попытке замены"
+                        )
                 except Exception as e:
-                    logger.error(f"Error deleting old additional media file: {e}")
+                    logger.error(
+                        section=LogSection.FILES,
+                        subsection=LogSubsection.FILES.ERROR,
+                        message=f"Ошибка удаления старого дополнительного медиафайла {after_answer_media_file_id}: {str(e)}"
+                    )
         elif existing_question.get("after_answer_media_file_id"):
             # Если дополнительный файл уже существует и replace_after_answer_media=false - не заменяем
             raise HTTPException(status_code=400, detail="Дополнительный медиафайл уже существует. Для замены укажите replace_after_answer_media=true")
@@ -476,8 +548,16 @@ async def edit_question(
         if new_after_answer_file.size and new_after_answer_file.size > MAX_FILE_SIZE_MB * 1024 * 1024:
             raise HTTPException(status_code=400, detail=f"Превышен допустимый размер дополнительного файла (макс. {MAX_FILE_SIZE_MB} МБ)")
         try:
-            # Сохраняем новый дополнительный файл в GridFS
-            file_id = await save_media_to_gridfs(new_after_answer_file, db)
+            # Создаем информацию о создателе для MediaManager
+            created_by = {
+                "full_name": current_user["full_name"],
+                "iin": current_user["iin"],
+                "role": current_user.get("role", "admin")
+            }
+            
+            # Сохраняем новый дополнительный файл через MediaManager
+            after_answer_media_result = await media_manager.save_media_file(new_after_answer_file, db, created_by)
+            file_id = after_answer_media_result["id"]
             update_fields["after_answer_media_file_id"] = str(file_id)
             update_fields["after_answer_media_filename"] = new_after_answer_file.filename
         except Exception as e:
@@ -537,7 +617,7 @@ async def delete_question(
     Мягкое удаление вопроса:
       - Обновляет поля deleted, deleted_by и deleted_at.
       - Производит проверку корректности идентификатора.
-      - Удаляет связанные медиафайлы из GridFS.
+      - Удаляет связанные медиафайлы через MediaManager.
     """
     # Используем данные текущего пользователя для deleted_by
     deleted_by = current_user.get("full_name", "Неизвестный пользователь")
@@ -615,7 +695,7 @@ async def delete_question(
     
     if has_main_media:
         try:
-            await delete_media_file(existing_question["media_file_id"], db)
+            await media_manager.delete_media_file(existing_question["media_file_id"], db)
             deleted_main_media = True
             logger.info(
                 section=LogSection.FILES,
@@ -631,7 +711,7 @@ async def delete_question(
     
     if has_additional_media:
         try:
-            await delete_media_file(existing_question["after_answer_media_file_id"], db)
+            await media_manager.delete_media_file(existing_question["after_answer_media_file_id"], db)
             deleted_additional_media = True
             logger.info(
                 section=LogSection.FILES,
@@ -744,65 +824,10 @@ async def get_question_by_uid(
         message=f"Обработка базовых данных вопроса {uid} заняла {processing_time:.4f} секунд"
     )
 
-    # Stage 3: Loading main media file
-    if question.get("media_file_id"):
-        media_start_time = time.time()
-        try:
-            file_data = await get_media_file(question["media_file_id"], db)
-            if file_data:
-                question["media_file_base64"] = base64.b64encode(file_data).decode("utf-8")
-            else:
-                question["media_file_base64"] = None
-                logger.warning(
-                    section=LogSection.FILES,
-                    subsection=LogSubsection.FILES.ERROR,
-                    message=f"Основной медиафайл {question['media_file_id']} не найден или пуст для вопроса {uid}"
-                )
-        except Exception as e:
-            logger.error(
-                section=LogSection.FILES,
-                subsection=LogSubsection.FILES.ERROR,
-                message=f"Ошибка загрузки основного медиафайла для вопроса {uid}: {str(e)}"
-            )
-            question["media_file_base64"] = None
-        
-        media_time = time.time() - media_start_time
-        logger.info(
-            section=LogSection.API,
-            subsection=LogSubsection.API.PERFORMANCE,
-            message=f"Загрузка основного медиафайла для вопроса {uid} заняла {media_time:.4f} секунд"
-        )
+    # Stage 3: Media file IDs are already available, no need to load base64 data
+    # Frontend will use direct URLs to /api/tests/media/{media_id}
     
-    # Stage 4: Loading after-answer media file
-    if question.get("after_answer_media_file_id"):
-        after_media_start_time = time.time()
-        try:
-            file_data = await get_media_file(question["after_answer_media_file_id"], db)
-            if file_data:
-                question["after_answer_media_base64"] = base64.b64encode(file_data).decode("utf-8")
-            else:
-                question["after_answer_media_base64"] = None
-                logger.warning(
-                    section=LogSection.FILES,
-                    subsection=LogSubsection.FILES.ERROR,
-                    message=f"Дополнительный медиафайл {question['after_answer_media_file_id']} не найден или пуст для вопроса {uid}"
-                )
-        except Exception as e:
-            logger.error(
-                section=LogSection.FILES,
-                subsection=LogSubsection.FILES.ERROR,
-                message=f"Ошибка загрузки дополнительного медиафайла для вопроса {uid}: {str(e)}"
-            )
-            question["after_answer_media_base64"] = None
-        
-        after_media_time = time.time() - after_media_start_time
-        logger.info(
-            section=LogSection.API,
-            subsection=LogSubsection.API.PERFORMANCE,
-            message=f"Загрузка дополнительного медиафайла для вопроса {uid} заняла {after_media_time:.4f} секунд"
-        )
-
-    # Stage 5: Multilingual text processing
+    # Stage 3: Multilingual text processing
     ml_start_time = time.time()
     # Преобразование данных из БД к модели MultilingualText
     # Если данные старые (до обновления) и хранятся как строка
@@ -915,10 +940,8 @@ async def get_all_questions(
                         "en": option["text"]
                     }
 
-        # Очищаем тяжелые поля
-        q.pop("media_file_id", None)
+        # Очищаем тяжелые поля, но оставляем ID медиафайлов для фронтенда
         q.pop("media_filename", None)
-        q.pop("after_answer_media_file_id", None)
         q.pop("after_answer_media_filename", None)
         questions.append(q)
 
@@ -955,19 +978,18 @@ async def get_media_by_id(
     )
 
     try:
-        # Получаем информацию о файле
-        file_info = await db.fs.files.find_one({"_id": ObjectId(media_id)})
+        # Получаем информацию о файле через MediaManager
+        file_info = await media_manager.get_media_file(media_id, db)
         if not file_info:
             raise HTTPException(status_code=404, detail="Медиафайл не найден")
 
-        # Получаем сам файл
-        file_data = await get_media_file(media_id, db)
+        # Файл будет отдан напрямую через nginx, загружать не нужно
         
         # Определяем тип контента
-        content_type = file_info.get("contentType", "application/octet-stream")
+        content_type = file_info.get("content_type", "application/octet-stream")
         
         # Генерируем безопасное случайное имя файла для HTTP заголовка
-        filename = file_info.get('filename', 'media')
+        filename = file_info.get('original_filename', 'media')
         try:
             # Попытка закодировать имя файла в latin-1
             filename.encode('latin-1')
@@ -986,16 +1008,18 @@ async def get_media_by_id(
         logger.info(
             section=LogSection.FILES,
             subsection=LogSubsection.FILES.DOWNLOAD,
-            message=f"Успешно предоставлен медиафайл {media_id} ({content_type}, {file_info.get('length', 0)} байт) пользователю {current_user.get('iin', 'неизвестен')}"
+            message=f"Успешно предоставлен медиафайл {media_id} ({content_type}, {file_info.get('file_size', 0)} байт) пользователю {current_user.get('iin', 'неизвестен')}"
         )
         
-        # Создаем потоковый ответ
+        # Используем X-Accel-Redirect для прямой отдачи файла через nginx
         return StreamingResponse(
-            iter([file_data]),
+            iter([]),  # Пустой итератор, так как nginx сам отдаст файл
             media_type=content_type,
             headers={
+                "X-Accel-Redirect": f"/media/{file_info['relative_path']}",
+                "Content-Type": content_type,
                 "Content-Disposition": content_disposition,
-                "Content-Length": str(file_info.get("length", 0))
+                "Content-Length": str(file_info.get("file_size", 0))
             }
         )
     except Exception as e:

@@ -58,6 +58,7 @@ const MultiplayerTestPage = () => {
   const [correctAnswer, setCorrectAnswer] = useState(null);
   const [explanation, setExplanation] = useState(null);
   const [afterAnswerMedia, setAfterAnswerMedia] = useState(null);
+  const [afterAnswerMediaType, setAfterAnswerMediaType] = useState('image'); // 'image' или 'video'
   const [lobbyInfo, setLobbyInfo] = useState(null);
   const [timeLeft, setTimeLeft] = useState(40 * 60);
   const [mediaLoading, setMediaLoading] = useState(false);
@@ -435,7 +436,7 @@ const MultiplayerTestPage = () => {
         
         // Обработка основного медиа файла
         if (questionData.has_media && questionData.media_file_id) {
-          const mediaUrl = `/api/lobbies/files/media/${questionId}?t=${Date.now()}`;
+          const mediaUrl = `/api/files_multiplayer/files/media/${questionId}?t=${Date.now()}`;
           questionData.media_url = mediaUrl;
         } else {
           // Нет медиа - будем показывать заглушку
@@ -519,22 +520,42 @@ const MultiplayerTestPage = () => {
         const afterMediaFileId = questionData.after_answer_media_file_id || questionData.after_answer_media_id;
         
         if (afterMediaFileId) {
-          const mediaUrl = `/api/lobbies/files/after-answer-media/${questionId}?lobby_id=${lobbyId}&t=${Date.now()}`;
+          const mediaUrl = `/api/files_multiplayer/files/after-answer-media/${questionId}?lobby_id=${lobbyId}&t=${Date.now()}`;
           setAfterAnswerMedia(mediaUrl);
-          console.log('Setting after answer media from fetchAfterAnswerMedia:', mediaUrl);
+          
+          // Определяем тип медиа по расширению файла
+          const afterMediaFilename = questionData.after_answer_media_filename || '';
+          if (afterMediaFilename.toLowerCase().match(/\.(mp4|avi|mov|wmv|flv|webm|mkv)$/)) {
+            setAfterAnswerMediaType('video');
+          } else if (afterMediaFilename.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp|webp)$/)) {
+            setAfterAnswerMediaType('image');
+          } else {
+            // По умолчанию считаем видео
+            setAfterAnswerMediaType('video');
+          }
+          
+          console.log('Setting after answer media from fetchAfterAnswerMedia:', mediaUrl, 'type:', afterMediaFilename);
+          console.log('After answer media question data:', {
+            afterMediaFileId,
+            afterMediaFilename,
+            questionData: questionData
+          });
         } else {
           // Нет дополнительного медиа
           setAfterAnswerMedia(null);
+          setAfterAnswerMediaType('image');
           console.log('No after answer media file ID found');
         }
       } else {
         console.error('Failed to get question data for after answer media');
         setAfterAnswerMedia(null);
+        setAfterAnswerMediaType('image');
       }
       setMediaLoading(false);
     } catch (err) {
       console.error('Error fetching after-answer media:', err);
       setAfterAnswerMedia(null);
+      setAfterAnswerMediaType('image');
       setMediaLoading(false);
     }
   }, [lobbyId]);
@@ -591,6 +612,7 @@ const MultiplayerTestPage = () => {
       setCorrectAnswer(null);
       setExplanation(null);
       setAfterAnswerMedia(null);
+      setAfterAnswerMediaType('image');
       setVideoError(false);
       setVideoProgress(0);
       
@@ -711,11 +733,27 @@ const MultiplayerTestPage = () => {
       setExplanation(explanation);
       
       if (has_after_media && after_answer_media_file_id) {
-        const mediaUrl = `/api/lobbies/files/after-answer-media/${question_id}?lobby_id=${lobbyId}&t=${Date.now()}`;
+        const mediaUrl = `/api/files_multiplayer/files/after-answer-media/${question_id}?lobby_id=${lobbyId}&t=${Date.now()}`;
         setAfterAnswerMedia(mediaUrl);
-        console.log('Setting after answer media URL:', mediaUrl);
+        
+        // Определяем тип медиа по after_answer_media_type из данных или по умолчанию видео
+        if (data.after_answer_media_type === 'video' || data.after_answer_media_type === 'image') {
+          setAfterAnswerMediaType(data.after_answer_media_type);
+        } else {
+          // По умолчанию считаем видео
+          setAfterAnswerMediaType('video');
+        }
+        
+        console.log('Setting after answer media URL:', mediaUrl, 'type:', data.after_answer_media_type || 'video');
+        console.log('After answer media data:', {
+          has_after_media,
+          after_answer_media_file_id,
+          after_answer_media_type: data.after_answer_media_type,
+          question_id: question_id
+        });
       } else {
         setAfterAnswerMedia(null);
+        setAfterAnswerMediaType('image');
       }
       
       setAnswerSubmitted(true);
@@ -784,6 +822,7 @@ const MultiplayerTestPage = () => {
           setCorrectAnswer(null);
           setExplanation(null);
           setAfterAnswerMedia(null);
+          setAfterAnswerMediaType('image');
           setVideoError(false);
           setVideoProgress(0);
         }
@@ -838,6 +877,7 @@ const MultiplayerTestPage = () => {
         // setCorrectAnswer(null); 
         setExplanation(null);
         setAfterAnswerMedia(null);
+        setAfterAnswerMediaType('image');
         setVideoError(false);
         setVideoProgress(0);
         setCurrentQuestionIndex(question_index);
@@ -1503,15 +1543,21 @@ const MultiplayerTestPage = () => {
                       ) : (
                         <>
                           {answerSubmitted && !isExamMode && afterAnswerMedia ? (
-                            currentQuestion.after_answer_media_type === 'video' ? (
+                            afterAnswerMediaType === 'video' ? (
                               <video 
                                 ref={afterVideoRef}
                                 className="question-video"
                                 src={afterAnswerMedia}
                                 onError={e => {
+                                  console.error('After answer video error:', e);
+                                  console.error('Video src:', afterAnswerMedia);
+                                  console.error('Video type:', afterAnswerMediaType);
+                                  console.error('Error details:', e.target.error);
                                   setAfterAnswerMedia('/static/no_image.MP4');
                                 }}
-                                onLoadedData={() => {}}
+                                onLoadedData={() => {
+                                  console.log('After answer video loaded successfully:', afterAnswerMedia);
+                                }}
                                 preload="metadata"
                                 playsInline
                                 muted
@@ -1523,9 +1569,14 @@ const MultiplayerTestPage = () => {
                                 alt="Explanation"
                                 className="question-image"
                                 onError={e => {
+                                  console.error('After answer image error:', e);
+                                  console.error('Image src:', afterAnswerMedia);
+                                  console.error('Image type:', afterAnswerMediaType);
                                   setAfterAnswerMedia('/static/no_image.MP4');
                                 }}
-                                onLoad={() => {}}
+                                onLoad={() => {
+                                  console.log('After answer image loaded successfully:', afterAnswerMedia);
+                                }}
                               />
                             )
                           ) : (

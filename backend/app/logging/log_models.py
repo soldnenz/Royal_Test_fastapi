@@ -120,6 +120,7 @@ class LogSubsection:
         UPLOAD = "upload"
         DOWNLOAD = "download"
         DELETE = "delete"
+        UPDATE = "update"
         ACCESS_CHECK = "access_check"
         VALIDATION = "validation"
         ACCESS = "access"

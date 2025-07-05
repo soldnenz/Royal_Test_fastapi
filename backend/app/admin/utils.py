@@ -157,7 +157,9 @@ def sanitize_input(value: str) -> str:
     return value
 
 def get_ip(request):
-    return request.client.host
+    if request.client and request.client.host:
+        return request.client.host
+    return "unknown"
 
 def get_user_agent(request):
     return request.headers.get("user-agent", "")

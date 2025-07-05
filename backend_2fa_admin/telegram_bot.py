@@ -27,6 +27,15 @@ TWO_FA_TTL = 300
 
 def get_location_by_ip(ip: str) -> str:
     """Получение геолокации по IP"""
+    # Проверяем, что IP не является "unknown" или пустым
+    if not ip or ip.lower() in ["unknown", "none", "null", ""]:
+        logger.debug(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.AUDIT,
+            message=f"IP адрес не определен или равен '{ip}' - пропускаем геолокацию"
+        )
+        return "IP не определен"
+    
     try:
         logger.debug(
             section=LogSection.SECURITY,
@@ -69,10 +78,16 @@ async def send_2fa_request(admin_data: dict, new_ip: str, new_ua: str) -> dict:
         telegram_id = admin_data.get('telegram_id')
         admin_id = admin_data.get('admin_id')
         
+        # Формируем сообщение для лога в зависимости от наличия IP
+        if new_ip and new_ip.lower() not in ["unknown", "none", "null", ""]:
+            log_message = f"Администратор {admin_name} ({admin_email}) пытается войти в систему с IP {new_ip} - запускаем двухфакторную проверку через Telegram"
+        else:
+            log_message = f"Администратор {admin_name} ({admin_email}) пытается войти в систему с неопределенным IP - запускаем двухфакторную проверку через Telegram"
+        
         logger.info(
             section=LogSection.TWO_FA,
             subsection=LogSubsection.TWO_FA.REQUEST_SENT,
-            message=f"Администратор {admin_name} ({admin_email}) пытается войти в систему с IP {new_ip} - запускаем двухфакторную проверку через Telegram"
+            message=log_message
         )
         
         now = datetime.utcnow()
@@ -115,20 +130,32 @@ async def send_2fa_request(admin_data: dict, new_ip: str, new_ua: str) -> dict:
             ]
         ])
         
+        # Формируем текст сообщения в зависимости от наличия IP
+        if new_ip and new_ip.lower() not in ["unknown", "none", "null", ""]:
+            ip_text = f"📍 IP: {new_ip} ({location})"
+        else:
+            ip_text = f"📍 IP: не определен ({location})"
+        
         text = (
             f"🔐 Попытка входа в админ-панель\n"
             f"👤 {admin_name}\n"
-            f"📍 IP: {new_ip} ({location})\n"
+            f"{ip_text}\n"
             f"🖥 Устройство: {new_ua}\n"
             f"Разрешить вход? У вас есть 5 минут, чтобы ответить на запрос, в противном случае доступ будет запрещён."
         )
         
         message = await bot.send_message(chat_id=telegram_id, text=text, reply_markup=kb)
         
+        # Формируем сообщение для лога в зависимости от наличия IP
+        if new_ip and new_ip.lower() not in ["unknown", "none", "null", ""]:
+            log_message = f"Уведомление о входе отправлено администратору {admin_name} в Telegram (ID: {telegram_id}) - ожидаем решение о предоставлении доступа с IP {new_ip} ({location})"
+        else:
+            log_message = f"Уведомление о входе отправлено администратору {admin_name} в Telegram (ID: {telegram_id}) - ожидаем решение о предоставлении доступа с неопределенным IP ({location})"
+        
         logger.info(
             section=LogSection.TELEGRAM,
             subsection=LogSubsection.TELEGRAM.MESSAGE_SENT,
-            message=f"Уведомление о входе отправлено администратору {admin_name} в Telegram (ID: {telegram_id}) - ожидаем решение о предоставлении доступа с IP {new_ip} ({location})"
+            message=log_message
         )
         
         return {
@@ -143,10 +170,16 @@ async def send_2fa_request(admin_data: dict, new_ip: str, new_ua: str) -> dict:
         admin_email = admin_data.get('admin_email', 'email не указан')
         telegram_id = admin_data.get('telegram_id', 'Telegram ID не указан')
         
+        # Формируем сообщение об ошибке в зависимости от наличия IP
+        if new_ip and new_ip.lower() not in ["unknown", "none", "null", ""]:
+            error_message = f"КРИТИЧЕСКАЯ ОШИБКА! Не удалось отправить 2FA запрос администратору {admin_name} ({admin_email}) с IP {new_ip} в Telegram (ID: {telegram_id}). Ошибка: {str(e)}"
+        else:
+            error_message = f"КРИТИЧЕСКАЯ ОШИБКА! Не удалось отправить 2FA запрос администратору {admin_name} ({admin_email}) с неопределенным IP в Telegram (ID: {telegram_id}). Ошибка: {str(e)}"
+        
         logger.error(
             section=LogSection.TELEGRAM,
             subsection=LogSubsection.TELEGRAM.MESSAGE_FAILED,
-            message=f"КРИТИЧЕСКАЯ ОШИБКА! Не удалось отправить 2FA запрос администратору {admin_name} ({admin_email}) с IP {new_ip} в Telegram (ID: {telegram_id}). Ошибка: {str(e)}"
+            message=error_message
         )
         
         return {
@@ -195,10 +228,16 @@ async def process_2fa_callback(callback: CallbackQuery):
             request_ua = request["user_agent"]
             admin_id = request["admin_id"]
             
+            # Формируем сообщение для лога в зависимости от наличия IP
+            if request_ip and request_ip.lower() not in ["unknown", "none", "null", ""]:
+                log_message = f"Администратор {user_name} РАЗРЕШИЛ вход в систему с IP {request_ip} - предоставляем полный доступ к админ-панели"
+            else:
+                log_message = f"Администратор {user_name} РАЗРЕШИЛ вход в систему с неопределенным IP - предоставляем полный доступ к админ-панели"
+            
             logger.info(
                 section=LogSection.TWO_FA,
                 subsection=LogSubsection.TWO_FA.REQUEST_ALLOWED,
-                message=f"Администратор {user_name} РАЗРЕШИЛ вход в систему с IP {request_ip} - предоставляем полный доступ к админ-панели"
+                message=log_message
             )
             
             # Обновляем is_verified и active_session в основной базе
@@ -228,10 +267,16 @@ async def process_2fa_callback(callback: CallbackQuery):
                 reply_markup=None
             )
             
+            # Формируем сообщение для лога безопасности в зависимости от наличия IP
+            if request_ip and request_ip.lower() not in ["unknown", "none", "null", ""]:
+                security_message = f"Безопасность: Администратор {user_name} успешно прошел 2FA проверку и получил доступ к системе с IP {request_ip} в {datetime.utcnow().strftime('%H:%M:%S')}"
+            else:
+                security_message = f"Безопасность: Администратор {user_name} успешно прошел 2FA проверку и получил доступ к системе с неопределенным IP в {datetime.utcnow().strftime('%H:%M:%S')}"
+            
             logger.info(
                 section=LogSection.SECURITY,
                 subsection=LogSubsection.SECURITY.AUDIT,
-                message=f"Безопасность: Администратор {user_name} успешно прошел 2FA проверку и получил доступ к системе с IP {request_ip} в {datetime.utcnow().strftime('%H:%M:%S')}"
+                message=security_message
             )
 
         else:  # deny
@@ -239,10 +284,16 @@ async def process_2fa_callback(callback: CallbackQuery):
             request_ua = request["user_agent"]
             deny_time = datetime.utcnow().strftime('%H:%M:%S')
             
+            # Формируем сообщение для лога в зависимости от наличия IP
+            if request_ip and request_ip.lower() not in ["unknown", "none", "null", ""]:
+                log_message = f"Администратор {user_name} ОТКЛОНИЛ попытку входа с IP {request_ip} - блокируем доступ к системе"
+            else:
+                log_message = f"Администратор {user_name} ОТКЛОНИЛ попытку входа с неопределенным IP - блокируем доступ к системе"
+            
             logger.warning(
                 section=LogSection.TWO_FA,
                 subsection=LogSubsection.TWO_FA.REQUEST_DENIED,
-                message=f"Администратор {user_name} ОТКЛОНИЛ попытку входа с IP {request_ip} - блокируем доступ к системе"
+                message=log_message
             )
             
             # Обновляем статус запроса
@@ -257,10 +308,16 @@ async def process_2fa_callback(callback: CallbackQuery):
                 reply_markup=None
             )
             
+            # Формируем сообщение для лога безопасности в зависимости от наличия IP
+            if request_ip and request_ip.lower() not in ["unknown", "none", "null", ""]:
+                security_message = f"Безопасность: Попытка входа с IP {request_ip} ЗАБЛОКИРОВАНА! Администратор {user_name} сам отклонил доступ в {deny_time} - подозрительная активность или несанкционированная попытка входа"
+            else:
+                security_message = f"Безопасность: Попытка входа с неопределенным IP ЗАБЛОКИРОВАНА! Администратор {user_name} сам отклонил доступ в {deny_time} - подозрительная активность или несанкционированная попытка входа"
+            
             logger.warning(
                 section=LogSection.SECURITY,
                 subsection=LogSubsection.SECURITY.AUDIT,
-                message=f"Безопасность: Попытка входа с IP {request_ip} ЗАБЛОКИРОВАНА! Администратор {user_name} сам отклонил доступ в {deny_time} - подозрительная активность или несанкционированная попытка входа"
+                message=security_message
             )
     
     except Exception as e:

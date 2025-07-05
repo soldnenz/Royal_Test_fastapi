@@ -27,6 +27,17 @@ class Settings(BaseSettings):
     allowed_media_types: List[str]
     PDD_SECTIONS: Json[List[Dict[str, Any]]]
     DEFAULT_REFERRAL_RATE: int
+    
+    # Настройки медиафайлов
+    MEDIA_BASE_PATH: str = "../video_test"  # Корневая папка проекта
+    MEDIA_X_ACCEL_PREFIX: str = "/media"
+    MEDIA_MAX_FILE_SIZE_MB: int = 50
+    MEDIA_ALLOWED_TYPES: List[str] = [
+        "video/mp4", "video/avi", "video/mov", "video/wmv", "video/flv",
+        "image/jpeg", "image/png", "image/gif", "image/webp",
+        "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp3",
+        "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ]
     class Config:
         # Сообщаем Pydantic брать переменные окружения
         env_file = ".env"

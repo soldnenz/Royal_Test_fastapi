@@ -8,8 +8,10 @@ from app.core.security import get_current_actor
 from app.core.response import success
 from app.logging import get_logger, LogSection, LogSubsection
 from app.core.config import settings
+import random
+import string
 
-router = APIRouter(tags=["Solo Files"])
+router = APIRouter(tags=["Multiplayer Files"])
 logger = get_logger(__name__)
 
 # Список разрешенных типов медиа
@@ -20,9 +22,6 @@ def generate_safe_filename(original_filename: str, file_extension: str = None) -
     Генерирует безопасное имя файла для HTTP заголовков.
     Заменяет кириллические символы на латинские.
     """
-    import random
-    import string
-    
     if not original_filename:
         original_filename = "media_file"
     
@@ -45,15 +44,14 @@ def get_user_id(current_user):
     """
     return str(current_user["id"])
 
-@router.get("/secure/media/{question_id}", summary="Получить медиа-файл вопроса (соло режим)")
-async def get_question_media_secure(
+@router.get("/files/media/{question_id}", summary="Получить медиа-файл вопроса (мультиплеер)")
+async def get_question_media(
     question_id: str,
-    lobby_id: str = Query(None, description="ID лобби для проверки доступа"),
     current_user: dict = Depends(get_current_actor),
     db = Depends(get_database)
 ):
     """
-    Получает медиа-файл для конкретного вопроса в соло режиме.
+    Получает медиа-файл для конкретного вопроса в мультиплеере.
     
     Безопасность:
     - Проверяет, что пользователь имеет доступ к данному вопросу через активное лобби
@@ -63,7 +61,7 @@ async def get_question_media_secure(
     logger.info(
         section=LogSection.FILES,
         subsection=LogSubsection.FILES.ACCESS,
-        message=f"Запрос медиа-файла: пользователь {user_id} запрашивает медиа для вопроса {question_id} в лобби {lobby_id or 'любом'}"
+        message=f"Запрос медиа файла: пользователь {user_id} запрашивает медиа для вопроса {question_id}"
     )
     
     try:
@@ -110,51 +108,45 @@ async def get_question_media_secure(
                 detail="Медиа-файл для данного вопроса отсутствует"
             )
         
-        # Проверяем доступ через конкретное лобби или через активные лобби пользователя
+        # Проверяем, что вопрос принадлежит хотя бы одному активному лобби пользователя
         active_lobby = None
-        active_lobbies = []
+        active_lobbies = await db.lobbies.find({
+            "participants": user_id,
+            "question_ids": question_id,
+            "status": "in_progress"
+        }).to_list(None)
         
-        if lobby_id:
-            # Если указан конкретный lobby_id, проверяем только его
-            specific_lobby = await db.lobbies.find_one({
-                "_id": lobby_id,
-                "participants": user_id,
-                "question_ids": question_id
-            })
-            if specific_lobby:
-                active_lobbies = [specific_lobby]
-                logger.info(
-                    section=LogSection.FILES,
-                    subsection=LogSubsection.FILES.ACCESS,
-                    message=f"Найдено конкретное лобби: пользователь {user_id} имеет доступ к лобби {lobby_id} с вопросом {question_id}"
-                )
-            else:
-                logger.warning(
-                    section=LogSection.FILES,
-                    subsection=LogSubsection.FILES.SECURITY,
-                    message=f"Доступ к лобби запрещён: лобби {lobby_id} не найдено или пользователь {user_id} не является участником"
-                )
-        else:
-            # Ищем среди всех активных лобби пользователя
-            active_lobbies = await db.lobbies.find({
-                "participants": user_id,
-                "question_ids": question_id,
-                "status": "in_progress"
-            }).to_list(None)
-
+        logger.info(
+            section=LogSection.FILES,
+            subsection=LogSubsection.FILES.ACCESS,
+            message=f"Поиск медиа доступа: найдено {len(active_lobbies)} активных лобби для пользователя {user_id} с вопросом {question_id}"
+        )
         
         if not active_lobbies:
             # Дополнительная проверка - может быть лобби в другом статусе
-            search_filter = {"participants": user_id, "question_ids": question_id}
-            if lobby_id:
-                search_filter["_id"] = lobby_id
-                
-            all_user_lobbies = await db.lobbies.find(search_filter).to_list(None)
+            all_user_lobbies = await db.lobbies.find({
+                "participants": user_id,
+                "question_ids": question_id
+            }).to_list(None)
+            
+            logger.warning(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.ACCESS,
+                message=f"Нет активных лобби: пользователь {user_id} запрашивает медиа для вопроса {question_id}, активных лобби 0, всего лобби с вопросом {len(all_user_lobbies)}"
+            )
+            
+            if all_user_lobbies:
+                for lobby in all_user_lobbies:
+                    logger.info(
+                        section=LogSection.FILES,
+                        subsection=LogSubsection.FILES.ACCESS,
+                        message=f"Анализ лобби доступа: лобби {lobby['_id']}, статус {lobby.get('status')}, участников {len(lobby.get('participants', []))}"
+                    )
             
             logger.warning(
                 section=LogSection.FILES,
                 subsection=LogSubsection.FILES.SECURITY,
-                message=f"Отсутствие доступа к файлу: пользователь {user_id} не имеет активных лобби с вопросом {question_id}, всего найдено лобби с этим вопросом: {len(all_user_lobbies)}"
+                message=f"Нет доступа к медиа: пользователь {user_id} запрашивает медиа для вопроса {question_id}, но нет активных лобби с этим вопросом"
             )
             
             raise HTTPException(
@@ -167,37 +159,48 @@ async def get_question_media_secure(
         for lobby in active_lobbies:
             current_index = lobby.get("current_index", 0)
             current_question_id = lobby["question_ids"][current_index] if current_index < len(lobby["question_ids"]) else None
-            user_answers = lobby.get("participants_raw_answers", {}).get(user_id, {})
+            user_answers = lobby.get("participants_answers", {}).get(user_id, {})
             
             # Доступ разрешен, если пользователь хост, или если вопрос текущий или уже отвеченный
             is_host = user_id == lobby.get("host_id")
             is_current = question_id == current_question_id
             is_answered = question_id in user_answers
             
-
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.SECURITY,
+                message=f"Проверка доступа к медиа: лобби {lobby['_id']}, хост {is_host}, текущий {is_current} (current_q={current_question_id}), отвечен {is_answered}"
+            )
             
             if is_host or is_current or is_answered:
                 has_access = True
                 active_lobby = lobby
-
+                logger.info(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.ACCESS,
+                    message=f"Доступ к медиа разрешён: лобби {lobby['_id']}, пользователь {user_id}"
+                )
                 break
                 
         if not has_access:
             logger.warning(
                 section=LogSection.FILES,
                 subsection=LogSubsection.FILES.SECURITY,
-                message=f"Доступ к медиа запрещён: пользователь {user_id} не имеет прав доступа к файлу вопроса {question_id}"
+                message=f"Доступ к медиа запрещён: пользователь {user_id} не имеет доступа к вопросу {question_id}"
             )
             
-            # ВРЕМЕННОЕ РЕШЕНИЕ: Разрешаем доступ к медиа если файл существует и пользователь участник лобби с этим вопросом
-            search_filter = {"participants": user_id, "question_ids": question_id}
-            if lobby_id:
-                search_filter["_id"] = lobby_id
-                
-            any_lobby_with_question = await db.lobbies.find_one(search_filter)
+            # ВРЕМЕННОЕ РЕШЕНИЕ: Разрешаем доступ к медиа если файл существует и пользователь участник любого лобби с этим вопросом
+            any_lobby_with_question = await db.lobbies.find_one({
+                "participants": user_id,
+                "question_ids": question_id
+            })
             
             if any_lobby_with_question:
-
+                logger.info(
+                    section=LogSection.FILES,
+                    subsection=LogSubsection.FILES.ACCESS,
+                    message=f"Временный доступ к медиа: разрешён доступ пользователю {user_id} в лобби {any_lobby_with_question['_id']}"
+                )
                 active_lobby = any_lobby_with_question
                 has_access = True
             else:
@@ -262,7 +265,6 @@ async def get_question_media_secure(
             
             # Добавляем эту информацию в вопрос, если has_media не установлен
             if not question.get("has_media"):
-
                 question_update_id = question_id
                 try:
                     question_update_id = ObjectId(question_id)
@@ -279,7 +281,6 @@ async def get_question_media_secure(
                 
                 # Также обновляем кэшированную информацию в лобби
                 if active_lobby and active_lobby.get("questions_data") and active_lobby["questions_data"].get(question_id):
-
                     await db.lobbies.update_one(
                         {"_id": active_lobby["_id"]},
                         {"$set": {
@@ -296,7 +297,6 @@ async def get_question_media_secure(
             except UnicodeEncodeError:
                 # Только если есть кириллица - генерируем случайное имя
                 safe_filename = generate_safe_filename(filename)
-
             
             content_disposition = f"inline; filename={safe_filename}"
             
@@ -343,15 +343,15 @@ async def get_question_media_secure(
             detail="Внутренняя ошибка сервера"
         )
 
-@router.get("/secure/after-answer-media/{question_id}", summary="Получить дополнительный медиа-файл после ответа (соло режим)")
-async def get_after_answer_media_secure(
+@router.get("/files/after-answer-media/{question_id}", summary="Получить дополнительный медиа-файл после ответа (мультиплеер)")
+async def get_after_answer_media(
     question_id: str,
     lobby_id: str = Query(None, description="ID лобби, в котором пользователь ответил на вопрос"),
     current_user: dict = Depends(get_current_actor),
     db = Depends(get_database)
 ):
     """
-    Получает дополнительный медиа-файл для показа после ответа на вопрос в соло режиме.
+    Получает дополнительный медиа-файл для показа после ответа на вопрос в мультиплеере.
     
     Безопасность:
     - Проверяет, что пользователь ответил на этот вопрос
@@ -359,7 +359,11 @@ async def get_after_answer_media_secure(
     - Не позволяет получить медиа, если пользователь не ответил на вопрос
     """
     user_id = get_user_id(current_user)
-
+    logger.info(
+        section=LogSection.FILES,
+        subsection=LogSubsection.FILES.ACCESS,
+        message=f"Запрос медиа после ответа: пользователь {user_id}, вопрос {question_id}, лобби {lobby_id or 'любое'}"
+    )
     
     try:
         # Находим вопрос в базе данных - пробуем сначала как строку, потом как ObjectId
@@ -429,13 +433,13 @@ async def get_after_answer_media_secure(
                 )
                 
             # Проверяем, ответил ли пользователь на этот вопрос
-            participant_raw_answers = lobby.get("participants_raw_answers", {}).get(user_id, {})
-            has_answered = question_id in participant_raw_answers
+            participant_answers = lobby.get("participants_raw_answers", {}).get(user_id, {})
+            has_answered = question_id in participant_answers
             
             logger.info(
                 section=LogSection.FILES,
                 subsection=LogSubsection.FILES.SECURITY,
-                message=f"Проверка права доступа к файлу после ответа: лобби {lobby_id}, пользователь {user_id}, количество ответов: {len(participant_raw_answers)}, ответ на вопрос {question_id} дан: {has_answered}"
+                message=f"Проверка права доступа к файлу после ответа: лобби {lobby_id}, пользователь {user_id}, количество ответов: {len(participant_answers)}, ответ на вопрос {question_id} дан: {has_answered}"
             )
             
         else:
@@ -446,8 +450,8 @@ async def get_after_answer_media_secure(
             }).to_list(None)
             
             for lobby in active_lobbies:
-                participant_raw_answers = lobby.get("participants_raw_answers", {}).get(user_id, {})
-                if question_id in participant_raw_answers:
+                participant_answers = lobby.get("participants_raw_answers", {}).get(user_id, {})
+                if question_id in participant_answers:
                     has_answered = True
                     break
         

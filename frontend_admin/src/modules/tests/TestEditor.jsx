@@ -36,10 +36,6 @@ const TestEditor = ({ onCreated, onClose, uid }) => {
   const [mediaType, setMediaType] = useState(null);
   const [afterAnswerMediaUrl, setAfterAnswerMediaUrl] = useState(null);
   const [afterAnswerMediaType, setAfterAnswerMediaType] = useState(null);
-  const [mediaLoading, setMediaLoading] = useState(false);
-  const [afterAnswerMediaLoading, setAfterAnswerMediaLoading] = useState(false);
-  const [mediaLoadingProgress, setMediaLoadingProgress] = useState(0);
-  const [afterAnswerMediaLoadingProgress, setAfterAnswerMediaLoadingProgress] = useState(0);
   const [removeMainMedia, setRemoveMainMedia] = useState(false);
   const [removeAfterAnswerMedia, setRemoveAfterAnswerMedia] = useState(false);
   const [replaceMainMedia, setReplaceMainMedia] = useState(false);
@@ -185,19 +181,10 @@ const TestEditor = ({ onCreated, onClose, uid }) => {
   // Load test data from API
   const loadTestData = async (testUid) => {
     setIsDataLoading(true);
-    setMediaLoading(true);
-    setAfterAnswerMediaLoading(true);
     setError(null);
     
     try {
       const response = await axios.get(`${API_BASE_URL}/api/tests/by_uid/${testUid}`, {
-        onDownloadProgress: (progressEvent) => {
-          if (progressEvent.lengthComputable) {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            setMediaLoadingProgress(percentCompleted);
-            setAfterAnswerMediaLoadingProgress(percentCompleted);
-          }
-        },
         withCredentials: true
       });
       
@@ -231,16 +218,14 @@ const TestEditor = ({ onCreated, onClose, uid }) => {
       setSelectedSections(testData.pdd_section_uids || []);
       
       // Handle media files
-      if (testData.has_media && testData.media_file_base64) {
+      if (testData.has_media && testData.media_file_id) {
         // Определяем правильный тип контента на основе расширения файла
         let contentType = 'image/jpeg'; // по умолчанию
-        let isVideo = false;
         
         if (testData.media_filename) {
           const filename = testData.media_filename.toLowerCase();
           if (filename.endsWith('.mp4') || filename.endsWith('.webm') || filename.endsWith('.mov')) {
             contentType = 'video/mp4';
-            isVideo = true;
           } else if (filename.endsWith('.png')) {
             contentType = 'image/png';
           } else if (filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
@@ -252,16 +237,17 @@ const TestEditor = ({ onCreated, onClose, uid }) => {
           }
         }
         
-        const dataUrl = `data:${contentType};base64,${testData.media_file_base64}`;
-        setMediaUrl(dataUrl);
+        // Используем прямой URL к медиа файлу
+        const mediaUrl = `${API_BASE_URL}/api/tests/media/${testData.media_file_id}`;
+        setMediaUrl(mediaUrl);
         setMediaType(contentType);
       }
       
-      if (testData.has_after_answer_media && testData.after_answer_media_base64) {
+      if (testData.has_after_answer_media && testData.after_answer_media_file_id) {
         const isVideo = testData.after_answer_media_filename?.toLowerCase().endsWith('.mp4');
         const contentType = isVideo ? 'video/mp4' : 'image/jpeg';
-        const dataUrl = `data:${contentType};base64,${testData.after_answer_media_base64}`;
-        setAfterAnswerMediaUrl(dataUrl);
+        const afterAnswerMediaUrl = `${API_BASE_URL}/api/tests/media/${testData.after_answer_media_file_id}`;
+        setAfterAnswerMediaUrl(afterAnswerMediaUrl);
         setAfterAnswerMediaType(contentType);
       }
       
@@ -273,8 +259,6 @@ const TestEditor = ({ onCreated, onClose, uid }) => {
       showToast('Ошибка при загрузке данных теста', TOAST_TYPES.ERROR);
     } finally {
       setIsDataLoading(false);
-      setMediaLoading(false);
-      setAfterAnswerMediaLoading(false);
     }
   };
   
@@ -1007,49 +991,35 @@ const TestEditor = ({ onCreated, onClose, uid }) => {
   // Update media section for edit mode
   const renderMediaSection = () => {
     if (editMode && mediaUrl && !media && !removeMainMedia) {
-      // Show existing media with loading state or preview
+      // Show existing media preview
       return (
         <div className="media-preview">
-          {mediaLoading ? (
-            <div className="media-loading">
-              <LoadingSpinner />
-              <ProgressBar
-                progress={mediaLoadingProgress}
-                label={`Загрузка... ${Math.round(mediaLoadingProgress)}%`}
-                color="var(--accent)"
-              />
-              <div>Загрузка основного медиа...</div>
-            </div>
-          ) : (
-            <>
-              <div className="media-container">
-                {mediaType?.startsWith('video') ? (
-                  <video controls className="detail-media">
-                    <source src={mediaUrl} type={mediaType} />
-                    Ваш браузер не поддерживает видео.
-                  </video>
-                ) : (
-                  <img src={mediaUrl} alt="Превью медиа" className="detail-media" />
-                )}
-              </div>
-              <div className="media-info">
-                <span className="media-name">{originalData?.media_filename || 'Медиафайл'}</span>
-              </div>
-              <div className="media-actions">
-                <button
-                  type="button"
-                  className="form-button"
-                  style={{ backgroundColor: 'var(--danger)', padding: '0.5rem 1rem' }}
-                  onClick={() => {
-                    setRemoveMainMedia(true);
-                    setMediaUrl(null);
-                  }}
-                >
-                  Удалить медиа
-                </button>
-              </div>
-            </>
-          )}
+          <div className="media-container">
+            {mediaType?.startsWith('video') ? (
+              <video controls className="detail-media">
+                <source src={mediaUrl} type={mediaType} />
+                Ваш браузер не поддерживает видео.
+              </video>
+            ) : (
+              <img src={mediaUrl} alt="Превью медиа" className="detail-media" />
+            )}
+          </div>
+          <div className="media-info">
+            <span className="media-name">{originalData?.media_filename || 'Медиафайл'}</span>
+          </div>
+          <div className="media-actions">
+            <button
+              type="button"
+              className="form-button"
+              style={{ backgroundColor: 'var(--danger)', padding: '0.5rem 1rem' }}
+              onClick={() => {
+                setRemoveMainMedia(true);
+                setMediaUrl(null);
+              }}
+            >
+              Удалить медиа
+            </button>
+          </div>
         </div>
       );
     } else if (!media) {
@@ -1126,49 +1096,35 @@ const TestEditor = ({ onCreated, onClose, uid }) => {
   // Update after-answer media section for edit mode
   const renderAfterAnswerMediaSection = () => {
     if (editMode && afterAnswerMediaUrl && !afterAnswerMedia && !removeAfterAnswerMedia) {
-      // Show existing media with loading state or preview
+      // Show existing media preview
       return (
         <div className="media-preview">
-          {afterAnswerMediaLoading ? (
-            <div className="media-loading">
-              <LoadingSpinner />
-              <ProgressBar
-                progress={afterAnswerMediaLoadingProgress}
-                label={`Загрузка... ${Math.round(afterAnswerMediaLoadingProgress)}%`}
-                color="var(--accent)"
-              />
-              <div>Загрузка дополнительного медиа...</div>
-            </div>
-          ) : (
-            <>
-              <div className="media-container">
-                {afterAnswerMediaType?.startsWith('video') ? (
-                  <video controls className="detail-media">
-                    <source src={afterAnswerMediaUrl} type={afterAnswerMediaType} />
-                    Ваш браузер не поддерживает видео.
-                  </video>
-                ) : (
-                  <img src={afterAnswerMediaUrl} alt="Превью дополнительного медиа" className="detail-media" />
-                )}
-              </div>
-              <div className="media-info">
-                <span className="media-name">{originalData?.after_answer_media_filename || 'Дополнительный медиафайл'}</span>
-              </div>
-              <div className="media-actions">
-                <button
-                  type="button"
-                  className="form-button"
-                  style={{ backgroundColor: 'var(--danger)', padding: '0.5rem 1rem' }}
-                  onClick={() => {
-                    setRemoveAfterAnswerMedia(true);
-                    setAfterAnswerMediaUrl(null);
-                  }}
-                >
-                  Удалить медиа
-                </button>
-              </div>
-            </>
-          )}
+          <div className="media-container">
+            {afterAnswerMediaType?.startsWith('video') ? (
+              <video controls className="detail-media">
+                <source src={afterAnswerMediaUrl} type={afterAnswerMediaType} />
+                Ваш браузер не поддерживает видео.
+              </video>
+            ) : (
+              <img src={afterAnswerMediaUrl} alt="Превью дополнительного медиа" className="detail-media" />
+            )}
+          </div>
+          <div className="media-info">
+            <span className="media-name">{originalData?.after_answer_media_filename || 'Дополнительный медиафайл'}</span>
+          </div>
+          <div className="media-actions">
+            <button
+              type="button"
+              className="form-button"
+              style={{ backgroundColor: 'var(--danger)', padding: '0.5rem 1rem' }}
+              onClick={() => {
+                setRemoveAfterAnswerMedia(true);
+                setAfterAnswerMediaUrl(null);
+              }}
+            >
+              Удалить медиа
+            </button>
+          </div>
         </div>
       );
     } else if (!afterAnswerMedia) {
