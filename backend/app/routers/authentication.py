@@ -16,10 +16,10 @@ from app.core.security import (
 from app.core.config import settings
 from fastapi.security import HTTPBearer
 from app.schemas.admin_schemas import AdminToken
-from app.admin.telegram_2fa import send_2fa_request
 from app.admin.utils import create_token, get_ip, get_user_agent
 from app.admin.utils import decode_token
 from app.admin.permissions import get_current_admin_user
+from app.utils.twofa_client import twofa_client
 import string
 import secrets
 import re
@@ -192,17 +192,44 @@ async def unified_login(data: AuthRequest, request: Request):
             )
 
         # 2FA если другой IP или UA
-        if admin.get("active_session") and (
-                admin["active_session"].get("ip") != ip or
+        requires_2fa = False
+        old_ip = "неизвестен"
+        
+        # Проверяем активную сессию
+        if admin.get("active_session"):
+            if (admin["active_session"].get("ip") != ip or
                 admin["active_session"].get("user_agent") != ua):
-            old_ip = admin["active_session"].get("ip", "неизвестен")
+                requires_2fa = True
+                old_ip = admin["active_session"].get("ip", "неизвестен")
+        # Если нет активной сессии, проверяем last_login
+        elif admin.get("last_login"):
+            if (admin["last_login"].get("ip") != ip or
+                admin["last_login"].get("user_agent") != ua):
+                requires_2fa = True
+                old_ip = admin["last_login"].get("ip", "неизвестен")
+        
+        if requires_2fa:
             logger.info(
                 section=LogSection.AUTH,
                 subsection=LogSubsection.AUTH.TWO_FACTOR_REQUIRED,
                 message=f"Требуется 2FA для администратора {admin.get('full_name', 'неизвестен')} ({admin.get('email') or admin.get('iin')}) - смена IP с {old_ip} на {ip}"
             )
             await db.admins.update_one({"_id": admin["_id"]}, {"$set": {"is_verified": False}})
-            await send_2fa_request(admin, ip, ua)
+            
+            # Отправляем 2FA запрос через микросервис
+            result = await twofa_client.send_2fa_request(admin, ip, ua)
+            
+            if not result.get("success"):
+                logger.error(
+                    section=LogSection.AUTH,
+                    subsection=LogSubsection.AUTH.TWO_FACTOR_REQUIRED,
+                    message=f"Ошибка отправки 2FA запроса для администратора {admin.get('full_name', 'неизвестен')}: {result.get('message', 'Неизвестная ошибка')}"
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail={"message": "Ошибка сервиса 2FA. Попробуйте позже."}
+                )
+            
             raise HTTPException(
                 status_code=403,
                 detail={"message": "Подтвердите вход в приложение 2FA"}

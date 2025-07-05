@@ -23,7 +23,7 @@ from app.logging import setup_application_logging, get_logger, LogSection, LogSu
 from app.core.security import security_background_tasks
 from app.core.response import error
 from app.routers import authentication, user, reset_password, admin_router, test_router, subscription_router, referrals_router, transaction_router, admin_router
-from app.admin.telegram_2fa import bot, router as telegram_routers
+# Telegram 2FA теперь обрабатывается отдельным микросервисом
 from app.routers import lobby_router
 from app.routers.lobby_router import start_background_tasks
 from app.routers import global_lobby_router
@@ -165,11 +165,10 @@ async def validation_exception_handler(request, exc: RequestValidationError):
         message=formatted_error_details
     )
 
-# Запуск Telegram-бота через polling
+# Telegram бот теперь запускается в отдельном микросервисе
 async def start_bot():
-    dp = Dispatcher()
-    dp.include_router(telegram_routers)
-    await dp.start_polling(bot)
+    # Функция оставлена для совместимости, но не используется
+    pass
 
 async def check_stalled_lobbies():
     """Автоматически завершает зависшие тесты"""

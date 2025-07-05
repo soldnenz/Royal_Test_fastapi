@@ -3,15 +3,22 @@ import json
 import os
 from datetime import datetime
 import pytz
-from faststream import FastStream
-from faststream.rabbit import RabbitBroker
 import aio_pika
 from typing import Dict, Any
 
 # Настройки RabbitMQ
 RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
 EXCHANGE_NAME = os.getenv("RABBITMQ_EXCHANGE", "logs")
-ROUTING_KEY = os.getenv("RABBITMQ_ROUTING_KEY", "application.logs")
+
+# Поддерживаемые routing keys для разных сервисов
+ROUTING_KEYS = [
+    "application.logs",      # Основное приложение
+    "2fa.logs",             # Микросервис 2FA
+    "auth.logs",             # Логи аутентификации
+    "security.logs",         # Логи безопасности
+    "system.logs"            # Системные логи
+]
+
 QUEUE_NAME = os.getenv("RABBITMQ_QUEUE", "log_processing_queue")
 
 # Timezone для форматирования времени
@@ -19,56 +26,51 @@ KZ_TIMEZONE = pytz.timezone('Asia/Almaty')
 
 class LogProcessor:
     def __init__(self):
-        self.broker: RabbitBroker = None
-        self.app: FastStream = None
-        self._initialized = False
+        self.connection = None
+        self.channel = None
+        self.queue = None
+        self._running = False
     
     async def initialize(self):
         """Инициализация подключения к RabbitMQ"""
-        if not self._initialized:
-            try:
-                print(f"[CONSUMER] Подключение к RabbitMQ: {RABBITMQ_URL}")
-                
-                # Создаем брокер
-                self.broker = RabbitBroker(RABBITMQ_URL)
-                
-                # Создаем FastStream приложение
-                self.app = FastStream(broker=self.broker)
-                
-                # Подключаемся к RabbitMQ
-                await self.broker.connect()
-                print("[CONSUMER] Подключение установлено")
-                
-                # Объявляем exchange и очередь
-                channel = await self.broker.channel()
-                
-                # Объявляем exchange
-                exchange = await channel.declare_exchange(
-                    EXCHANGE_NAME,
-                    aio_pika.ExchangeType.TOPIC,
-                    durable=True
-                )
-                print(f"[CONSUMER] Exchange '{EXCHANGE_NAME}' объявлен")
-                
-                # Объявляем очередь с нужными параметрами
-                queue = await channel.declare_queue(
-                    QUEUE_NAME,
-                    durable=True,
-                    auto_delete=False
-                )
-                
-                # Привязываем очередь к exchange
-                await queue.bind(
+        try:
+            print(f"[CONSUMER] Подключение к RabbitMQ: {RABBITMQ_URL}")
+            
+            # Создаем соединение
+            self.connection = await aio_pika.connect_robust(RABBITMQ_URL)
+            self.channel = await self.connection.channel()
+            
+            print("[CONSUMER] Подключение установлено")
+            
+            # Объявляем exchange
+            exchange = await self.channel.declare_exchange(
+                EXCHANGE_NAME,
+                aio_pika.ExchangeType.TOPIC,
+                durable=True
+            )
+            print(f"[CONSUMER] Exchange '{EXCHANGE_NAME}' объявлен")
+            
+            # Объявляем очередь с нужными параметрами
+            self.queue = await self.channel.declare_queue(
+                QUEUE_NAME,
+                durable=True,
+                auto_delete=False
+            )
+            
+            # Привязываем очередь к exchange для всех routing keys
+            for routing_key in ROUTING_KEYS:
+                await self.queue.bind(
                     exchange=exchange,
-                    routing_key=ROUTING_KEY
+                    routing_key=routing_key
                 )
-                print(f"[CONSUMER] Очередь привязана к exchange с routing_key: {ROUTING_KEY}")
-                
-                self._initialized = True
-                
-            except Exception as e:
-                print(f"[CONSUMER] Ошибка инициализации: {e}")
-                raise
+                print(f"[CONSUMER] Очередь привязана к exchange с routing_key: {routing_key}")
+            
+            print(f"[CONSUMER] Начинаем прослушивание очереди {QUEUE_NAME}")
+            print(f"[CONSUMER] Поддерживаемые routing keys: {', '.join(ROUTING_KEYS)}")
+            
+        except Exception as e:
+            print(f"[CONSUMER] Ошибка инициализации: {e}")
+            raise
     
     def format_log_message(self, log_data: Dict[str, Any]) -> str:
         """Форматирует лог для вывода"""
@@ -76,9 +78,12 @@ class LogProcessor:
             # Парсим timestamp если он есть
             timestamp = log_data.get("timestamp", "")
             if timestamp:
-                dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-                dt_kz = dt.astimezone(KZ_TIMEZONE)
-                formatted_time = dt_kz.strftime("%Y-%m-%d %H:%M:%S %z")
+                try:
+                    dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                    dt_kz = dt.astimezone(KZ_TIMEZONE)
+                    formatted_time = dt_kz.strftime("%Y-%m-%d %H:%M:%S %z")
+                except ValueError:
+                    formatted_time = timestamp
             else:
                 formatted_time = datetime.now(KZ_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S %z")
             
@@ -87,16 +92,26 @@ class LogProcessor:
             section = log_data.get("section", "unknown")
             subsection = log_data.get("subsection", "unknown")
             message = log_data.get("message", "")
+            source = log_data.get("source", "unknown")
             
             # Форматируем дополнительные данные
             extra_data = log_data.get("extra_data", {})
             extra_str = json.dumps(extra_data, ensure_ascii=False, indent=2)
             
+            # Определяем эмодзи для уровня (используем ASCII символы для Windows)
+            level_emoji = {
+                "DEBUG": "[DEBUG]",
+                "INFO": "[INFO]",
+                "WARNING": "[WARN]",
+                "ERROR": "[ERROR]",
+                "CRITICAL": "[CRIT]"
+            }.get(level, "[UNKN]")
+            
             return (
                 f"\n{'='*80}\n"
+                f"{level_emoji} {level} | Источник: {source}\n"
                 f"Время: {formatted_time}\n"
                 f"ID: {log_data.get('log_id', 'N/A')}\n"
-                f"Уровень: {level}\n"
                 f"Раздел: {section}/{subsection}\n"
                 f"Сообщение: {message}\n"
                 f"Доп. данные:\n{extra_str}\n"
@@ -106,10 +121,10 @@ class LogProcessor:
         except Exception as e:
             return f"Ошибка форматирования лога: {e}\nСырые данные: {log_data}"
     
-    async def process_log(self, message: Dict[str, Any]):
+    async def process_log(self, log_data: Dict[str, Any]):
         """Обработка полученного лога"""
         try:
-            formatted_message = self.format_log_message(message)
+            formatted_message = self.format_log_message(log_data)
             print(formatted_message)
             
             # Здесь можно добавить дополнительную обработку
@@ -118,35 +133,57 @@ class LogProcessor:
         except Exception as e:
             print(f"[CONSUMER] Ошибка обработки сообщения: {e}")
     
+    async def message_handler(self, message: aio_pika.IncomingMessage):
+        """Обработчик входящих сообщений"""
+        async with message.process():
+            try:
+                # Декодируем сообщение
+                body = message.body.decode('utf-8')
+                log_data = json.loads(body)
+                
+                # Обрабатываем лог
+                await self.process_log(log_data)
+                
+            except json.JSONDecodeError as e:
+                print(f"[CONSUMER] Ошибка декодирования JSON: {e}")
+                print(f"[CONSUMER] Сырое сообщение: {message.body}")
+            except Exception as e:
+                print(f"[CONSUMER] Ошибка обработки сообщения: {e}")
+    
     async def start_consuming(self):
         """Запуск приема сообщений"""
         try:
             await self.initialize()
             
-            @self.broker.subscriber(QUEUE_NAME)
-            async def handle_log(message: Dict[str, Any]):
-                await self.process_log(message)
+            # Начинаем прослушивание очереди
+            self._running = True
+            await self.queue.consume(self.message_handler)
             
-            print(f"[CONSUMER] Начинаем прослушивание очереди {QUEUE_NAME}")
-            await self.broker.start()
+            print(f"[CONSUMER] Ожидаем сообщения в очереди {QUEUE_NAME}")
             
+            # Держим соединение активным
+            while self._running:
+                await asyncio.sleep(1)
+                
         except Exception as e:
             print(f"[CONSUMER] Ошибка запуска консьюмера: {e}")
             raise
+    
+    async def stop(self):
+        """Остановка потребителя"""
+        self._running = False
+        if self.connection:
+            await self.connection.close()
+            print("[CONSUMER] Соединение с RabbitMQ закрыто")
 
 async def main():
     processor = LogProcessor()
     try:
         await processor.start_consuming()
-        # Держим приложение запущенным
-        while True:
-            await asyncio.sleep(1)
     except KeyboardInterrupt:
         print("\n[CONSUMER] Получен сигнал завершения")
     finally:
-        if processor.broker:
-            await processor.broker.close()
-            print("[CONSUMER] Соединение с RabbitMQ закрыто")
+        await processor.stop()
 
 if __name__ == "__main__":
     try:

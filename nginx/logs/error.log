@@ -453,3 +453,272 @@
 2025/07/04 23:07:58 [info] 35004#22348: *852 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 18.133.199.181, server: 0.0.0.0:443
 2025/07/04 23:07:58 [info] 35004#22348: *847 client closed connection while waiting for request, client: 18.133.199.181, server: 0.0.0.0:443
 2025/07/04 23:07:58 [info] 35004#22348: *850 client closed connection while waiting for request, client: 18.133.199.181, server: 0.0.0.0:443
+2025/07/04 23:31:21 [info] 35004#22348: *854 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 34.212.124.156, server: 0.0.0.0:443
+2025/07/04 23:31:21 [info] 35004#22348: *855 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 34.212.124.156, server: 0.0.0.0:443
+2025/07/04 23:31:21 [info] 35004#22348: *857 SSL_do_handshake() failed (SSL: error:0A0000FC:SSL routines::unknown protocol) while SSL handshaking, client: 34.212.124.156, server: 0.0.0.0:443
+2025/07/04 23:31:21 [info] 35004#22348: *859 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 34.212.124.156, server: 0.0.0.0:443
+2025/07/04 23:31:21 [info] 35004#22348: *860 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 34.212.124.156, server: 0.0.0.0:443
+2025/07/04 23:31:21 [info] 35004#22348: *858 client closed connection while waiting for request, client: 34.212.124.156, server: 0.0.0.0:443
+2025/07/04 23:31:21 [info] 35004#22348: *856 client closed connection while waiting for request, client: 34.212.124.156, server: 0.0.0.0:443
+2025/07/05 00:56:56 [info] 35004#22348: *898 client 204.76.203.208 closed keepalive connection
+2025/07/05 00:56:56 [info] 35004#22348: *897 client closed connection while SSL handshaking, client: 204.76.203.208, server: 0.0.0.0:443
+2025/07/05 01:03:03 [info] 35004#22348: *899 client 162.142.125.114 closed keepalive connection
+2025/07/05 01:03:17 [info] 35004#22348: *902 client closed connection while waiting for request, client: 162.142.125.114, server: 0.0.0.0:443
+2025/07/05 01:03:20 [info] 35004#22348: *903 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 162.142.125.114, server: 0.0.0.0:443
+2025/07/05 01:03:26 [info] 35004#22348: *904 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 162.142.125.114, server: 0.0.0.0:443
+2025/07/05 01:03:33 [info] 35004#22348: *905 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 162.142.125.114, server: 0.0.0.0:443
+2025/07/05 01:04:25 [info] 35004#22348: *907 client 162.142.125.114 closed keepalive connection
+2025/07/05 01:47:50 [error] 35004#22348: *913 CreateFile() "C:/Users/PolnoKrasoti/PycharmProjects/Royal_Test/frontend_admin/dist/assets/js/pbxlib.js" failed (3: The system cannot find the path specified), client: 154.126.201.150, server: localhost, request: "GET /admin/assets/js/pbxlib.js HTTP/1.0", host: "0.0.0.0"
+2025/07/05 01:54:44 [info] 6204#29836: *1 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 01:54:44 [info] 6204#29836: *2 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 01:55:08 [info] 6204#29836: *3 client canceled stream 203 while sending request to upstream, client: 127.0.0.1, server: localhost, request: "GET /api/files_solo/secure/media/68514d363831be32fd2ac37f?lobby_id=IK72WR&t=1751662507761 HTTP/2.0", upstream: "http://127.0.0.1:8000/files_solo/secure/media/68514d363831be32fd2ac37f?lobby_id=IK72WR&t=1751662507761", host: "localhost", referrer: "https://localhost/test/IK72WR"
+2025/07/05 01:55:33 [info] 6204#29836: *104 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 01:55:34 [info] 6204#29836: *105 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 01:55:34 [info] 6204#29836: *106 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 01:55:42 [info] 6204#29836: *107 client canceled stream 35 while sending request to upstream, client: 127.0.0.1, server: localhost, request: "GET /api/files_solo/secure/media/685277970ec51a36052dd361?lobby_id=IK72WR&t=1751662542365 HTTP/2.0", upstream: "http://127.0.0.1:8000/files_solo/secure/media/685277970ec51a36052dd361?lobby_id=IK72WR&t=1751662542365", host: "localhost", referrer: "https://localhost/test/IK72WR"
+2025/07/05 01:55:47 [info] 6204#29836: *107 client canceled stream 63 while sending request to upstream, client: 127.0.0.1, server: localhost, request: "GET /api/files_solo/secure/media/6851558a0ec51a36052dd315?lobby_id=IK72WR&t=1751662547098 HTTP/2.0", upstream: "http://127.0.0.1:8000/files_solo/secure/media/6851558a0ec51a36052dd315?lobby_id=IK72WR&t=1751662547098", host: "localhost", referrer: "https://localhost/test/IK72WR"
+2025/07/05 01:55:49 [info] 6204#29836: *107 client canceled stream 75 while reading upstream, client: 127.0.0.1, server: localhost, request: "GET /api/files_solo/secure/media/68625b41c3467b32ddd25ed0?lobby_id=IK72WR&t=1751662548754 HTTP/2.0", upstream: "http://127.0.0.1:8000/files_solo/secure/media/68625b41c3467b32ddd25ed0?lobby_id=IK72WR&t=1751662548754", host: "localhost", referrer: "https://localhost/test/IK72WR"
+2025/07/05 01:55:52 [info] 6204#29836: *107 client canceled stream 97 while sending request to upstream, client: 127.0.0.1, server: localhost, request: "GET /api/files_solo/secure/media/68625b41c3467b32ddd25ed0?lobby_id=IK72WR&t=1751662551675 HTTP/2.0", upstream: "http://127.0.0.1:8000/files_solo/secure/media/68625b41c3467b32ddd25ed0?lobby_id=IK72WR&t=1751662551675", host: "localhost", referrer: "https://localhost/test/IK72WR"
+2025/07/05 01:55:52 [info] 6204#29836: *107 client canceled stream 87 while reading upstream, client: 127.0.0.1, server: localhost, request: "GET /api/files_solo/secure/media/68625b41c3467b32ddd25ed0?lobby_id=IK72WR&t=1751662551675 HTTP/2.0", upstream: "http://127.0.0.1:8000/files_solo/secure/media/68625b41c3467b32ddd25ed0?lobby_id=IK72WR&t=1751662551675", host: "localhost", referrer: "https://localhost/test/IK72WR"
+2025/07/05 01:55:53 [info] 6204#29836: *107 client canceled stream 99 while reading upstream, client: 127.0.0.1, server: localhost, request: "GET /api/files_solo/secure/after-answer-media/68625b41c3467b32ddd25ed0?lobby_id=IK72WR&t=1751662552076 HTTP/2.0", upstream: "http://127.0.0.1:8000/files_solo/secure/after-answer-media/68625b41c3467b32ddd25ed0?lobby_id=IK72WR&t=1751662552076", host: "localhost", referrer: "https://localhost/test/IK72WR"
+2025/07/05 01:56:02 [info] 6204#29836: *107 client canceled stream 135 while sending request to upstream, client: 127.0.0.1, server: localhost, request: "GET /api/files_solo/secure/media/68527ea10ec51a36052dd374?lobby_id=IK72WR&t=1751662562197 HTTP/2.0", upstream: "http://127.0.0.1:8000/files_solo/secure/media/68527ea10ec51a36052dd374?lobby_id=IK72WR&t=1751662562197", host: "localhost", referrer: "https://localhost/test/IK72WR"
+2025/07/05 01:56:05 [info] 6204#29836: *107 client canceled stream 157 while sending request to upstream, client: 127.0.0.1, server: localhost, request: "GET /api/files_solo/secure/media/685292ba0ec51a36052dd39a?lobby_id=IK72WR&t=1751662565413 HTTP/2.0", upstream: "http://127.0.0.1:8000/files_solo/secure/media/685292ba0ec51a36052dd39a?lobby_id=IK72WR&t=1751662565413", host: "localhost", referrer: "https://localhost/test/IK72WR"
+2025/07/05 01:56:11 [info] 6204#29836: *107 client canceled stream 207 while sending request to upstream, client: 127.0.0.1, server: localhost, request: "GET /api/files_solo/secure/media/685153f20ec51a36052dd30e?lobby_id=IK72WR&t=1751662571259 HTTP/2.0", upstream: "http://127.0.0.1:8000/files_solo/secure/media/685153f20ec51a36052dd30e?lobby_id=IK72WR&t=1751662571259", host: "localhost", referrer: "https://localhost/test/IK72WR"
+2025/07/05 01:56:15 [info] 6204#29836: *107 client canceled stream 239 while sending request to upstream, client: 127.0.0.1, server: localhost, request: "GET /api/files_solo/secure/media/68514f09f0ddcef97190e9b5?lobby_id=IK72WR&t=1751662575114 HTTP/2.0", upstream: "http://127.0.0.1:8000/files_solo/secure/media/68514f09f0ddcef97190e9b5?lobby_id=IK72WR&t=1751662575114", host: "localhost", referrer: "https://localhost/test/IK72WR"
+2025/07/05 01:56:18 [info] 6204#29836: *107 client canceled stream 267 while sending request to upstream, client: 127.0.0.1, server: localhost, request: "GET /api/files_solo/secure/media/6852824a0ec51a36052dd37b?lobby_id=IK72WR&t=1751662578104 HTTP/2.0", upstream: "http://127.0.0.1:8000/files_solo/secure/media/6852824a0ec51a36052dd37b?lobby_id=IK72WR&t=1751662578104", host: "localhost", referrer: "https://localhost/test/IK72WR"
+2025/07/05 01:56:20 [info] 6204#29836: *107 client canceled stream 279 while reading upstream, client: 127.0.0.1, server: localhost, request: "GET /api/files_solo/secure/media/68625b9fc3467b32ddd25ee6?lobby_id=IK72WR&t=1751662579876 HTTP/2.0", upstream: "http://127.0.0.1:8000/files_solo/secure/media/68625b9fc3467b32ddd25ee6?lobby_id=IK72WR&t=1751662579876", host: "localhost", referrer: "https://localhost/test/IK72WR"
+2025/07/05 01:56:20 [info] 6204#29836: *107 client canceled stream 291 while reading upstream, client: 127.0.0.1, server: localhost, request: "GET /api/files_solo/secure/media/68625b9fc3467b32ddd25ee6?lobby_id=IK72WR&t=1751662580559 HTTP/2.0", upstream: "http://127.0.0.1:8000/files_solo/secure/media/68625b9fc3467b32ddd25ee6?lobby_id=IK72WR&t=1751662580559", host: "localhost", referrer: "https://localhost/test/IK72WR"
+2025/07/05 01:56:21 [info] 6204#29836: *107 client canceled stream 299 while sending request to upstream, client: 127.0.0.1, server: localhost, request: "GET /api/files_solo/secure/media/68625b9fc3467b32ddd25ee6?lobby_id=IK72WR&t=1751662580559 HTTP/2.0", upstream: "http://127.0.0.1:8000/files_solo/secure/media/68625b9fc3467b32ddd25ee6?lobby_id=IK72WR&t=1751662580559", host: "localhost", referrer: "https://localhost/test/IK72WR"
+2025/07/05 01:56:21 [info] 6204#29836: *107 client canceled stream 305 while reading upstream, client: 127.0.0.1, server: localhost, request: "GET /api/files_solo/secure/after-answer-media/68625b9fc3467b32ddd25ee6?lobby_id=IK72WR&t=1751662581001 HTTP/2.0", upstream: "http://127.0.0.1:8000/files_solo/secure/after-answer-media/68625b9fc3467b32ddd25ee6?lobby_id=IK72WR&t=1751662581001", host: "localhost", referrer: "https://localhost/test/IK72WR"
+2025/07/05 01:56:56 [info] 6204#29836: *276 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 01:56:56 [info] 6204#29836: *277 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 01:56:56 [info] 6204#29836: *278 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 01:56:56 [info] 6204#29836: *279 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 01:56:56 [info] 6204#29836: *280 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 01:56:56 [info] 6204#29836: *281 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 01:56:56 [info] 6204#29836: *282 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 01:56:57 [info] 6204#29836: *283 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 01:56:57 [info] 6204#29836: *284 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 01:56:57 [info] 6204#29836: *285 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 01:56:57 [info] 6204#29836: *286 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 01:56:57 [info] 6204#29836: *287 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 02:13:23 [emerg] 35548#34860: invalid event type "epoll" in C:\Users\PolnoKrasoti\PycharmProjects\Royal_Test\nginx/conf/nginx.conf:9
+2025/07/05 02:52:33 [emerg] 400#23444: invalid event type "epoll" in C:\Users\PolnoKrasoti\PycharmProjects\Royal_Test\nginx/conf/nginx.conf:9
+2025/07/05 02:52:55 [info] 34740#31272: *1 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 02:59:42 [error] 34740#31272: *24 CreateFile() "C:/Users/PolnoKrasoti/PycharmProjects/Royal_Test/frontend_admin/dist/assets/css/jquery-ui.css" failed (3: The system cannot find the path specified), client: 202.93.141.18, server: localhost, request: "GET /admin/assets/css/jquery-ui.css HTTP/1.0", host: "0.0.0.0"
+2025/07/05 03:15:11 [info] 5224#10208: *18 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 03:15:15 [info] 5224#10208: *19 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 03:15:17 [info] 5224#10208: *20 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 03:24:27 [info] 5224#10208: *21 SSL_do_handshake() failed (SSL: error:0A0000FC:SSL routines::unknown protocol) while SSL handshaking, client: 15.156.110.125, server: 0.0.0.0:443
+2025/07/05 03:24:27 [info] 5224#10208: *23 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 15.156.110.125, server: 0.0.0.0:443
+2025/07/05 03:24:27 [info] 5224#10208: *24 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 15.156.110.125, server: 0.0.0.0:443
+2025/07/05 03:24:27 [info] 5224#10208: *25 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 15.156.110.125, server: 0.0.0.0:443
+2025/07/05 03:24:27 [info] 5224#10208: *26 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 15.156.110.125, server: 0.0.0.0:443
+2025/07/05 03:24:27 [info] 5224#10208: *22 client closed connection while waiting for request, client: 15.156.110.125, server: 0.0.0.0:443
+2025/07/05 03:24:27 [info] 5224#10208: *27 client closed connection while waiting for request, client: 15.156.110.125, server: 0.0.0.0:443
+2025/07/05 03:24:48 [info] 5224#10208: *28 client sent invalid method while reading client request line, client: 135.237.124.180, server: localhost, request: "MGLNDD_95.59.219.239_443"
+2025/07/05 03:26:53 [info] 5224#10208: *29 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 03:26:53 [info] 5224#10208: *30 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 03:26:53 [info] 5224#10208: *31 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 03:26:53 [info] 5224#10208: *32 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:443
+2025/07/05 03:46:38 [info] 5224#10208: *46 client 66.132.153.57 closed keepalive connection
+2025/07/05 03:46:41 [info] 5224#10208: *49 client closed connection while waiting for request, client: 66.132.153.57, server: 0.0.0.0:443
+2025/07/05 03:46:42 [info] 5224#10208: *50 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 66.132.153.57, server: 0.0.0.0:443
+2025/07/05 03:46:44 [info] 5224#10208: *51 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 66.132.153.57, server: 0.0.0.0:443
+2025/07/05 03:46:45 [info] 5224#10208: *52 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 66.132.153.57, server: 0.0.0.0:443
+2025/07/05 03:46:53 [info] 5224#10208: *54 client 66.132.153.57 closed keepalive connection
+2025/07/05 03:48:16 [info] 5224#10208: *55 client closed connection while waiting for request, client: 45.131.155.253, server: 0.0.0.0:443
+2025/07/05 03:48:21 [info] 5224#10208: *56 client closed connection while SSL handshaking, client: 45.131.155.253, server: 0.0.0.0:443
+2025/07/05 03:48:28 [info] 5224#10208: *57 client closed connection while waiting for request, client: 45.131.155.253, server: 0.0.0.0:443
+2025/07/05 03:48:30 [info] 5224#10208: *59 client closed connection while SSL handshaking, client: 204.76.203.208, server: 0.0.0.0:443
+2025/07/05 03:48:30 [info] 5224#10208: *60 client 204.76.203.208 closed keepalive connection
+2025/07/05 03:49:46 [info] 5224#10208: *61 client timed out (10060: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond) while SSL handshaking, client: 87.255.194.135, server: 0.0.0.0:443
+2025/07/05 04:51:31 [info] 5224#10208: *64 client closed connection while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:52:47 [info] 5224#10208: *65 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:52:54 [info] 5224#10208: *68 SSL_do_handshake() failed (SSL: error:0A0000FC:SSL routines::unknown protocol) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:04 [info] 5224#10208: *67 client timed out (10060: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond) while waiting for request, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:15 [info] 5224#10208: *71 client timed out (10060: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:15 [info] 5224#10208: *72 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:15 [info] 5224#10208: *77 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:15 [info] 5224#10208: *76 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:15 [info] 5224#10208: *78 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:15 [info] 5224#10208: *79 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:15 [info] 5224#10208: *74 client closed connection while waiting for request, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:15 [info] 5224#10208: *75 peer closed connection in SSL handshake while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:16 [info] 5224#10208: *83 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:16 [info] 5224#10208: *85 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:16 [info] 5224#10208: *81 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:16 [info] 5224#10208: *82 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:16 [info] 5224#10208: *80 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:16 [info] 5224#10208: *84 peer closed connection in SSL handshake while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:16 [info] 5224#10208: *87 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:16 [info] 5224#10208: *89 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:16 [info] 5224#10208: *91 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:17 [info] 5224#10208: *90 peer closed connection in SSL handshake while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:17 [info] 5224#10208: *88 peer closed connection in SSL handshake while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:17 [info] 5224#10208: *92 peer closed connection in SSL handshake while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:17 [info] 5224#10208: *86 client 139.162.3.141 closed keepalive connection
+2025/07/05 04:53:17 [info] 5224#10208: *96 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:17 [info] 5224#10208: *94 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:17 [info] 5224#10208: *93 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:17 [info] 5224#10208: *95 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:17 [info] 5224#10208: *97 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:17 [info] 5224#10208: *98 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:17 [info] 5224#10208: *100 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:17 [info] 5224#10208: *101 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:18 [info] 5224#10208: *99 peer closed connection in SSL handshake while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:18 [info] 5224#10208: *102 peer closed connection in SSL handshake while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:18 [info] 5224#10208: *106 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:18 [info] 5224#10208: *105 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:18 [info] 5224#10208: *107 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:18 [info] 5224#10208: *104 peer closed connection in SSL handshake while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:18 [info] 5224#10208: *103 peer closed connection in SSL handshake while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:19 [info] 5224#10208: *110 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:19 [info] 5224#10208: *111 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:19 [info] 5224#10208: *108 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:19 [info] 5224#10208: *109 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:19 [info] 5224#10208: *112 peer closed connection in SSL handshake while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:19 [info] 5224#10208: *114 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:19 [info] 5224#10208: *113 peer closed connection in SSL handshake while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:20 [info] 5224#10208: *116 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:20 [info] 5224#10208: *115 peer closed connection in SSL handshake while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:20 [info] 5224#10208: *117 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:21 [info] 5224#10208: *118 peer closed connection in SSL handshake while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:22 [info] 5224#10208: *119 peer closed connection in SSL handshake while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:22 [info] 5224#10208: *120 peer closed connection in SSL handshake while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:23 [info] 5224#10208: *121 peer closed connection in SSL handshake while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:23 [info] 5224#10208: *122 peer closed connection in SSL handshake while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 04:53:24 [info] 5224#10208: *123 peer closed connection in SSL handshake while SSL handshaking, client: 139.162.3.141, server: 0.0.0.0:443
+2025/07/05 05:18:53 [info] 5224#10208: *124 client 44.210.141.97 closed keepalive connection
+2025/07/05 05:51:44 [info] 5224#10208: *125 client timed out (10060: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond) while SSL handshaking, client: 201.7.170.246, server: 0.0.0.0:443
+2025/07/05 05:54:03 [info] 5224#10208: *126 client closed connection while waiting for request, client: 172.202.118.41, server: 0.0.0.0:443
+2025/07/05 06:00:42 [info] 5224#10208: *128 client 204.76.203.208 closed keepalive connection
+2025/07/05 06:00:42 [info] 5224#10208: *127 client closed connection while SSL handshaking, client: 204.76.203.208, server: 0.0.0.0:443
+2025/07/05 06:16:27 [info] 5224#10208: *129 client sent plain HTTP request to HTTPS port while reading client request headers, client: 3.134.148.59, server: localhost, request: "GET / HTTP/1.1", host: "95.59.219.239:443"
+2025/07/05 06:16:27 [info] 5224#10208: *130 client sent plain HTTP request to HTTPS port while reading client request headers, client: 3.134.148.59, server: localhost, request: "GET / HTTP/1.1", host: "95.59.219.239:443"
+2025/07/05 06:16:59 [info] 5224#10208: *131 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 205.210.31.75, server: 0.0.0.0:443
+2025/07/05 06:19:22 [info] 5224#10208: *132 client prematurely closed connection while reading client request line, client: 3.134.148.59, server: localhost
+2025/07/05 06:20:09 [info] 5224#10208: *133 client 3.134.148.59 closed keepalive connection
+2025/07/05 06:20:18 [info] 5224#10208: *134 client sent invalid method while reading client request line, client: 3.134.148.59, server: localhost, request: "SSH-2.0-Go"
+2025/07/05 06:21:40 [info] 5224#10208: *135 client closed connection while waiting for request, client: 3.134.148.59, server: 0.0.0.0:443
+2025/07/05 06:38:28 [info] 5224#10208: *137 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 18.133.212.170, server: 0.0.0.0:443
+2025/07/05 06:38:28 [info] 5224#10208: *138 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 18.133.212.170, server: 0.0.0.0:443
+2025/07/05 06:38:28 [info] 5224#10208: *139 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 18.133.212.170, server: 0.0.0.0:443
+2025/07/05 06:38:28 [info] 5224#10208: *141 SSL_do_handshake() failed (SSL: error:0A0000FC:SSL routines::unknown protocol) while SSL handshaking, client: 18.133.212.170, server: 0.0.0.0:443
+2025/07/05 06:38:28 [info] 5224#10208: *142 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 18.133.212.170, server: 0.0.0.0:443
+2025/07/05 06:38:28 [info] 5224#10208: *140 client closed connection while waiting for request, client: 18.133.212.170, server: 0.0.0.0:443
+2025/07/05 06:38:28 [info] 5224#10208: *143 client closed connection while waiting for request, client: 18.133.212.170, server: 0.0.0.0:443
+2025/07/05 07:29:39 [info] 5224#10208: *144 client closed connection while waiting for request, client: 185.47.172.129, server: 0.0.0.0:443
+2025/07/05 08:03:39 [info] 5224#10208: *145 client 20.65.195.41 closed keepalive connection
+2025/07/05 08:40:54 [info] 5224#10208: *147 client 185.242.226.109 closed keepalive connection
+2025/07/05 08:44:07 [info] 5224#10208: *150 client 204.76.203.208 closed keepalive connection
+2025/07/05 08:44:07 [info] 5224#10208: *149 client closed connection while SSL handshaking, client: 204.76.203.208, server: 0.0.0.0:443
+2025/07/05 09:14:26 [info] 5224#10208: *151 client 172.202.118.82 closed keepalive connection
+2025/07/05 09:27:13 [info] 5224#10208: *152 client sent invalid request while reading client request line, client: 117.48.157.75, server: localhost, request: "POST /cgi-bin/.%2e/.%2e/.%2e/.%2e/.%2e/.%2e/.%2e/.%2e/.%2e/.%2e/bin/sh HTTP/1.1"
+2025/07/05 09:44:02 [info] 5224#10208: *153 client 185.242.226.109 closed keepalive connection
+2025/07/05 09:49:29 [info] 5224#10208: *154 client closed connection while waiting for request, client: 139.162.112.248, server: 0.0.0.0:443
+2025/07/05 09:51:05 [info] 5224#10208: *155 client sent HTTP/1.1 request without "Host" header while reading client request headers, client: 185.12.59.118, server: localhost, request: "GET / HTTP/1.1"
+2025/07/05 09:57:32 [info] 5224#10208: *156 client closed connection while SSL handshaking, client: 152.32.150.117, server: 0.0.0.0:443
+2025/07/05 09:57:34 [info] 5224#10208: *157 client sent plain HTTP request to HTTPS port while reading client request headers, client: 152.32.150.117, server: localhost, request: "GET / HTTP/1.1", host: "95.59.219.239"
+2025/07/05 09:57:42 [info] 5224#10208: *158 client closed connection while waiting for request, client: 152.32.150.117, server: 0.0.0.0:443
+2025/07/05 09:57:45 [info] 5224#10208: *159 client 152.32.150.117 closed keepalive connection
+2025/07/05 09:57:48 [info] 5224#10208: *160 client sent invalid method while reading client request line, client: 152.32.150.117, server: localhost, request: "t3 12.1.2"
+2025/07/05 09:57:49 [info] 5224#10208: *161 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 152.32.150.117, server: 0.0.0.0:443
+2025/07/05 09:57:50 [info] 5224#10208: *162 peer closed connection in SSL handshake while SSL handshaking, client: 152.32.150.117, server: 0.0.0.0:443
+2025/07/05 09:57:50 [info] 5224#10208: *163 peer closed connection in SSL handshake while SSL handshaking, client: 152.32.150.117, server: 0.0.0.0:443
+2025/07/05 09:57:50 [info] 5224#10208: *164 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 152.32.150.117, server: 0.0.0.0:443
+2025/07/05 09:57:51 [info] 5224#10208: *165 peer closed connection in SSL handshake while SSL handshaking, client: 152.32.150.117, server: 0.0.0.0:443
+2025/07/05 09:57:51 [info] 5224#10208: *166 peer closed connection in SSL handshake while SSL handshaking, client: 152.32.150.117, server: 0.0.0.0:443
+2025/07/05 09:57:52 [info] 5224#10208: *167 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 152.32.150.117, server: 0.0.0.0:443
+2025/07/05 09:57:52 [info] 5224#10208: *168 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 152.32.150.117, server: 0.0.0.0:443
+2025/07/05 09:57:53 [info] 5224#10208: *169 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 152.32.150.117, server: 0.0.0.0:443
+2025/07/05 09:57:53 [info] 5224#10208: *170 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 152.32.150.117, server: 0.0.0.0:443
+2025/07/05 09:57:54 [info] 5224#10208: *171 SSL_do_handshake() failed (SSL: error:0A00006C:SSL routines::bad key share) while SSL handshaking, client: 152.32.150.117, server: 0.0.0.0:443
+2025/07/05 10:07:07 [info] 5224#10208: *177 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 195.184.76.39, server: 0.0.0.0:443
+2025/07/05 10:21:17 [info] 5224#10208: *179 client timed out (10060: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond) while SSL handshaking, client: 195.184.76.11, server: 0.0.0.0:443
+2025/07/05 10:27:18 [info] 5224#10208: *180 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/05 10:27:18 [info] 5224#10208: *181 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/05 10:27:18 [info] 5224#10208: *182 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/05 10:27:18 [info] 5224#10208: *183 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/05 10:27:19 [info] 5224#10208: *184 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/05 10:27:19 [info] 5224#10208: *185 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/05 10:27:19 [info] 5224#10208: *186 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/05 10:27:19 [info] 5224#10208: *187 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/05 10:27:19 [info] 5224#10208: *188 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/05 10:27:19 [info] 5224#10208: *189 SSL_do_handshake() failed (SSL: error:0A00006C:SSL routines::bad key share) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/05 10:51:40 [info] 5224#10208: *190 peer closed connection in SSL handshake while SSL handshaking, client: 104.234.115.106, server: 0.0.0.0:443
+2025/07/05 10:51:59 [info] 5224#10208: *191 client closed connection while waiting for request, client: 104.234.115.106, server: 0.0.0.0:443
+2025/07/05 10:52:32 [info] 5224#10208: *192 client 104.234.115.106 closed keepalive connection
+2025/07/05 11:03:41 [info] 5224#10208: *194 peer closed connection in SSL handshake while SSL handshaking, client: 104.234.115.106, server: 0.0.0.0:443
+2025/07/05 11:03:54 [info] 5224#10208: *195 client 104.234.115.106 closed keepalive connection
+2025/07/05 11:15:09 [info] 5224#10208: *196 SSL_do_handshake() failed (SSL: error:0A0000FC:SSL routines::unknown protocol) while SSL handshaking, client: 54.193.34.38, server: 0.0.0.0:443
+2025/07/05 11:15:09 [info] 5224#10208: *199 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 54.193.34.38, server: 0.0.0.0:443
+2025/07/05 11:15:09 [info] 5224#10208: *200 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 54.193.34.38, server: 0.0.0.0:443
+2025/07/05 11:15:09 [info] 5224#10208: *201 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 54.193.34.38, server: 0.0.0.0:443
+2025/07/05 11:15:09 [info] 5224#10208: *202 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 54.193.34.38, server: 0.0.0.0:443
+2025/07/05 11:15:09 [info] 5224#10208: *197 client closed connection while waiting for request, client: 54.193.34.38, server: 0.0.0.0:443
+2025/07/05 11:15:09 [info] 5224#10208: *198 peer closed connection in SSL handshake while SSL handshaking, client: 54.193.34.38, server: 0.0.0.0:443
+2025/07/05 11:41:43 [info] 5224#10208: *203 client closed connection while waiting for request, client: 24.199.98.33, server: 0.0.0.0:443
+2025/07/05 11:41:43 [info] 5224#10208: *204 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 24.199.98.33, server: 0.0.0.0:443
+2025/07/05 11:41:44 [info] 5224#10208: *205 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 24.199.98.33, server: 0.0.0.0:443
+2025/07/05 11:41:44 [info] 5224#10208: *206 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 24.199.98.33, server: 0.0.0.0:443
+2025/07/05 11:41:45 [info] 5224#10208: *207 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 24.199.98.33, server: 0.0.0.0:443
+2025/07/05 11:41:46 [info] 5224#10208: *208 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 24.199.98.33, server: 0.0.0.0:443
+2025/07/05 11:41:46 [info] 5224#10208: *209 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 24.199.98.33, server: 0.0.0.0:443
+2025/07/05 11:41:46 [info] 5224#10208: *210 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 24.199.98.33, server: 0.0.0.0:443
+2025/07/05 11:41:47 [info] 5224#10208: *211 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 24.199.98.33, server: 0.0.0.0:443
+2025/07/05 11:41:47 [info] 5224#10208: *212 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 24.199.98.33, server: 0.0.0.0:443
+2025/07/05 11:41:48 [info] 5224#10208: *213 SSL_do_handshake() failed (SSL: error:0A00006C:SSL routines::bad key share) while SSL handshaking, client: 24.199.98.33, server: 0.0.0.0:443
+2025/07/05 11:46:32 [info] 5224#10208: *215 client 204.76.203.208 closed keepalive connection
+2025/07/05 11:46:32 [info] 5224#10208: *214 client closed connection while SSL handshaking, client: 204.76.203.208, server: 0.0.0.0:443
+2025/07/05 12:01:00 [info] 5224#10208: *216 client timed out (10060: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond) while SSL handshaking, client: 201.7.170.246, server: 0.0.0.0:443
+2025/07/05 12:18:36 [info] 5224#10208: *217 peer closed connection in SSL handshake while SSL handshaking, client: 41.84.146.238, server: 0.0.0.0:443
+2025/07/05 12:22:58 [info] 5224#10208: *218 client closed connection while waiting for request, client: 64.227.26.78, server: 0.0.0.0:443
+2025/07/05 12:30:39 [info] 5224#10208: *220 client closed connection while waiting for request, client: 185.226.197.7, server: 0.0.0.0:443
+2025/07/05 12:30:40 [info] 5224#10208: *221 client closed connection while waiting for request, client: 185.226.197.8, server: 0.0.0.0:443
+2025/07/05 12:30:40 [info] 5224#10208: *222 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 185.226.197.9, server: 0.0.0.0:443
+2025/07/05 12:30:42 [info] 5224#10208: *223 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 185.226.197.8, server: 0.0.0.0:443
+2025/07/05 12:30:42 [info] 5224#10208: *224 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 185.226.197.7, server: 0.0.0.0:443
+2025/07/05 12:30:42 [info] 5224#10208: *225 SSL_do_handshake() failed (SSL: error:0A0000FC:SSL routines::unknown protocol) while SSL handshaking, client: 185.226.197.7, server: 0.0.0.0:443
+2025/07/05 12:30:43 [info] 5224#10208: *226 client closed connection while waiting for request, client: 185.226.197.7, server: 0.0.0.0:443
+2025/07/05 12:30:43 [info] 5224#10208: *227 client closed connection while waiting for request, client: 185.226.197.7, server: 0.0.0.0:443
+2025/07/05 12:30:43 [info] 5224#10208: *228 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 185.226.197.10, server: 0.0.0.0:443
+2025/07/05 12:30:44 [info] 5224#10208: *229 client closed connection while waiting for request, client: 185.226.197.9, server: 0.0.0.0:443
+2025/07/05 12:30:47 [info] 5224#10208: *219 client 185.226.197.10 closed keepalive connection
+2025/07/05 12:30:48 [info] 5224#10208: *230 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 185.226.197.9, server: 0.0.0.0:443
+2025/07/05 12:30:48 [info] 5224#10208: *231 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 185.226.197.8, server: 0.0.0.0:443
+2025/07/05 12:35:10 [info] 5224#10208: *232 client 135.237.125.27 closed keepalive connection
+2025/07/05 12:35:11 [info] 5224#10208: *233 client sent invalid method while reading client request line, client: 135.237.125.27, server: localhost, request: "MGLNDD_95.59.219.239_443"
+2025/07/05 12:41:10 [info] 5224#10208: *234 client timed out (10060: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond) while SSL handshaking, client: 87.255.194.135, server: 0.0.0.0:443
+2025/07/05 13:07:50 [info] 5224#10208: *235 client 35.203.210.216 closed keepalive connection
+2025/07/05 13:39:29 [info] 5224#10208: *236 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 52.165.82.26, server: 0.0.0.0:443
+2025/07/05 14:06:22 [info] 5224#10208: *237 client closed connection while SSL handshaking, client: 204.76.203.208, server: 0.0.0.0:443
+2025/07/05 14:06:22 [info] 5224#10208: *238 client 204.76.203.208 closed keepalive connection
+2025/07/05 14:13:07 [info] 5224#10208: *239 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 20.14.73.1, server: 0.0.0.0:443
+2025/07/05 14:14:47 [info] 5224#10208: *240 client 64.62.197.122 closed keepalive connection
+2025/07/05 14:18:38 [info] 5224#10208: *241 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 64.62.197.122, server: 0.0.0.0:443
+2025/07/05 14:19:10 [info] 5224#10208: *242 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 64.62.197.122, server: 0.0.0.0:443
+2025/07/05 14:19:31 [info] 5224#10208: *243 client 64.62.197.122 closed keepalive connection
+2025/07/05 14:20:32 [info] 5224#10208: *244 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 64.62.197.122, server: 0.0.0.0:443
+2025/07/05 14:20:32 [info] 5224#10208: *245 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 64.62.197.128, server: 0.0.0.0:443
+2025/07/05 14:20:33 [info] 5224#10208: *246 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 64.62.197.132, server: 0.0.0.0:443
+2025/07/05 14:20:33 [info] 5224#10208: *247 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 64.62.197.129, server: 0.0.0.0:443
+2025/07/05 14:20:34 [info] 5224#10208: *248 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 64.62.197.123, server: 0.0.0.0:443
+2025/07/05 14:20:34 [info] 5224#10208: *249 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 64.62.197.132, server: 0.0.0.0:443
+2025/07/05 14:20:35 [info] 5224#10208: *250 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 64.62.197.126, server: 0.0.0.0:443
+2025/07/05 14:20:35 [info] 5224#10208: *251 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 64.62.197.124, server: 0.0.0.0:443
+2025/07/05 14:20:35 [info] 5224#10208: *252 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 64.62.197.130, server: 0.0.0.0:443
+2025/07/05 14:20:36 [info] 5224#10208: *253 SSL_do_handshake() failed (SSL: error:0A00006C:SSL routines::bad key share) while SSL handshaking, client: 64.62.197.130, server: 0.0.0.0:443
+2025/07/05 14:22:48 [info] 5224#10208: *254 client 64.62.197.125 closed keepalive connection
+2025/07/05 14:24:28 [info] 5224#10208: *255 client 64.62.197.128 closed keepalive connection
+2025/07/05 14:25:07 [info] 5224#10208: *260 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 3.213.226.45, server: 0.0.0.0:443
+2025/07/05 14:25:07 [info] 5224#10208: *261 SSL_do_handshake() failed (SSL: error:0A0000FC:SSL routines::unknown protocol) while SSL handshaking, client: 3.213.226.45, server: 0.0.0.0:443
+2025/07/05 14:25:07 [info] 5224#10208: *259 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 3.213.226.45, server: 0.0.0.0:443
+2025/07/05 14:25:07 [info] 5224#10208: *262 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 3.213.226.45, server: 0.0.0.0:443
+2025/07/05 14:25:07 [info] 5224#10208: *257 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 3.213.226.45, server: 0.0.0.0:443
+2025/07/05 14:25:07 [info] 5224#10208: *256 client closed connection while waiting for request, client: 3.213.226.45, server: 0.0.0.0:443
+2025/07/05 14:25:07 [info] 5224#10208: *258 client closed connection while waiting for request, client: 3.213.226.45, server: 0.0.0.0:443
+2025/07/05 14:34:38 [info] 5224#10208: *263 client 64.62.197.122 closed keepalive connection
+2025/07/05 14:37:25 [info] 5224#10208: *264 client 64.62.197.122 closed keepalive connection
+2025/07/05 14:38:42 [info] 5224#10208: *265 client closed connection while waiting for request, client: 45.79.163.135, server: 0.0.0.0:443
+2025/07/05 15:02:35 [info] 5224#10208: *267 client closed connection while waiting for request, client: 146.88.240.73, server: 0.0.0.0:443

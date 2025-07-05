@@ -11,7 +11,16 @@ import aio_pika
 # ---------------------------------------------------------------------------
 RABBITMQ_URL: str = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
 EXCHANGE_NAME: str = os.getenv("RABBITMQ_EXCHANGE", "logs")
-ROUTING_KEY: str = os.getenv("RABBITMQ_ROUTING_KEY", "application.logs")
+
+# Поддерживаемые routing keys для разных сервисов
+ROUTING_KEYS = [
+    "application.logs",      # Основное приложение
+    "2fa.logs",             # Микросервис 2FA
+    "auth.logs",             # Логи аутентификации
+    "security.logs",         # Логи безопасности
+    "system.logs"            # Системные логи
+]
+
 QUEUE_NAME: str = os.getenv("RABBITMQ_QUEUE", "log_consumer_queue")
 
 
@@ -35,12 +44,14 @@ async def _consume() -> None:
         durable=True,
     )
 
-    # Биндим очередь к exchange c нужным routing-key
-    await queue.bind(exchange, ROUTING_KEY)
+    # Биндим очередь к exchange для всех routing keys
+    for routing_key in ROUTING_KEYS:
+        await queue.bind(exchange, routing_key)
+        print(f"[CONSUMER] Очередь привязана к exchange с routing_key: {routing_key}")
 
     print(
-        f" [*] Waiting for messages on exchange '{EXCHANGE_NAME}' with routing key "
-        f"'{ROUTING_KEY}'. To exit press CTRL+C"
+        f" [*] Waiting for messages on exchange '{EXCHANGE_NAME}' with routing keys "
+        f"{', '.join(ROUTING_KEYS)}. To exit press CTRL+C"
     )
 
     # Итератор очереди обеспечивает удобное получение и ack сообщений
@@ -57,8 +68,24 @@ def _handle_message(body: bytes) -> None:
     """Разбирает тело сообщения как JSON и выводит в консоль."""
     try:
         data = json.loads(body.decode())
+        
+        # Добавляем информацию о источнике
+        source = data.get("source", "unknown")
+        level = data.get("level", "UNKNOWN")
+        
+        # Определяем эмодзи для уровня (используем ASCII символы для Windows)
+        level_emoji = {
+            "DEBUG": "[DEBUG]",
+            "INFO": "[INFO]",
+            "WARNING": "[WARN]",
+            "ERROR": "[ERROR]",
+            "CRITICAL": "[CRIT]"
+        }.get(level, "[UNKN]")
+        
+        print(f"\n{level_emoji} [{source}] {level}")
         pretty = json.dumps(data, indent=2, ensure_ascii=False)
-        print(f"\nReceived log message:\n{pretty}\n")
+        print(f"Received log message:\n{pretty}\n")
+        
     except json.JSONDecodeError:
         # Если сообщение не JSON, выводим как строку
         print(f"\nReceived non-JSON message: {body!r}\n")

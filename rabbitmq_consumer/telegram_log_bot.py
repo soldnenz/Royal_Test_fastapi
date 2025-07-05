@@ -50,7 +50,16 @@ if CHAT_ID == 0:
 
 RABBITMQ_URL: Final[str] = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
 EXCHANGE_NAME: Final[str] = os.getenv("RABBITMQ_EXCHANGE", "logs")
-ROUTING_KEY: Final[str] = os.getenv("RABBITMQ_ROUTING_KEY", "application.logs")
+
+# Поддерживаемые routing keys для разных сервисов
+ROUTING_KEYS = [
+    "application.logs",      # Основное приложение
+    "2fa.logs",             # Микросервис 2FA
+    "auth.logs",             # Логи аутентификации
+    "security.logs",         # Логи безопасности
+    "system.logs"            # Системные логи
+]
+
 QUEUE_NAME: Final[str] = os.getenv("RABBITMQ_QUEUE", "telegram_log_bot_queue")
 
 # ---------------------------------------------------------------------------
@@ -63,6 +72,16 @@ LEVEL_EMOJI: Final[dict[str, str]] = {
     "CRITICAL": "🔥",
 }
 
+SOURCE_EMOJI: Final[dict[str, str]] = {
+    "2fa_structured_logger": "🔐",
+    "2fa_standard_logger": "🔐",
+    "application": "📱",
+    "auth": "🔑",
+    "security": "🛡️",
+    "system": "⚙️",
+    "unknown": "❓"
+}
+
 
 def _format_log_message(data: dict[str, object]) -> str:
     """Преобразуем словарь лога в красивое HTML-сообщение."""
@@ -73,6 +92,7 @@ def _format_log_message(data: dict[str, object]) -> str:
     section = data.get("section", "—")
     subsection = data.get("subsection", "—")
     message = data.get("message", "—")
+    source = data.get("source", "unknown")
 
     # Обрезаем сообщение, если оно слишком длинное
     if isinstance(message, str) and len(message) > 1000:
@@ -88,9 +108,12 @@ def _format_log_message(data: dict[str, object]) -> str:
             pretty_json = pretty_json[:1500] + "…"
         extra_text = f"\n<pre>{pretty_json}</pre>"
 
+    # Определяем эмодзи для источника
+    source_emoji = SOURCE_EMOJI.get(source, SOURCE_EMOJI["unknown"])
+
     return textwrap.dedent(
         f"""
-        {LEVEL_EMOJI.get(level, '')} <b>{level.title()}</b>
+        {LEVEL_EMOJI.get(level, '')} <b>{level.title()}</b> {source_emoji} <b>{source}</b>
         <b>Time:</b> {timestamp}
         <b>ID:</b> {log_id}
         <b>Section:</b> {section}/{subsection}
@@ -126,7 +149,7 @@ async def _send_with_retry(bot: Bot, *, chat_id: int, thread_id: int, text: str)
 
 async def _notify_startup(bot: Bot) -> None:
     """Отправляет сообщение в WARNING_TOPIC_ID о запуске бота."""
-    text = "🟢 <b>Log bot запущен и слушает RabbitMQ.</b>"
+    text = "🟢 <b>Log bot запущен и слушает RabbitMQ.</b>\n\nПоддерживаемые источники:\n" + "\n".join([f"• {key}" for key in ROUTING_KEYS])
     try:
         await _send_with_retry(bot, chat_id=CHAT_ID, thread_id=WARNING_TOPIC_ID, text=text)
     except Exception as exc:
@@ -154,7 +177,11 @@ async def _consume_and_forward(bot: Bot) -> None:
         QUEUE_NAME,
         durable=True,
     )
-    await queue.bind(exchange, ROUTING_KEY)
+    
+    # Биндим очередь к exchange для всех routing keys
+    for routing_key in ROUTING_KEYS:
+        await queue.bind(exchange, routing_key)
+        print(f"[TELEGRAM BOT] Очередь привязана к exchange с routing_key: {routing_key}")
 
     async with queue.iterator() as queue_iter:
         async for message in queue_iter:
@@ -169,7 +196,6 @@ async def _consume_and_forward(bot: Bot) -> None:
                 data.pop("user_id", None)
                 data.pop("ip_address", None)
                 data.pop("user_agent", None)
-                data.pop("source", None)
 
                 level = str(data.get("level", "")).upper()
                 thread_id = WARNING_TOPIC_ID if level == "WARNING" else ERROR_TOPIC_ID
@@ -199,4 +225,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        pass 
+        print("\n[TELEGRAM BOT] Программа завершена пользователем") 
