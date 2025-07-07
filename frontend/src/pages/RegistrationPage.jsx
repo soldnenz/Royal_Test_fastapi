@@ -4,6 +4,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { translations } from '../translations/translations';
 import { getStoredReferralCode, clearReferralCode } from '../utils/referralHelper';
+import TurnstileWidget from '../components/TurnstileWidget';
 
 const RegistrationPage = () => {
   const { theme } = useTheme();
@@ -28,6 +29,8 @@ const RegistrationPage = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileError, setTurnstileError] = useState('');
 
   // Get referral code from URL if exists
   useEffect(() => {
@@ -89,7 +92,14 @@ const RegistrationPage = () => {
       newErrors.confirm_password = t.passwordMismatch;
     }
     
+    // Turnstile validation
+    if (!turnstileToken) {
+      setTurnstileError('Пожалуйста, завершите проверку безопасности');
+      return false;
+    }
+    
     setErrors(newErrors);
+    setTurnstileError('');
     return Object.keys(newErrors).length === 0;
   };
 
@@ -105,7 +115,10 @@ const RegistrationPage = () => {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          cf_turnstile_response: turnstileToken
+        }),
         credentials: 'include'
       });
       
@@ -133,6 +146,21 @@ const RegistrationPage = () => {
 
   const toggleConfirmPasswordVisibility = () => {
     setShowConfirmPassword(!showConfirmPassword);
+  };
+
+  const handleTurnstileSuccess = (token) => {
+    setTurnstileToken(token);
+    setTurnstileError('');
+  };
+
+  const handleTurnstileError = () => {
+    setTurnstileToken('');
+    setTurnstileError('Ошибка проверки безопасности. Попробуйте еще раз.');
+  };
+
+  const handleTurnstileExpired = () => {
+    setTurnstileToken('');
+    setTurnstileError('Время проверки истекло. Пожалуйста, пройдите проверку снова.');
   };
 
   return (
@@ -308,6 +336,20 @@ const RegistrationPage = () => {
                     placeholder="Код приглашения"
                   />
                 </div>
+              </div>
+              
+              {/* Turnstile Widget */}
+              <div>
+                <TurnstileWidget
+                  onSuccess={handleTurnstileSuccess}
+                  onError={handleTurnstileError}
+                  onExpired={handleTurnstileExpired}
+                  size="normal"
+                  theme="auto"
+                />
+                {turnstileError && (
+                  <p className="text-red-500 mt-1 text-sm">{turnstileError}</p>
+                )}
               </div>
               
               <div className="flex flex-col sm:flex-row justify-between items-center gap-3">

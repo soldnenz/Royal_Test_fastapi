@@ -186,6 +186,7 @@ class LogSubsection:
         ACCESS_DENIED = "access_denied"
         INJECTION = "injection"
         VALIDATION = "validation"
+        TURNSTILE = "turnstile"
     
     # DATABASE подразделы
     class DATABASE:

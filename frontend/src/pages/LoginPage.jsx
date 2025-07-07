@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { translations } from '../translations/translations';
+import TurnstileWidget from '../components/TurnstileWidget';
 
 const LoginPage = () => {
   const { theme, toggleTheme } = useTheme();
@@ -15,6 +16,8 @@ const LoginPage = () => {
   const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileError, setTurnstileError] = useState('');
 
   const validate = () => {
     const newErrors = {};
@@ -26,7 +29,15 @@ const LoginPage = () => {
     if (!password) {
       newErrors.password = t.passwordRequired;
     }
+    
+    // Turnstile validation
+    if (!turnstileToken) {
+      setTurnstileError('Пожалуйста, завершите проверку безопасности');
+      return false;
+    }
+    
     setErrors(newErrors);
+    setTurnstileError('');
     return Object.keys(newErrors).length === 0;
   };
 
@@ -41,7 +52,11 @@ const LoginPage = () => {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ 
+          username, 
+          password,
+          cf_turnstile_response: turnstileToken
+        }),
         credentials: 'include'
       });
       const data = await response.json();
@@ -59,6 +74,21 @@ const LoginPage = () => {
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
+  };
+
+  const handleTurnstileSuccess = (token) => {
+    setTurnstileToken(token);
+    setTurnstileError('');
+  };
+
+  const handleTurnstileError = () => {
+    setTurnstileToken('');
+    setTurnstileError('Ошибка проверки безопасности. Попробуйте еще раз.');
+  };
+
+  const handleTurnstileExpired = () => {
+    setTurnstileToken('');
+    setTurnstileError('Время проверки истекло. Пожалуйста, пройдите проверку снова.');
   };
 
   return (
@@ -126,6 +156,20 @@ const LoginPage = () => {
                   </button>
                 </div>
                 {errors.password && <p className="text-red-500 mt-1 text-sm">{errors.password}</p>}
+              </div>
+              
+              {/* Turnstile Widget */}
+              <div>
+                <TurnstileWidget
+                  onSuccess={handleTurnstileSuccess}
+                  onError={handleTurnstileError}
+                  onExpired={handleTurnstileExpired}
+                  size="normal"
+                  theme="auto"
+                />
+                {turnstileError && (
+                  <p className="text-red-500 mt-1 text-sm">{turnstileError}</p>
+                )}
               </div>
               
               <div className="flex flex-col sm:flex-row justify-between items-center gap-3">

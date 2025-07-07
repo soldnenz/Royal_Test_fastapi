@@ -1,7 +1,6 @@
 # Database Configuration
-MONGO_URI=mongodb://localhost:27017
-MONGO_DB_NAME=royal_test
-
+MONGO_URI=mongodb://admin:rmh_1337_polnokrasoti@185.146.3.206:27017/admin?authSource=admin&replicaSet=rs0
+MONGO_DB_NAME=Royal_Test
 # Telegram Bot Configuration
 TELEGRAM_BOT_TOKEN=7666643669:AAHtiA7y1r_WR1LrBxp1tqU4GA3r2XWgO8o
 

@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     MEDIA_BASE_PATH: str = "../video_test"  # Корневая папка проекта
     MEDIA_X_ACCEL_PREFIX: str = "/media"
     MEDIA_MAX_FILE_SIZE_MB: int = 50
+    
+    # Turnstile settings
+    TURNSTILE_SECRET_KEY: str = ""  # Добавьте ваш секретный ключ здесь
     MEDIA_ALLOWED_TYPES: List[str] = [
         "video/mp4", "video/avi", "video/mov", "video/wmv", "video/flv",
         "image/jpeg", "image/png", "image/gif", "image/webp",

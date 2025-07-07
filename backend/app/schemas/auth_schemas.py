@@ -2,9 +2,14 @@ from pydantic import BaseModel, Field, validator, constr
 import re
 
 
-def sanitize_input(value: str) -> str:
+def sanitize_input(value: str, is_password: bool = False) -> str:
     """
-    Разрешает только:
+    Разрешает только безопасные символы.
+    
+    Для паролей разрешены:
+    - Все печатные ASCII символы (кроме пробелов)
+    
+    Для остальных полей разрешены:
       - Русские буквы (включая ё/Ё),
       - Английские буквы (a-z, A-Z),
       - Цифры (0-9),
@@ -16,15 +21,21 @@ def sanitize_input(value: str) -> str:
       - Дефис/минус (-),
       - Точку (.),
       - Плюс (+).
-
-    Если встречаются недопустимые символы – выбрасывается ValueError.
     """
-    pattern = r'^[0-9a-zA-Zа-яА-ЯёЁ =_@().+\-]+$'
-    if not re.match(pattern, value):
-        raise ValueError(
-            "Недопустимые символы. Разрешены только русские и английские буквы, цифры, пробел, "
-            "символ равенства (=), подчёркивание (_), @, круглые скобки (), дефис (-), точка (.) и плюс (+)."
-        )
+    if is_password:
+        # Для паролей разрешаем все печатные ASCII символы (32-126) кроме пробелов
+        pattern = r'^[\x21-\x7E]+$'
+        if not re.match(pattern, value):
+            raise ValueError(
+                "Пароль может содержать только печатные ASCII символы"
+            )
+    else:
+        pattern = r'^[0-9a-zA-Zа-яА-ЯёЁ =_@().+\-]+$'
+        if not re.match(pattern, value):
+            raise ValueError(
+                "Недопустимые символы. Разрешены только русские и английские буквы, цифры, пробел, "
+                "символ равенства (=), подчёркивание (_), @, круглые скобки (), дефис (-), точка (.) и плюс (+)."
+            )
     return value
 
 
@@ -59,6 +70,7 @@ class AuthRequest(BaseModel):
     """
     username: str
     password: str
+    cf_turnstile_response: str | None = Field(None, description="Cloudflare Turnstile токен")
 
     @validator("username")
     def validate_username(cls, v):
@@ -76,13 +88,14 @@ class AuthRequest(BaseModel):
             raise ValueError("Пароль должен содержать минимум 6 символов")
         if len(v) > 256:
             raise ValueError("Пароль не должен превышать 256 символов")
-        return sanitize_input(v)
+        return sanitize_input(v, is_password=True)
 
     class Config:
         schema_extra = {
             "example": {
                 "username": "012345678901",  # или "user@example.com"
-                "password": "strong_password_123"
+                "password": "strong_password_123",
+                "cf_turnstile_response": None  # Optional during development
             }
         }
 
@@ -139,7 +152,7 @@ class PasswordResetConfirm(BaseModel):
 
     @validator("new_password")
     def validate_new_password(cls, v):
-        return sanitize_input(v)
+        return sanitize_input(v, is_password=True)
 
     class Config:
         schema_extra = {

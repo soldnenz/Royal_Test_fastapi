@@ -25,6 +25,7 @@ import secrets
 import re
 from app.core.response import success
 from app.logging import get_logger, LogSection, LogSubsection
+from app.core.turnstile_validator import validate_turnstile_token
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -164,6 +165,50 @@ async def unified_login(data: AuthRequest, request: Request):
         )
         register_attempt(ip)
         raise
+
+    # Проверяем Turnstile токен
+    try:
+        if settings.TURNSTILE_SECRET_KEY and data.cf_turnstile_response:
+            turnstile_success, turnstile_error = await validate_turnstile_token(data.cf_turnstile_response, ip)
+            if not turnstile_success:
+                logger.warning(
+                    section=LogSection.SECURITY,
+                    subsection=LogSubsection.SECURITY.TURNSTILE,
+                    message=f"Неудачная проверка Turnstile при входе с IP {ip}: {turnstile_error}"
+                )
+                register_attempt(ip)
+                raise HTTPException(
+                    status_code=400,
+                    detail={"message": "Ошибка проверки безопасности. Попробуйте еще раз."}
+                )
+        elif settings.TURNSTILE_SECRET_KEY and not data.cf_turnstile_response:
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.TURNSTILE,
+                message=f"Отсутствует Turnstile токен при входе с IP {ip} когда он требуется"
+            )
+            raise HTTPException(
+                status_code=400,
+                detail={"message": "Требуется подтверждение Turnstile"}
+            )
+        else:
+            logger.info(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.TURNSTILE,
+                message=f"Пропускаем проверку Turnstile (не настроен) для IP {ip}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.TURNSTILE,
+            message=f"Неожиданная ошибка при проверке Turnstile для IP {ip}: {str(e)} (тип: {type(e).__name__})"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail={"message": "Внутренняя ошибка сервера при проверке безопасности"}
+        )
 
     if not check_rate_limit(ip):
         logger.warning(
@@ -420,6 +465,19 @@ async def register_user(user_data: UserCreate, request: Request):
         )
 
     register_attempt(ip)
+
+    # Проверяем Turnstile токен
+    turnstile_success, turnstile_error = await validate_turnstile_token(user_data.cf_turnstile_response, ip)
+    if not turnstile_success:
+        logger.warning(
+            section=LogSection.SECURITY,
+            subsection=LogSubsection.SECURITY.TURNSTILE,
+            message=f"Неудачная проверка Turnstile при регистрации с IP {ip}: {turnstile_error}"
+        )
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "Ошибка проверки безопасности. Попробуйте еще раз."}
+        )
 
     # БЕЗОПАСНАЯ ВАЛИДАЦИЯ входных данных
     try:

@@ -92,6 +92,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str
     confirm_password: str
+    cf_turnstile_response: str = Field(..., description="Cloudflare Turnstile токен")
 
     @field_validator("password")
     @classmethod
