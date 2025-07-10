@@ -71,16 +71,40 @@ class TurnstileValidator:
                     return True, None
                 else:
                     error_codes = result.get("error-codes", [])
+                    
+                    # Создаем понятные сообщения для разных типов ошибок
+                    user_friendly_messages = {
+                        "missing-input-secret": "Ошибка конфигурации сервера. Обратитесь к администратору.",
+                        "invalid-input-secret": "Ошибка конфигурации сервера. Обратитесь к администратору.",
+                        "missing-input-response": "Не передан токен проверки безопасности.",
+                        "invalid-input-response": "Недействительный токен проверки безопасности. Обновите страницу и попробуйте снова.",
+                        "bad-request": "Некорректный запрос. Обновите страницу и попробуйте снова.",
+                        "timeout-or-duplicate": "Время проверки истекло или токен уже использован. Пройдите проверку безопасности заново.",
+                        "internal-error": "Внутренняя ошибка сервиса проверки. Попробуйте позже.",
+                        "hostname-mismatch": "Ошибка домена. Обратитесь к администратору.",
+                        "action-mismatch": "Ошибка действия. Обновите страницу и попробуйте снова.",
+                        "cdata-mismatch": "Ошибка данных. Обновите страницу и попробуйте снова.",
+                        "challenge-expired": "Проверка истекла. Пройдите проверку безопасности заново."
+                    }
+                    
+                    # Выбираем наиболее подходящее сообщение
+                    user_message = "Ошибка проверки безопасности. Попробуйте еще раз."
+                    for error_code in error_codes:
+                        if error_code in user_friendly_messages:
+                            user_message = user_friendly_messages[error_code]
+                            break
+                    
                     error_msg = f"Ошибка проверки Turnstile: {', '.join(error_codes)}"
                     self.logger.warning(
                         section=LogSection.SECURITY,
                         subsection=LogSubsection.SECURITY.TURNSTILE,
                         message=f"Turnstile токен не прошел проверку для IP {remote_ip or 'неизвестен'}: {error_msg}"
                     )
-                    return False, error_msg
+                    
+                    return False, user_message
                     
         except httpx.RequestError as e:
-            error_msg = f"Ошибка сети при проверке Turnstile: {str(e)}"
+            error_msg = "Ошибка сети при проверке безопасности. Проверьте соединение и попробуйте снова."
             self.logger.error(
                 section=LogSection.SECURITY,
                 subsection=LogSubsection.SECURITY.TURNSTILE,
@@ -89,7 +113,7 @@ class TurnstileValidator:
             return False, error_msg
             
         except Exception as e:
-            error_msg = f"Неожиданная ошибка при проверке Turnstile: {str(e)}"
+            error_msg = "Неожиданная ошибка при проверке безопасности. Попробуйте позже."
             self.logger.error(
                 section=LogSection.SECURITY,
                 subsection=LogSubsection.SECURITY.TURNSTILE,

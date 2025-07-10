@@ -1,32 +1,39 @@
+# Use Python 3.11 slim image as base
 FROM python:3.11-slim
 
-# Устанавливаем системные зависимости
-RUN apt-get update && apt-get install -y \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
-
-# Создаем рабочую директорию
+# Set working directory
 WORKDIR /app
 
-# Копируем файл зависимостей
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    POETRY_VERSION=1.6.1
+
+# Install system dependencies
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        gcc \
+        python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements file
 COPY requirements.txt .
 
-# Устанавливаем Python зависимости
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копируем исходный код
+# Copy project files
 COPY . .
 
-# Создаем директорию для логов
+# Create logs directory
 RUN mkdir -p logs
 
-# Создаем пользователя для безопасности
-RUN useradd --create-home --shell /bin/bash app && \
-    chown -R app:app /app
-USER app
+# Create a non-root user
+RUN useradd -m appuser && chown -R appuser:appuser /app
+USER appuser
 
-# Открываем порт
+# Expose port
 EXPOSE 8001
 
-# Запускаем приложение
-CMD ["python", "start.py"] 
+# Command to run the application
+CMD ["python", "main.py"] 

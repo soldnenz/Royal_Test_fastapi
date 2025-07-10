@@ -1,3 +1,7 @@
+"""
+Декораторы для применения рейт лимитов к маршрутам FastAPI
+"""
+
 import time
 from datetime import datetime, timedelta, timezone
 import pytz
@@ -26,6 +30,7 @@ import re
 from app.core.response import success
 from app.logging import get_logger, LogSection, LogSubsection
 from app.core.turnstile_validator import validate_turnstile_token
+from app.rate_limit import rate_limit_ip
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -99,25 +104,8 @@ def validate_email(email: str) -> str:
     return email
 
 # -------------------------
-# RATE LIMIT (упрощённо)
+# RATE LIMIT - используем новую систему рейт лимитов
 # -------------------------
-MAX_ATTEMPTS = 5
-WINDOW_SECONDS = 300
-login_attempts = {}
-
-def check_rate_limit(ip: str) -> bool:
-    now = time.time()
-    if ip not in login_attempts:
-        login_attempts[ip] = []
-    # Оставляем только недавние попытки (в пределах WINDOW_SECONDS)
-    login_attempts[ip] = [t for t in login_attempts[ip] if (now - t) <= WINDOW_SECONDS]
-    return len(login_attempts[ip]) < MAX_ATTEMPTS
-
-def register_attempt(ip: str):
-    now = time.time()
-    if ip not in login_attempts:
-        login_attempts[ip] = []
-    login_attempts[ip].append(now)
 
 # Функции get_ip и get_user_agent импортированы из app.admin.utils
 # Функция sanitize_input удалена - используем strict_validate_input
@@ -126,6 +114,7 @@ def register_attempt(ip: str):
 # LOGIN
 # -------------------------
 @router.post("/login")
+@rate_limit_ip("auth_login", max_requests=20, window_seconds=300)  # 5 попыток за 5 минут
 async def unified_login(data: AuthRequest, request: Request):
     ip = get_ip(request)
     ua = get_user_agent(request)
@@ -163,7 +152,6 @@ async def unified_login(data: AuthRequest, request: Request):
             subsection=LogSubsection.AUTH.LOGIN_FAILED,
             message=f"Некорректный ввод данных входа с IP {ip} - логин: {data.username[:10]}..."
         )
-        register_attempt(ip)
         raise
 
     # Проверяем Turnstile токен
@@ -210,16 +198,7 @@ async def unified_login(data: AuthRequest, request: Request):
             detail={"message": "Внутренняя ошибка сервера при проверке безопасности"}
         )
 
-    if not check_rate_limit(ip):
-        logger.warning(
-            section=LogSection.SECURITY,
-            subsection=LogSubsection.SECURITY.RATE_LIMIT,
-            message=f"Превышен лимит попыток входа с IP {ip} - заблокировано на 5 минут"
-        )
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={"message": "Превышен лимит попыток входа"}
-        )
+    # Рейт лимит теперь обрабатывается декоратором @rate_limit_strict
 
     # БЕЗОПАСНЫЙ поиск админа (используем точное соответствие поля)
     admin = await db.admins.find_one({search_field: ident})
@@ -240,18 +219,18 @@ async def unified_login(data: AuthRequest, request: Request):
         requires_2fa = False
         old_ip = "неизвестен"
         
-        # # Проверяем активную сессию
-        # if admin.get("active_session"):
-        #     if (admin["active_session"].get("ip") != ip or
-        #         admin["active_session"].get("user_agent") != ua):
-        #         requires_2fa = True
-        #         old_ip = admin["active_session"].get("ip", "неизвестен")
-        # # Если нет активной сессии, проверяем last_login
-        # elif admin.get("last_login"):
-        #     if (admin["last_login"].get("ip") != ip or
-        #         admin["last_login"].get("user_agent") != ua):
-        #         requires_2fa = True
-        #         old_ip = admin["last_login"].get("ip", "неизвестен")
+        # Проверяем активную сессию
+        if admin.get("active_session"):
+            if (admin["active_session"].get("ip") != ip or
+                admin["active_session"].get("user_agent") != ua):
+                requires_2fa = True
+                old_ip = admin["active_session"].get("ip", "неизвестен")
+        # Если нет активной сессии, проверяем last_login
+        elif admin.get("last_login"):
+            if (admin["last_login"].get("ip") != ip or
+                admin["last_login"].get("user_agent") != ua):
+                requires_2fa = True
+                old_ip = admin["last_login"].get("ip", "неизвестен")
         
         if requires_2fa:
             logger.info(
@@ -321,7 +300,6 @@ async def unified_login(data: AuthRequest, request: Request):
             subsection=LogSubsection.AUTH.LOGIN_FAILED,
             message=f"Пользователь не найден с логином {ident} с IP {ip}"
         )
-        register_attempt(ip)
         raise HTTPException(
             status_code=401,
             detail={"message": "Неправильный IIN, Email или пароль"}
@@ -403,13 +381,10 @@ async def unified_login(data: AuthRequest, request: Request):
             subsection=LogSubsection.AUTH.LOGIN_FAILED,
             message=f"Неверный пароль пользователя {user.get('full_name', 'неизвестен')} ({user.get('email') or user.get('iin')}) с IP {ip}"
         )
-        register_attempt(ip)
         raise HTTPException(
             status_code=401,
             detail={"message": "Неправильный IIN, Email или пароль"}
         )
-
-    register_attempt(ip)
 
     token_data = {
         "sub": str(user["_id"]),
@@ -444,6 +419,7 @@ async def unified_login(data: AuthRequest, request: Request):
 # REGISTER
 # -------------------------
 @router.post("/register", response_model=TokenResponse)
+@rate_limit_ip("auth_register", max_requests=3, window_seconds=600)  # 3 попытки за 10 минут
 async def register_user(user_data: UserCreate, request: Request):
     ip = request.client.host
 
@@ -453,18 +429,7 @@ async def register_user(user_data: UserCreate, request: Request):
         message=f"Попытка регистрации пользователя с IP {ip} - email: {user_data.email}, ИИН: {user_data.iin[:8]}..."
     )
 
-    if not check_rate_limit(ip):
-        logger.warning(
-            section=LogSection.SECURITY,
-            subsection=LogSubsection.SECURITY.RATE_LIMIT,
-            message=f"Превышен лимит попыток регистрации с IP {ip} - заблокировано на 5 минут"
-        )
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={"message": "Превышен лимит попыток входа"}
-        )
-
-    register_attempt(ip)
+    # Рейт лимит теперь обрабатывается декоратором @rate_limit_strict
 
     # Проверяем Turnstile токен
     turnstile_success, turnstile_error = await validate_turnstile_token(user_data.cf_turnstile_response, ip)
@@ -622,6 +587,7 @@ async def register_user(user_data: UserCreate, request: Request):
 # GUEST REGISTER
 # -------------------------
 @router.post("/guest-register")
+@rate_limit_ip("auth_guest_register", max_requests=10, window_seconds=300)  # 10 попыток за 5 минут
 async def guest_register(data: dict, request: Request):
     """Register a guest user for School lobbies"""
     ip = request.client.host
@@ -632,18 +598,7 @@ async def guest_register(data: dict, request: Request):
         message=f"Попытка гостевой регистрации с IP {ip} - имя: {data.get('name', 'неизвестно')[:20]}..., лобби: {data.get('lobby_id', 'неизвестно')[:10]}..."
     )
 
-    if not check_rate_limit(ip):
-        logger.warning(
-            section=LogSection.SECURITY,
-            subsection=LogSubsection.SECURITY.RATE_LIMIT,
-            message=f"Превышен лимит попыток гостевой регистрации с IP {ip} - заблокировано на 5 минут"
-        )
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={"message": "Превышен лимит попыток входа"}
-        )
-
-    register_attempt(ip)
+    # Рейт лимит теперь обрабатывается декоратором @rate_limit
 
     name = data.get("name", "").strip()
     lobby_id = data.get("lobby_id", "").strip()
@@ -772,6 +727,7 @@ async def guest_register(data: dict, request: Request):
 # LOGOUT (Отзыв токена)
 # -------------------------
 @router.post("/logout")
+@rate_limit_ip("auth_logout", max_requests=10, window_seconds=60)  # 10 попыток в минуту
 async def logout_user(request: Request):
     ip = request.client.host
     
@@ -893,7 +849,8 @@ async def logout_user(request: Request):
 # /validate-admin  (для Nginx auth_request)
 # --------------------------------------------------------------------------- #
 @router.get("/validate-admin", include_in_schema=False)
-async def validate_admin(admin = Depends(get_current_admin_user)):
+@rate_limit_ip("auth_validate_admin", max_requests=100, window_seconds=60)  # 100 проверок в минуту
+async def validate_admin(request: Request, admin = Depends(get_current_admin_user)):
     """
     204 → JWT валиден и роль = admin|moderator.
     Используется Nginx‑ом в auth_request.

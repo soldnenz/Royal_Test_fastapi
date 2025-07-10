@@ -1,4 +1,4 @@
-aio-pika
-aiogram
-python-json-logger
-pytz 
+aio-pika==9.5.5
+aiogram==3.21.0
+python-dotenv==1.1.1
+pytz==2025.2

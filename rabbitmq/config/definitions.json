@@ -1,0 +1,230 @@
+{
+  "rabbit_version": "3.12.0",
+  "rabbitmq_version": "3.12.0",
+  "product_name": "RabbitMQ",
+  "product_version": "3.12.0",
+  "users": [
+    {
+      "name": "royal_admin",
+      "password_hash": "aFRCGU8wCQxCdFCNgCn8i3HgEgNqjqAYWRYWpYJ7qOY0kQxM",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": "administrator"
+    },
+    {
+      "name": "royal_logger",
+      "password_hash": "bFRCGU8wCQxCdFCNgCn8i3HgEgNqjqAYWRYWpYJ7qOY0kQxN",
+      "hashing_algorithm": "rabbit_password_hashing_sha256", 
+      "tags": "monitoring"
+    },
+    {
+      "name": "royal_app",
+      "password_hash": "cFRCGU8wCQxCdFCNgCn8i3HgEgNqjqAYWRYWpYJ7qOY0kQxO",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": ""
+    }
+  ],
+  "vhosts": [
+    {
+      "name": "royal_vhost"
+    },
+    {
+      "name": "royal_logs"
+    }
+  ],
+  "permissions": [
+    {
+      "user": "royal_admin",
+      "vhost": "royal_vhost",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "royal_admin",
+      "vhost": "royal_logs",
+      "configure": ".*", 
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "royal_logger",
+      "vhost": "royal_logs",
+      "configure": "^logs\\.",
+      "write": "^logs\\.",
+      "read": "^logs\\."
+    },
+    {
+      "user": "royal_app",
+      "vhost": "royal_vhost",
+      "configure": "^(royal_app_|temp_).*",
+      "write": "^(royal_app_|temp_).*",
+      "read": "^(royal_app_|temp_).*"
+    }
+  ],
+  "topic_permissions": [],
+  "parameters": [],
+  "global_parameters": [
+    {
+      "name": "cluster_name",
+      "value": "royal_cluster"
+    }
+  ],
+  "policies": [
+    {
+      "vhost": "royal_vhost",
+      "name": "royal_ha_policy", 
+      "pattern": "^royal_.*",
+      "apply-to": "queues",
+      "definition": {
+        "ha-mode": "exactly",
+        "ha-params": 2,
+        "ha-sync-mode": "automatic",
+        "message-ttl": 86400000,
+        "max-length": 10000
+      },
+      "priority": 1
+    },
+    {
+      "vhost": "royal_logs",
+      "name": "logs_policy",
+      "pattern": "^logs_.*",
+      "apply-to": "queues", 
+      "definition": {
+        "ha-mode": "all",
+        "ha-sync-mode": "automatic",
+        "message-ttl": 604800000,
+        "max-length": 50000,
+        "overflow": "reject-publish"
+      },
+      "priority": 1
+    }
+  ],
+  "queues": [
+    {
+      "name": "royal_app_main",
+      "vhost": "royal_vhost",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 86400000,
+        "x-max-length": 10000,
+        "x-queue-type": "classic"
+      }
+    },
+    {
+      "name": "royal_app_priority", 
+      "vhost": "royal_vhost",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 86400000,
+        "x-max-length": 5000,
+        "x-max-priority": 10,
+        "x-queue-type": "classic"
+      }
+    },
+    {
+      "name": "logs_main",
+      "vhost": "royal_logs",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 604800000,
+        "x-max-length": 50000,
+        "x-queue-type": "classic"
+      }
+    },
+    {
+      "name": "logs_error",
+      "vhost": "royal_logs", 
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 1209600000,
+        "x-max-length": 25000,
+        "x-max-priority": 5,
+        "x-queue-type": "classic"
+      }
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "royal_app_exchange",
+      "vhost": "royal_vhost",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "royal_direct_exchange",
+      "vhost": "royal_vhost", 
+      "type": "direct",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "logs_exchange",
+      "vhost": "royal_logs",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "dlx_exchange",
+      "vhost": "royal_vhost",
+      "type": "direct",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "royal_app_exchange",
+      "vhost": "royal_vhost",
+      "destination": "royal_app_main",
+      "destination_type": "queue",
+      "routing_key": "app.main.*",
+      "arguments": {}
+    },
+    {
+      "source": "royal_app_exchange",
+      "vhost": "royal_vhost",
+      "destination": "royal_app_priority", 
+      "destination_type": "queue",
+      "routing_key": "app.priority.*",
+      "arguments": {}
+    },
+    {
+      "source": "royal_direct_exchange",
+      "vhost": "royal_vhost",
+      "destination": "royal_app_main",
+      "destination_type": "queue", 
+      "routing_key": "direct",
+      "arguments": {}
+    },
+    {
+      "source": "logs_exchange",
+      "vhost": "royal_logs",
+      "destination": "logs_main",
+      "destination_type": "queue",
+      "routing_key": "logs.info.*",
+      "arguments": {}
+    },
+    {
+      "source": "logs_exchange", 
+      "vhost": "royal_logs",
+      "destination": "logs_error",
+      "destination_type": "queue",
+      "routing_key": "logs.error.*",
+      "arguments": {}
+    }
+  ]
+} 

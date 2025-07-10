@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, Request
 from fastapi.responses import StreamingResponse
 from typing import Optional, List
 from bson import ObjectId
@@ -15,12 +15,15 @@ from app.schemas.media_schemas import (
 from app.logging import get_logger, LogSection, LogSubsection
 from app.core.config import settings
 import time
+from app.rate_limit import rate_limit_ip
 
 router = APIRouter()
 logger = get_logger(__name__)
 
 @router.post("/upload", response_model=dict)
+@rate_limit_ip("media_upload", max_requests=30, window_seconds=30)
 async def upload_media_file(
+    request: Request,
     file: UploadFile = File(...),
     description: Optional[str] = Form(None),
     category: Optional[str] = Form(None),
@@ -125,7 +128,9 @@ async def upload_media_file(
         raise HTTPException(status_code=500, detail=f"Ошибка загрузки файла: {e}")
 
 @router.get("/file/{file_id}", response_model=dict)
+@rate_limit_ip("media_file_info", max_requests=30, window_seconds=30)
 async def get_media_file_info(
+    request: Request,
     file_id: str,
     current_user: dict = Depends(get_current_admin_user),
     db = Depends(get_database)
@@ -159,7 +164,9 @@ async def get_media_file_info(
     return success(data=file_info)
 
 @router.get("/files", response_model=dict)
+@rate_limit_ip("media_files_list", max_requests=30, window_seconds=30)
 async def get_media_files(
+    request: Request,
     creator_iin: Optional[str] = Query(None, description="IIN создателя файлов"),
     content_type: Optional[str] = Query(None, description="MIME-тип файла"),
     category: Optional[str] = Query(None, description="Категория файла"),
@@ -228,7 +235,9 @@ async def get_media_files(
         raise HTTPException(status_code=500, detail=f"Ошибка получения списка файлов: {e}")
 
 @router.put("/file/{file_id}", response_model=dict)
+@rate_limit_ip("media_file_update", max_requests=60, window_seconds=300)
 async def update_media_file(
+    request: Request,
     file_id: str,
     update_data: MediaFileUpdate,
     current_user: dict = Depends(get_current_admin_user),
@@ -278,7 +287,9 @@ async def update_media_file(
     return success(data={"message": "Метаданные файла обновлены"})
 
 @router.delete("/file/{file_id}", response_model=dict)
+@rate_limit_ip("media_file_delete", max_requests=15, window_seconds=300)
 async def delete_media_file(
+    request: Request,
     file_id: str,
     current_user: dict = Depends(get_current_admin_user),
     db = Depends(get_database)
@@ -313,7 +324,9 @@ async def delete_media_file(
     return success(data={"message": "Медиафайл успешно удален"})
 
 @router.get("/stream/{file_id}")
+@rate_limit_ip("media_stream", max_requests=100, window_seconds=60)
 async def stream_media_file(
+    request: Request,
     file_id: str,
     current_user: dict = Depends(get_current_admin_user),
     db = Depends(get_database)

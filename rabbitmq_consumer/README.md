@@ -1,136 +1,102 @@
-# RabbitMQ Consumer
+# RabbitMQ Consumer Service
 
-Асинхронные потребители для обработки логов из RabbitMQ. Поддерживает логи от основного приложения и микросервиса 2FA.
+This service consumes messages from RabbitMQ and processes them according to their routing keys.
 
-## Компоненты
+## Docker Setup
 
-### 1. `consumer.py` - Основной потребитель логов
-Обрабатывает логи и выводит их в консоль с красивым форматированием.
+### Prerequisites
+- Docker
+- Docker Compose
 
-**Поддерживаемые routing keys:**
-- `application.logs` - Основное приложение
-- `2fa.logs` - Микросервис 2FA
-- `auth.logs` - Логи аутентификации
-- `security.logs` - Логи безопасности
-- `system.logs` - Системные логи
+### Environment Variables
+Create a `.env` file in the root directory with the following variables:
 
-### 2. `log_consumer.py` - Простой потребитель
-Упрощенная версия для отладки и мониторинга.
+```env
+# Telegram Bot Settings
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+TELEGRAM_CHAT_ID=your_chat_id_here
+TELEGRAM_WARNING_TOPIC=2
+TELEGRAM_ERROR_TOPIC=3
 
-### 3. `telegram_log_bot.py` - Telegram бот
-Пересылает логи в Telegram группу с форумом (топиками).
+# RabbitMQ Settings
+RABBITMQ_HOST=rabbitmq
+RABBITMQ_PORT=5672
+RABBITMQ_USER=royal_logger
+RABBITMQ_PASSWORD=Royal_Logger_Pass
+RABBITMQ_VHOST=royal_logs
+RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}/${RABBITMQ_VHOST}
+RABBITMQ_EXCHANGE=logs_exchange
+RABBITMQ_QUEUE=telegram_log_bot_queue
 
-### 4. `topic_helper_bot.py` - Вспомогательный бот
-Дополнительные функции для работы с логами.
+# Debug Settings (1 = True, 0 = False)
+DEBUG=0
 
-## Установка
+# Encoding Settings
+PYTHONIOENCODING=utf-8
+```
 
-1. Создайте виртуальное окружение:
+### Generate Requirements
+To generate requirements.txt with exact versions:
+
+```bash
+python generate_requirements.py
+```
+
+### Build and Run
+1. Build the container:
+```bash
+docker-compose build
+```
+
+2. Start the service:
+```bash
+docker-compose up -d
+```
+
+3. View logs:
+```bash
+docker-compose logs -f
+```
+
+4. Stop the service:
+```bash
+docker-compose down
+```
+
+### Network Configuration
+The service connects to the RabbitMQ network automatically through Docker Compose networking. Make sure the RabbitMQ service is running before starting this consumer.
+
+### Resource Limits
+The service is configured with the following resource limits:
+- Memory: 256MB max
+- CPU: 0.5 cores max
+
+### Volumes
+- `./logs`: Service logs
+- Timezone information is shared from host
+
+### Health Monitoring
+Monitor the service status using:
+```bash
+docker-compose ps
+```
+
+## Development
+
+### Local Setup
+1. Create virtual environment:
 ```bash
 python -m venv venv
 source venv/bin/activate  # Linux/Mac
 venv\Scripts\activate     # Windows
 ```
 
-2. Установите зависимости:
+2. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-## Конфигурация
-
-### Переменные окружения
-
-#### RabbitMQ
+3. Run the consumer:
 ```bash
-RABBITMQ_URL=amqp://guest:guest@localhost:5672/
-RABBITMQ_EXCHANGE=logs
-RABBITMQ_QUEUE=log_processing_queue
-```
-
-#### Telegram (для telegram_log_bot.py)
-```bash
-TELEGRAM_BOT_TOKEN=your_bot_token
-TELEGRAM_CHAT_ID=-1002793640921
-TELEGRAM_WARNING_TOPIC=2
-TELEGRAM_ERROR_TOPIC=3
-```
-
-## Запуск
-
-### Основной потребитель
-```bash
-python consumer.py
-```
-
-### Простой потребитель
-```bash
-python log_consumer.py
-```
-
-### Telegram бот
-```bash
-python telegram_log_bot.py
-```
-
-## Структура логов
-
-Логи от микросервиса 2FA содержат следующие поля:
-
-```json
-{
-  "timestamp": "2025-07-05T03:04:06.652804+05:00",
-  "log_id": "6278b136-d0c2-4eda-958f-573cef7ed75b",
-  "level": "INFO",
-  "section": "2fa",
-  "subsection": "request_sent",
-  "message": "Администратор Омар Амир Арманулы пытается войти в систему",
-  "extra_data": {
-    "source_file": "telegram_bot.py",
-    "source_function": "send_2fa_request",
-    "source_line": 72
-  },
-  "source": "2fa_structured_logger"
-}
-```
-
-## Эмодзи для уровней
-
-- 🔍 DEBUG
-- ℹ️ INFO
-- ⚠️ WARNING
-- ❌ ERROR
-- 🔥 CRITICAL
-
-## Эмодзи для источников
-
-- 🔐 2FA микросервис
-- 📱 Основное приложение
-- 🔑 Аутентификация
-- 🛡️ Безопасность
-- ⚙️ Система
-
-## Мониторинг
-
-Потребители автоматически:
-- Подключаются к RabbitMQ
-- Создают необходимые очереди и привязки
-- Обрабатывают сообщения в реальном времени
-- Логируют ошибки подключения
-
-## Troubleshooting
-
-### Сообщения не обрабатываются
-1. Проверьте подключение к RabbitMQ
-2. Убедитесь, что exchange `logs` существует
-3. Проверьте routing keys в настройках
-
-### Telegram бот не отправляет сообщения
-1. Проверьте токен бота
-2. Убедитесь, что бот добавлен в группу
-3. Проверьте права бота на отправку сообщений
-
-### Высокая нагрузка на RabbitMQ
-- Увеличьте количество потребителей
-- Настройте prefetch count
-- Мониторьте размер очередей 
+python start_consumers.py
+``` 

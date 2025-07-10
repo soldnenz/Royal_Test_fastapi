@@ -124,9 +124,8 @@ class StructuredLogger:
         
         self.logger.handle(log_record)
         
-        # Отправляем логи выше INFO в RabbitMQ с правильным управлением задачами
-        if level in [LogLevel.WARNING, LogLevel.ERROR, LogLevel.CRITICAL]:
-            self._schedule_rabbitmq_send(entry)
+        # RabbitMQ отправка происходит автоматически через RabbitMQHandler
+        # Дублирующая отправка убрана для предотвращения двойных сообщений
     
     def _schedule_rabbitmq_send(self, entry: StructuredLogEntry):
         """Планирует отправку лога в RabbitMQ с правильным управлением задачами"""
@@ -220,24 +219,35 @@ def setup_logging():
     file_handler.setFormatter(formatter)
     root_logger.addHandler(file_handler)
     
-    # Консольный хендлер
+    # Консольный хендлер с поддержкой UTF-8 для Windows
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
+    
+    # Для Windows устанавливаем UTF-8 кодировку если возможно
+    try:
+        import sys
+        if hasattr(console_handler.stream, 'reconfigure'):
+            console_handler.stream.reconfigure(encoding='utf-8')
+    except:
+        pass  # Если не получается, используем стандартную кодировку
+    
     root_logger.addHandler(console_handler)
     
-    # RabbitMQ хендлер (если настроен)
-    if settings.rabbitmq_url:
-        try:
-            rabbitmq_handler = RabbitMQHandler(
-                rabbitmq_url=settings.rabbitmq_url,
-                exchange_name=settings.rabbitmq_exchange,
-                routing_key=settings.rabbitmq_routing_key,
-                level=logging.WARNING
-            )
-            rabbitmq_handler.setFormatter(formatter)
-            root_logger.addHandler(rabbitmq_handler)
-        except Exception as e:
-            print(f"Failed to setup RabbitMQ handler: {e}")
+    # RabbitMQ хендлер (всегда пытаемся настроить)
+    try:
+        # Используем переменную окружения или настройки, или fallback значение
+        rabbitmq_url = os.getenv("RABBITMQ_URL") or settings.rabbitmq_url or "amqp://royal_logger:Royal_Logger_Pass@localhost:5672/royal_logs"
+        
+        rabbitmq_handler = RabbitMQHandler(
+            rabbitmq_url=rabbitmq_url,
+            exchange_name=settings.rabbitmq_exchange,
+            routing_key=settings.rabbitmq_routing_key,
+            level=logging.WARNING
+        )
+        rabbitmq_handler.setFormatter(formatter)
+        root_logger.addHandler(rabbitmq_handler)
+    except Exception as e:
+        print(f"Failed to setup RabbitMQ handler: {e}")
     
     # Настройка логгеров для внешних библиотек
     logging.getLogger("aiogram").setLevel(logging.WARNING)

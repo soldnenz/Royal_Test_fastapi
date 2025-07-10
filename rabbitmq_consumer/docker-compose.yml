@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  rabbitmq_consumer:
+    build: .
+    container_name: royal_rabbitmq_consumer
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONIOENCODING=utf-8
+      # Override RabbitMQ connection for Docker network
+      - RABBITMQ_HOST=royal-rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-royal_logger}:${RABBITMQ_PASSWORD:-Royal_Logger_Pass}@royal-rabbitmq:5672/${RABBITMQ_VHOST:-royal_logs}
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    
+    volumes:
+      - ./logs:/app/logs
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    
+    networks:
+      - rabbitmq_network
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+networks:
+  rabbitmq_network:
+    external: true
+    name: royal_rabbitmq_rabbitmq_network 

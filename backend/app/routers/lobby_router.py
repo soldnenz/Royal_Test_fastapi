@@ -18,9 +18,9 @@ import base64
 import re
 import random
 import string
-from collections import defaultdict
 from typing import Optional, List, Dict, Any, Union
 import time
+from app.rate_limit import rate_limit_ip
 
 # Настройка логгера
 logger = get_logger(__name__)
@@ -159,35 +159,6 @@ class LobbyCache:
 # Глобальный кэш
 lobby_cache = LobbyCache()
 
-# Простой Rate Limiter
-class SimpleRateLimiter:
-    def __init__(self, max_requests: int = 60, time_window: int = 60):
-        self.max_requests = max_requests
-        self.time_window = time_window
-        self.requests = defaultdict(list)
-        
-    def check_rate_limit(self, user_id: str) -> bool:
-        from datetime import datetime, timedelta
-        now = datetime.utcnow()
-        user_requests = self.requests[user_id]
-        
-        # Удаляем старые запросы
-        user_requests[:] = [req_time for req_time in user_requests 
-                           if now - req_time < timedelta(seconds=self.time_window)]
-        
-        if len(user_requests) >= self.max_requests:
-            logger.warning(
-                section=LogSection.SECURITY,
-                subsection=LogSubsection.SECURITY.RATE_LIMIT,
-                message=f"Превышение лимита запросов: пользователь {user_id} заблокирован, {len(user_requests)} запросов за {self.time_window} секунд (лимит {self.max_requests})"
-            )
-            return False
-            
-        user_requests.append(now)
-        return True
-
-rate_limiter = SimpleRateLimiter()
-
 async def validate_lobby_access(lobby_id: str, user_id: str, required_status: str = None, is_guest: bool = False):
     """
     Централизованная проверка доступа к лобби
@@ -299,9 +270,9 @@ class KickParticipantRequest(BaseModel):
 router = APIRouter()
 
 def convert_answer_to_index(correct_answer_raw):
-    """Convert letter answer (A, B, C, D) to numeric index (0, 1, 2, 3)"""
+    """Convert letter answer (A-H) to numeric index (0-7)"""
     if isinstance(correct_answer_raw, str):
-        letter_to_index = {'A': 0, 'B': 1, 'C': 2, 'D': 3}
+        letter_to_index = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7}
         result = letter_to_index.get(correct_answer_raw.upper(), 0)
         if correct_answer_raw.upper() not in letter_to_index:
             logger.warning(
@@ -557,6 +528,7 @@ async def start_background_tasks():
     asyncio.create_task(auto_finish_expired_lobbies())
 
 @router.post("/lobbies", summary="Создать новое лобби")
+@rate_limit_ip("lobby_create", max_requests=10, window_seconds=300)
 async def create_lobby(
     lobby_data: LobbyCreate,
     request: Request = None, 
@@ -919,6 +891,7 @@ async def create_lobby(
         raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
 
 @router.post("/lobbies/{lobby_id}/join", summary="Присоединиться к лобби")
+@rate_limit_ip("lobby_join", max_requests=20, window_seconds=300)
 async def join_lobby(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
     """
     Присоединение к существующему лобби.
@@ -1073,6 +1046,7 @@ async def join_lobby(lobby_id: str, request: Request = None, current_user: dict 
         raise HTTPException(status_code=500, detail="Ошибка при присоединении к лобби")
 
 @router.post("/lobbies/{lobby_id}/start", summary="Начать тест")
+@rate_limit_ip("lobby_start", max_requests=10, window_seconds=300)
 async def start_test(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
     """
     Начинает тест в лобби. Только создатель лобби может начать тест.
@@ -1161,6 +1135,7 @@ async def start_test(lobby_id: str, request: Request = None, current_user: dict 
         raise HTTPException(status_code=500, detail="Ошибка при начале теста")
 
 @router.get("/lobbies/{lobby_id}/questions/{question_id}", summary="Получить данные вопроса")
+@rate_limit_ip("lobby_question_get", max_requests=50, window_seconds=60)
 async def get_question(lobby_id: str, question_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
     """
     Возвращает текст и варианты ответа для вопроса `question_id` из лобби `lobby_id`.
@@ -1277,9 +1252,11 @@ def get_user_id(current_user):
     return str(current_user["id"])
 
 @router.get("/lobbies/{lobby_id}/correct-answer", summary="Получить индекс правильного ответа на вопрос")
+@rate_limit_ip("lobby_correct_answer", max_requests=40, window_seconds=60)
 async def get_correct_answer(
     lobby_id: str,
     question_id: str = Query(..., description="ID вопроса"),
+    request: Request = None,
     current_user: dict = Depends(get_current_actor)
 ):
     """
@@ -1383,6 +1360,7 @@ async def get_correct_answer(
         raise HTTPException(status_code=500, detail="Ошибка при получении правильного ответа")
 
 @router.post("/lobbies/{lobby_id}/answer", summary="Отправить ответ на вопрос")
+@rate_limit_ip("lobby_answer_submit", max_requests=50, window_seconds=60)
 async def submit_answer(
     lobby_id: str,
     payload: AnswerSubmit,
@@ -1405,10 +1383,6 @@ async def submit_answer(
     - После всех 40 вопросов завершает тест
     """
     user_id = get_user_id(current_user)
-    
-    # Rate limiting
-    if not rate_limiter.check_rate_limit(user_id):
-        raise HTTPException(status_code=429, detail="Too many requests")
     
     question_id = payload.question_id
     answer_index = payload.answer_index
@@ -1579,11 +1553,12 @@ async def submit_answer(
         try:
             # Выполняем обе операции записи параллельно
             insert_task = db.user_answers.insert_one(answer_doc)
+            # Сохраняем оба типа ответов: правильность и выбранный вариант
             update_task = db.lobbies.update_one(
                 {"_id": lobby_id},
                 {"$set": {
-                    f"participants_answers.{user_id}.{question_id}": is_correct,
-                    f"participants_raw_answers.{user_id}.{question_id}": answer_index
+                    f"participants_answers.{user_id}.{question_id}": is_correct,  # true/false для правильности
+                    f"participants_raw_answers.{user_id}.{question_id}": answer_index  # индекс выбранного ответа
                 }}
             )
             
@@ -1775,6 +1750,7 @@ async def submit_answer(
 
 
 @router.post("/lobbies/{lobby_id}/skip", summary="Пропустить текущий вопрос")
+@rate_limit_ip("lobby_question_skip", max_requests=40, window_seconds=60)
 async def skip_question(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
     """
     Хост пропускает текущий вопрос и переходит к следующему.
@@ -1876,8 +1852,10 @@ async def skip_question(lobby_id: str, request: Request = None, current_user: di
         return success(data={"message": "Тест завершен", "results": results})
 
 @router.post("/lobbies/{lobby_id}/next-question", summary="Перейти к следующему вопросу (мультиплеер)")
+@rate_limit_ip("lobby_next_question", max_requests=40, window_seconds=60)
 async def next_question_multiplayer(
     lobby_id: str,
+    request: Request = None,
     current_user: dict = Depends(get_current_actor)
 ):
     """
@@ -1954,9 +1932,11 @@ async def next_question_multiplayer(
         raise HTTPException(status_code=500, detail="Ошибка при переходе к следующему вопросу")
 
 @router.post("/lobbies/{lobby_id}/kick", summary="Исключить участника из лобби")
+@rate_limit_ip("lobby_kick_participant", max_requests=15, window_seconds=300)
 async def kick_participant(
     lobby_id: str,
-    request: KickParticipantRequest,
+    request_data: KickParticipantRequest,
+    request: Request = None,
     current_user: dict = Depends(get_current_actor)
 ):
     """
@@ -1964,7 +1944,7 @@ async def kick_participant(
     Только хост может исключать участников.
     """
     user_id = get_user_id(current_user)
-    target_user_id = request.target_user_id
+    target_user_id = request_data.target_user_id
     
     logger.info(
         section=LogSection.LOBBY,
@@ -2069,6 +2049,7 @@ async def kick_participant(
         raise HTTPException(status_code=500, detail="Ошибка при исключении участника")
 
 @router.post("/lobbies/{lobby_id}/close", summary="Закрыть лобби")
+@rate_limit_ip("lobby_close", max_requests=10, window_seconds=300)
 async def close_lobby(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
     """
     Закрывает лобби (удаляет его).
@@ -2171,6 +2152,7 @@ async def close_lobby(lobby_id: str, request: Request = None, current_user: dict
         raise HTTPException(status_code=500, detail="Ошибка при закрытии лобби")
 
 @router.post("/lobbies/{lobby_id}/finish", summary="Завершить тест")
+@rate_limit_ip("lobby_finish", max_requests=10, window_seconds=300)
 async def finish_lobby(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
     """
     Досрочно завершает тест в лобби, фиксируя его результаты.
@@ -2352,7 +2334,8 @@ async def finish_lobby(lobby_id: str, request: Request = None, current_user: dic
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при завершении теста")
 
 @router.get("/lobbies/{lobby_id}/public", summary="Получить публичную информацию о лобби")
-async def get_lobby_public_info(lobby_id: str):
+@rate_limit_ip("lobby_public_info", max_requests=30, window_seconds=60)
+async def get_lobby_public_info(lobby_id: str, request: Request = None):
     """
     Получает публичную информацию о лобби для страницы присоединения.
     Не требует аутентификации.
@@ -2407,8 +2390,10 @@ async def get_lobby_public_info(lobby_id: str):
         raise HTTPException(status_code=500, detail="Ошибка при получении информации о лобби")
 
 @router.get("/lobbies/{lobby_id}", summary="Получить информацию о лобби")
+@rate_limit_ip("lobby_info", max_requests=40, window_seconds=60)
 async def get_lobby(
     lobby_id: str,
+    request: Request = None,
     current_user: dict = Depends(get_current_actor),
     t: str = Query(None, description="Timestamp for cache busting"),
     retry: str = Query(None, description="Retry flag for cache refresh")
@@ -2522,6 +2507,7 @@ async def get_lobby(
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
 
 @router.get("/lobbies/{lobby_id}/answered-users", summary="Получить список пользователей, ответивших на текущий вопрос")
+@rate_limit_ip("lobby_answered_users", max_requests=30, window_seconds=60)
 async def get_answered_users(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
     """
     Возвращает список пользователей, которые ответили на текущий вопрос и их результаты.
@@ -2587,6 +2573,7 @@ async def get_answered_users(lobby_id: str, request: Request = None, current_use
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении данных")
 
 @router.get("/lobbies/{lobby_id}/results", summary="Получить подробные результаты теста")
+@rate_limit_ip("lobby_test_results", max_requests=20, window_seconds=60)
 async def get_test_results(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
     """
     Возвращает подробные результаты теста для завершенного лобби.
@@ -2743,7 +2730,8 @@ async def get_test_results(lobby_id: str, request: Request = None, current_user:
         raise HTTPException(status_code=500, detail="Ошибка при получении результатов теста")
 
 @router.get("/active-lobby", summary="Получить информацию об активном лобби пользователя")
-async def get_user_active_lobby(current_user: dict = Depends(get_current_actor)):
+@rate_limit_ip("user_active_lobby", max_requests=30, window_seconds=60)
+async def get_user_active_lobby(request: Request = None, current_user: dict = Depends(get_current_actor)):
     """
     Проверяет, есть ли у пользователя активное лобби, и возвращает информацию о нем
     """
@@ -2825,7 +2813,8 @@ async def get_user_active_lobby(current_user: dict = Depends(get_current_actor))
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при проверке активного лобби")
 
 @router.get("/categories/stats", summary="Получить статистику по категориям и количеству вопросов")
-async def get_categories_stats(current_user: dict = Depends(get_current_actor)):
+@rate_limit_ip("lobby_categories_stats", max_requests=20, window_seconds=60)
+async def get_categories_stats(request: Request = None, current_user: dict = Depends(get_current_actor)):
     """
     Возвращает статистику по категориям и количеству вопросов в каждой.
     
@@ -2947,8 +2936,10 @@ async def get_categories_stats(current_user: dict = Depends(get_current_actor)):
         raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
 
 @router.get("/lobbies/{lobby_id}/online-users", summary="Получить список онлайн пользователей в лобби")
+@rate_limit_ip("lobby_online_users", max_requests=30, window_seconds=60)
 async def get_online_users(
     lobby_id: str,
+    request: Request = None,
     current_user: dict = Depends(get_current_actor)
 ):
     """
@@ -3012,7 +3003,8 @@ async def get_online_users(
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
 
 @router.post("/lobbies/{lobby_id}/leave", summary="Выйти из лобби")
-async def leave_lobby(lobby_id: str, current_user: dict = Depends(get_current_actor)):
+@rate_limit_ip("lobby_leave", max_requests=10, window_seconds=300)
+async def leave_lobby(lobby_id: str, request: Request = None, current_user: dict = Depends(get_current_actor)):
     """
     Выход пользователя из лобби.
     Если выходит хост, лобби закрывается.
@@ -3085,9 +3077,11 @@ class ShowCorrectAnswerRequest(BaseModel):
     question_index: int
 
 @router.post("/lobbies/{lobby_id}/show-correct-answer", summary="Показать правильный ответ")
+@rate_limit_ip("lobby_show_correct_answer", max_requests=40, window_seconds=60)
 async def show_correct_answer(
     lobby_id: str,
-    request_data: ShowCorrectAnswerRequest = None,
+    show_data: ShowCorrectAnswerRequest = None,
+    request: Request = None,
     current_user: dict = Depends(get_current_actor)
 ):
     """
@@ -3116,9 +3110,9 @@ async def show_correct_answer(
             raise HTTPException(status_code=400, detail="Тест не запущен")
         
         # Используем данные из запроса, если переданы, иначе берем из базы
-        if request_data and request_data.question_id:
-            current_question_id = request_data.question_id
-            current_index = request_data.question_index
+        if show_data and show_data.question_id:
+            current_question_id = show_data.question_id
+            current_index = show_data.question_index
             logger.info(
             section=LogSection.LOBBY,
             subsection=LogSubsection.LOBBY.QUESTIONS,
@@ -3229,8 +3223,10 @@ async def show_correct_answer(
         raise HTTPException(status_code=500, detail="Ошибка при показе правильного ответа")
 
 @router.post("/lobbies/{lobby_id}/toggle-participant-answers", summary="Переключить видимость ответов участников")
+@rate_limit_ip("lobby_toggle_answers", max_requests=20, window_seconds=300)
 async def toggle_participant_answers(
     lobby_id: str,
+    request: Request = None,
     current_user: dict = Depends(get_current_actor)
 ):
     """
@@ -3288,8 +3284,10 @@ async def toggle_participant_answers(
         raise HTTPException(status_code=500, detail="Ошибка при переключении видимости ответов")
 
 @router.post("/lobbies/{lobby_id}/sync-state", summary="Синхронизировать состояние лобби")
+@rate_limit_ip("lobby_sync_state", max_requests=30, window_seconds=60)
 async def sync_lobby_state(
     lobby_id: str,
+    request: Request = None,
     current_user: dict = Depends(get_current_actor)
 ):
     """
@@ -3388,8 +3386,10 @@ async def sync_lobby_state(
         raise HTTPException(status_code=500, detail="Ошибка при синхронизации состояния лобби")
 
 @router.get("/debug/question/{question_id}/media-info", summary="Отладка: информация о медиа вопроса")
+@rate_limit_ip("debug_question_media", max_requests=60, window_seconds=30)
 async def debug_question_media_info(
     question_id: str,
+    request: Request = None,
     current_user: dict = Depends(get_current_actor)
 ):
     """
@@ -3480,8 +3480,10 @@ async def debug_question_media_info(
         return {"error": str(e), "question_id": question_id}
 
 @router.post("/lobbies/{lobby_id}/finish-test", summary="Завершить тест (хост)")
+@rate_limit_ip("lobby_finish_test", max_requests=10, window_seconds=300)
 async def finish_test(
     lobby_id: str,
+    request: Request = None,
     current_user: dict = Depends(get_current_actor)
 ):
     """

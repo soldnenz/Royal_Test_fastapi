@@ -14,6 +14,15 @@ class Settings(BaseSettings):
     MONGO_URI: str
     MONGO_DB_NAME: str
 
+    # Настройки Redis для рейт лимитов
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_PASSWORD: str = "Royal_Redis_1337"  # Устанавливаем пароль по умолчанию
+    REDIS_DB: int = 1  # Используем БД 1 для рейт лимитов
+    REDIS_RATE_LIMIT_PREFIX: str = "royal_rate_limit"
+    REDIS_FAIL_OPEN: bool = True
+    REDIS_WARNING_THRESHOLD: float = 0.8
+
     # Настройки безопасности / JWT
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
@@ -29,7 +38,7 @@ class Settings(BaseSettings):
     DEFAULT_REFERRAL_RATE: int
     
     # Настройки медиафайлов
-    MEDIA_BASE_PATH: str = "../video_test"  # Корневая папка проекта
+    MEDIA_BASE_PATH: str = "static_media"  # Корневая папка проекта
     MEDIA_X_ACCEL_PREFIX: str = "/media"
     MEDIA_MAX_FILE_SIZE_MB: int = 50
     
@@ -44,6 +53,7 @@ class Settings(BaseSettings):
     class Config:
         # Сообщаем Pydantic брать переменные окружения
         env_file = ".env"
+        env_file_encoding = 'utf-8'
         # Если нужно указать префикс для всех переменных:
         # env_prefix = "MYAPP_"
         # Тогда бы ждали: MYAPP_MONGO_URI, MYAPP_MONGO_DB_NAME, ...

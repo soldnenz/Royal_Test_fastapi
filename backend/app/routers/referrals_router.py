@@ -14,6 +14,7 @@ import random
 from app.core.config import settings
 from app.core.finance import process_referral
 from app.logging import get_logger, LogSection, LogSubsection
+from app.rate_limit import rate_limit_ip
 
 router = APIRouter()
 
@@ -22,6 +23,7 @@ logger = get_logger(__name__)
 
 
 @router.post("/", summary="Создать реферальный код (пользователь)")
+@rate_limit_ip("referral_user_create", max_requests=3, window_seconds=600)
 async def create_referral_user(data: ReferralCreateUser, request: Request, current_user=Depends(get_current_actor)):
     # Только обычные пользователи могут создавать реферальный код через этот маршрут
     user_role = current_user.get("role") if isinstance(current_user, dict) else getattr(current_user, "role", None)
@@ -96,6 +98,7 @@ async def create_referral_user(data: ReferralCreateUser, request: Request, curre
     return success(data=response_data)
 
 @router.post("/admin", summary="Создать реферальный код (админ)")
+@rate_limit_ip("referral_admin_create", max_requests=10, window_seconds=300)
 async def create_referral_admin(data: ReferralCreate, request: Request, current_admin = Depends(get_current_admin_user)):
     # Проверяем, существует ли пользователь-владелец с данным ID
     try:
@@ -181,6 +184,7 @@ async def create_referral_admin(data: ReferralCreate, request: Request, current_
     return success(data=referral_doc)
 
 @router.get("/my", summary="Получить свой реферальный код (пользователь)")
+@rate_limit_ip("referral_my_view", max_requests=30, window_seconds=60)
 async def get_my_referral(request: Request, current_user = Depends(get_current_actor)):
     # Только пользователь (не админ) имеет собственный реферальный код
     role = current_user.get("role") if isinstance(current_user, dict) else getattr(current_user, "role", None)
@@ -216,6 +220,7 @@ async def get_my_referral(request: Request, current_user = Depends(get_current_a
     return success(data=response_data)
 
 @router.get("/transactions", summary="Получить данные по реферальным транзакциям")
+@rate_limit_ip("referral_transactions_view", max_requests=20, window_seconds=60)
 async def get_referral_transactions(
     request: Request,
     current_user=Depends(get_current_actor),
@@ -336,11 +341,13 @@ async def get_referral_transactions(
     )
 
 @router.get("/", summary="Получить список реферальных кодов (админ/модератор)")
+@rate_limit_ip("referral_admin_list", max_requests=60, window_seconds=60)
 async def list_referrals(
     code: Optional[str] = None,
     type: Optional[str] = None,
     active: Optional[bool] = None,
     owner_user_id: Optional[str] = None,
+    request: Request = None,
     current_admin = Depends(get_current_admin_user)
 ):
     # Формируем фильтр на основе переданных параметров
@@ -374,6 +381,7 @@ async def list_referrals(
     return success(data=referrals_list)
 
 @router.delete("/{referral_id}", summary="Деактивировать реферальный код")
+@rate_limit_ip("referral_deactivate", max_requests=10, window_seconds=300)
 async def deactivate_referral(referral_id: str, request: Request, current_actor = Depends(get_current_actor)):
     # Преобразуем идентификатор в ObjectId и находим реферальный код
     try:
@@ -426,6 +434,7 @@ async def deactivate_referral(referral_id: str, request: Request, current_actor 
     return success(message="Реферальный код деактивирован")
 
 @router.patch("/{referral_id}", summary="Обновить реферальный код (админ)")
+@rate_limit_ip("referral_update", max_requests=15, window_seconds=300)
 async def update_referral(referral_id: str, data: ReferralUpdateAdmin, request: Request, current_admin = Depends(get_current_admin_user)):
     # Ищем существующую запись реферального кода по ID
     try:

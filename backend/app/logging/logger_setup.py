@@ -258,7 +258,7 @@ def setup_application_logging():
     rabbitmq_handlers = []
     if rabbitmq_enabled:
         try:
-            rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+            rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://royal_logger:Royal_Logger_Pass@localhost:5672/royal_logs")
             exchange_name = os.getenv("RABBITMQ_EXCHANGE", "logs")
             routing_key = os.getenv("RABBITMQ_ROUTING_KEY", "application.logs")
             

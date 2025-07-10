@@ -9,12 +9,14 @@ from app.schemas.user_schemas import UserBanCreate, UserBanOut
 from app.core.response import success
 from fastapi.encoders import jsonable_encoder
 from app.logging import get_logger, LogSection, LogSubsection
+from app.rate_limit import rate_limit_ip
 
 logger = get_logger(__name__)
 router = APIRouter()
 security = HTTPBearer()
 
 @router.get("/admin/active")
+@rate_limit_ip("admin_session_check", max_requests=30, window_seconds=60)
 async def check_active_session(request: Request, db=Depends(get_database)):
     token = request.cookies.get("access_token")
     if not token:
@@ -71,6 +73,7 @@ async def check_active_session(request: Request, db=Depends(get_database)):
     return {"status": "ok", "admin": admin["full_name"], "role": admin["role"]}
 
 @router.get("/admin/list")
+@rate_limit_ip("admin_list", max_requests=10, window_seconds=300)
 async def list_admins(request: Request, db=Depends(get_database)):
     token = request.cookies.get("access_token")
     if not token:
@@ -104,8 +107,10 @@ async def list_admins(request: Request, db=Depends(get_database)):
 
 # User ban system
 @router.post("/ban", response_model=dict)
+@rate_limit_ip("user_ban", max_requests=15, window_seconds=300)
 async def ban_user(
     ban_data: UserBanCreate,
+    request: Request,
     db=Depends(get_database),
     current_user=Depends(get_current_admin_user)
 ):
@@ -208,7 +213,9 @@ async def ban_user(
         )
 
 @router.post("/unban/{user_id}", response_model=dict)
+@rate_limit_ip("user_unban", max_requests=15, window_seconds=300)
 async def unban_user(
+    request: Request,
     user_id: str,
     unban_data: dict = Body(...),
     db=Depends(get_database),
@@ -295,8 +302,10 @@ async def unban_user(
         )
 
 @router.get("/bans/{user_id}", response_model=dict)
+@rate_limit_ip("admin_bans_view", max_requests=30, window_seconds=60)
 async def get_user_bans(
     user_id: str,
+    request: Request,
     db=Depends(get_database),
     current_user=Depends(get_current_admin_user)
 ):

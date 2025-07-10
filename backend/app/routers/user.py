@@ -23,13 +23,15 @@ from pydantic import BaseModel, Field
 from app.core.finance import process_referral
 from app.logging import get_logger, LogSection, LogSubsection
 from enum import Enum
+from app.rate_limit import rate_limit_ip
 
 router = APIRouter()
 logger = get_logger(__name__)
 
 
 @router.get("/me")
-async def get_current_profile(actor = Depends(get_current_actor)):
+@rate_limit_ip("user_profile_me", max_requests=60, window_seconds=20)  # 60 запросов в минуту
+async def get_current_profile(request: Request, actor = Depends(get_current_actor)):
     """
     actor["type"]  →  'user' | 'admin' | 'guest'
     actor["role"]  →  'user' | 'admin' | 'moder' | 'guest'
@@ -91,8 +93,10 @@ async def get_current_profile(actor = Depends(get_current_actor)):
 
 
 @router.get("/{user_id}")
+@rate_limit_ip("user_profile_view", max_requests=60, window_seconds=20)  # 50 запросов в минуту
 async def get_user_profile(
     user_id: str,
+    request: Request,
     current_user: dict = Depends(get_current_actor),
     db = Depends(get_database)
 ):
@@ -188,7 +192,9 @@ async def get_user_profile(
 
 
 @router.get("/my/subscription", response_model=dict)
+@rate_limit_ip("subscription_info", max_requests=60, window_seconds=15)  # 30 запросов в минуту
 async def get_my_subscription_info(
+    request: Request,
     current_user: dict = Depends(get_current_actor),
     db=Depends(get_database)
 ):
@@ -268,7 +274,9 @@ async def get_my_subscription_info(
 
 
 @router.get("/admin/search_users", response_model=list[UserOut])
+@rate_limit_ip("admin_user_search", max_requests=60, window_seconds=30)  # 60 запросов в минуту
 async def search_users_by_query(
+    request: Request,
     query: str = Query(..., description="ID, ИИН, email, телефон, ФИО или код реферала"),
     current_user: dict = Depends(get_current_actor),
     db=Depends(get_database)
@@ -715,6 +723,7 @@ async def search_users_by_query(
 
 
 @router.get("/users/history", summary="История тестов пользователя")
+@rate_limit_ip("user_history", max_requests=60, window_seconds=20)  # 30 запросов в минуту
 async def get_user_history(
     limit: int = 50, 
     offset: int = 0, 
@@ -770,11 +779,13 @@ class PurchaseSubscription(BaseModel):
     use_balance:       bool = True
 
 @router.post("/purchase-subscription", summary="Покупка подписки для себя")
+@rate_limit_ip("subscription_purchase", max_requests=3, window_seconds=600)  # 3 запроса за 10 минут
 async def purchase_subscription(
     sub_data: PurchaseSubscription,
-    background_tasks: BackgroundTasks,          # ← нет дефолта, идёт сразу после sub_data
-    current_user: dict       = Depends(get_current_actor),
-    db:           any        = Depends(get_database),
+    background_tasks: BackgroundTasks,
+    request: Request,
+    current_user: dict = Depends(get_current_actor),
+    db: any = Depends(get_database),
 ):
     logger.info(
         section=LogSection.PAYMENT,
@@ -973,8 +984,10 @@ def calculate_subscription_price(
     return math.ceil(total)
 
 @router.post("/purchase-gift-subscription", summary="Покупка подписки в подарок по ИИН")
+@rate_limit_ip("subscription_gift_purchase", max_requests=3, window_seconds=600)  # 3 запроса за 10 минут
 async def purchase_gift_subscription(
     gift_data: GiftSubscriptionCreate,
+    request: Request,
     current_user: dict = Depends(get_current_actor),
     db = Depends(get_database)
 ):
@@ -1184,11 +1197,12 @@ def generate_promo_code(length=10):
         return code  # В реальном приложении здесь нужна проверка на уникальность
 
 @router.post("/generate-promo-code", summary="Покупка подписки в виде промокода")
+@rate_limit_ip("promo_code_generate", max_requests=5, window_seconds=300)  # 5 запросов за 5 минут
 async def purchase_promo_code(
-    promo_data:   PromoCodeCreate,
-    request:      Request,
-    current_user: dict      = Depends(get_current_actor),
-    db:           any       = Depends(get_database)
+    promo_data: PromoCodeCreate,
+    request: Request,
+    current_user: dict = Depends(get_current_actor),
+    db: any = Depends(get_database)
 ):
     ip = request.client.host
 
@@ -1312,10 +1326,11 @@ class PromoCodeActivate(BaseModel):
 
 
 @router.post("/activate-promo-code", summary="Активация промокода")
+@rate_limit_ip("promo_code_activate", max_requests=5, window_seconds=300)  # 5 запросов за 5 минут
 async def activate_promo_code(
-    promo_data:    PromoCodeActivate,
-    request:       Request,
-    current_user:  dict   = Depends(get_current_actor),
+    promo_data: PromoCodeActivate,
+    request: Request,
+    current_user: dict = Depends(get_current_actor),
     db = Depends(get_database)
 ):
     ip = request.client.host
@@ -1543,7 +1558,9 @@ async def activate_promo_code(
         )
 
 @router.get("/admin/promo-codes", summary="Получение списка промокодов (для админов)")
+@rate_limit_ip("admin_promo_codes", max_requests=50, window_seconds=60)  # 50 запросов в минуту
 async def get_promo_codes(
+    request: Request,
     is_active: Optional[bool] = None,
     limit: int = 50,
     offset: int = 0,
@@ -1607,8 +1624,10 @@ async def get_promo_codes(
     )
 
 @router.get("/admin/promo-codes/{promo_id}", summary="Получение информации о промокоде (для админов)")
+@rate_limit_ip("admin_promo_code_details", max_requests=50, window_seconds=60)  # 50 запросов в минуту
 async def get_promo_code_details(
     promo_id: str,
+    request: Request,
     current_user: dict = Depends(get_current_actor),
     db = Depends(get_database)
 ):
@@ -1683,9 +1702,11 @@ async def get_promo_code_details(
     )
 
 @router.patch("/admin/promo-codes/{promo_id}", summary="Редактирование промокода (для админов)")
+@rate_limit_ip("admin_promo_code_update", max_requests=20, window_seconds=300)  # 20 запросов за 5 минут
 async def update_promo_code(
     promo_id: str,
     update_data: PromoCodeAdminUpdate,
+    request: Request,
     current_user: dict = Depends(get_current_actor),
     db = Depends(get_database)
 ):
@@ -1783,8 +1804,10 @@ async def update_promo_code(
         )
 
 @router.delete("/admin/promo-codes/{promo_id}", summary="Удаление промокода (для админов)")
+@rate_limit_ip("admin_promo_code_delete", max_requests=10, window_seconds=300)  # 10 запросов за 5 минут
 async def delete_promo_code(
     promo_id: str,
+    request: Request,
     current_user: dict = Depends(get_current_actor),
     db = Depends(get_database)
 ):
@@ -1841,8 +1864,10 @@ async def delete_promo_code(
         )
 
 @router.post("/admin/generate-promo-code", summary="Создание промокода администратором")
+@rate_limit_ip("admin_promo_code_create", max_requests=20, window_seconds=300)  # 20 запросов за 5 минут
 async def admin_create_promo_code(
     promo_data: PromoCodeCreate,
+    request: Request,
     current_user: dict = Depends(get_current_actor),
     db = Depends(get_database)
 ):
@@ -1931,10 +1956,11 @@ async def admin_create_promo_code(
         )
 
 @router.get("/my/promo-codes", summary="Получение списка промокодов пользователя")
+@rate_limit_ip("user_promo_codes", max_requests=60, window_seconds=30)  # 30 запросов в минуту
 async def get_user_promo_codes(
     request: Request,
-    current_user: dict       = Depends(get_current_actor),
-    db                      = Depends(get_database),
+    current_user: dict = Depends(get_current_actor),
+    db = Depends(get_database),
 ):
     """
     Получение списка всех промокодов, созданных или использованных текущим пользователем.
@@ -2054,6 +2080,7 @@ async def get_user_promo_codes(
         )
 
 @router.get("/my/transactions", summary="Получение истории транзакций пользователя")
+@rate_limit_ip("user_transactions", max_requests=60, window_seconds=30)  # 30 запросов в минуту
 async def get_my_transactions(
     limit: int = 50,
     offset: int = 0,

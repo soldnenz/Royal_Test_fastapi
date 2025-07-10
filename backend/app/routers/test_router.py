@@ -25,6 +25,8 @@ from app.core.config import settings
 from app.core.response import success
 from app.logging import get_logger, LogSection, LogSubsection
 import time
+from app.rate_limit import rate_limit_ip
+from fastapi import Request
 
 
 load_dotenv()
@@ -68,7 +70,9 @@ def generate_safe_filename(original_filename: str, file_extension: str = None) -
     return f"{random_name}.{file_extension}"
 
 @router.post("/", response_model=QuestionOut)
+@rate_limit_ip("test_question_create", max_requests=5, window_seconds=120)
 async def create_question(
+    request: Request,
     question_data_str: str = Form(...),
     file: UploadFile = File(None),
     after_answer_file: UploadFile = File(None),
@@ -330,7 +334,9 @@ async def create_question(
 
 
 @router.put("/", response_model=dict)
+@rate_limit_ip("test_question_edit", max_requests=15, window_seconds=300)
 async def edit_question(
+    request: Request,
     payload: str = Form(...),      # Принимаем payload как строку
     new_file: UploadFile = File(None),
     new_after_answer_file: UploadFile = File(None),
@@ -563,6 +569,20 @@ async def edit_question(
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Ошибка сохранения нового дополнительного файла: {e}")
 
+    # Пересчитываем флаги наличия медиа перед обновлением
+    # Это исправит несоответствия, если медиа было добавлено/удалено при редактировании
+    
+    # Определяем конечное состояние медиа полей
+    final_media_id = update_fields.get("media_file_id", existing_question.get("media_file_id"))
+    final_media_filename = update_fields.get("media_filename", existing_question.get("media_filename"))
+    final_after_media_id = update_fields.get("after_answer_media_file_id", existing_question.get("after_answer_media_file_id"))
+    final_after_media_filename = update_fields.get("after_answer_media_filename", existing_question.get("after_answer_media_filename"))
+
+    # Обновляем флаги в словаре update_fields
+    update_fields["has_media"] = bool(final_media_id and final_media_filename)
+    update_fields["has_after_answer_media"] = bool(final_after_media_id and final_after_media_filename)
+    update_fields["has_after_media"] = update_fields["has_after_answer_media"]  # Для обратной совместимости
+
     update_fields["updated_at"] = datetime.utcnow()
     update_fields["modified_by"] = current_user["full_name"]
 
@@ -608,8 +628,10 @@ async def edit_question(
     return success(data={"message": "Вопрос обновлён"})
 
 @router.delete("/", response_model=dict)
+@rate_limit_ip("test_question_delete", max_requests=15, window_seconds=300)
 async def delete_question(
     payload: QuestionDelete,
+    request: Request,
     current_user: dict = Depends(get_current_admin_user),
     db = Depends(get_database)
 ):
@@ -771,8 +793,10 @@ async def delete_question(
     return success(data=response_data)
 
 @router.get("/by_uid/{uid}", response_model=dict)
+@rate_limit_ip("test_question_view", max_requests=100, window_seconds=60)
 async def get_question_by_uid(
     uid: str,
+    request: Request,
     current_user: dict = Depends(get_current_admin_user),
     db=Depends(get_database)
 ):
@@ -872,7 +896,9 @@ async def get_question_by_uid(
     return success(data=jsonable_encoder(question))
 
 @router.get("/all", response_model=list[dict])
+@rate_limit_ip("test_questions_list", max_requests=120, window_seconds=30)
 async def get_all_questions(
+    request: Request,
     current_user: dict = Depends(get_current_admin_user),
     db=Depends(get_database)
 ):
@@ -954,8 +980,10 @@ async def get_all_questions(
     return success(data=jsonable_encoder(questions))
 
 @router.get("/media/{media_id}", response_model=dict)
+@rate_limit_ip("media_download", max_requests=100, window_seconds=60)
 async def get_media_by_id(
     media_id: str,
+    request: Request,
     current_user: dict = Depends(get_current_admin_user),
     db=Depends(get_database)
 ):
@@ -1029,3 +1057,9 @@ async def get_media_by_id(
             message=f"Ошибка при получении медиафайла {media_id} пользователем {current_user.get('iin', 'неизвестен')}: {str(e)}"
         )
         raise HTTPException(status_code=500, detail=f"Ошибка при получении медиафайла: {str(e)}")
+
+@router.get("/test-rate-limit")
+@rate_limit_ip("test_rate_limit", max_requests=3, window_seconds=30)
+async def test_rate_limit(request: Request):
+    """Тестовый эндпоинт для проверки рейт лимитов"""
+    return {"message": "Rate limit test successful"}

@@ -27,8 +27,7 @@ from aiogram.types import Message, ForumTopicCreated, ForumTopicEdited
 from aiogram.client.default import DefaultBotProperties
 
 BOT_TOKEN: str = os.getenv(
-    "TELEGRAM_BOT_TOKEN",
-    "7664299581:AAFkROG8TXF0wkL6-nrL7G_8Y5v0J_V5lYI",  # токен по умолчанию
+    "TELEGRAM_BOT_TOKEN"  # токен по умолчанию
 )
 
 bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))

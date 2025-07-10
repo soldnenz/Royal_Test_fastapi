@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from datetime import datetime, timedelta
 import jwt
 from app.core.config import settings
@@ -6,6 +6,7 @@ from app.core.security import get_current_actor  # ← заменили импо
 from app.db.database import db
 from app.core.response import success
 from app.logging import get_logger, LogSection, LogSubsection
+from app.rate_limit import rate_limit_ip
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -55,7 +56,8 @@ async def create_ws_token(user_id: str, hours: float = 0.5):
 
 
 @router.get("/ws-token", summary="Получить временный токен для WebSocket")
-async def get_ws_token(request: Request, current_user: dict = Depends(get_current_actor)):  # ← заменили Depends
+@rate_limit_ip("websocket_token_get", max_requests=60, window_seconds=60)
+async def get_ws_token(request: Request, current_user: dict = Depends(get_current_actor)):
     if not current_user:
         logger.warning(
             section=LogSection.SECURITY,

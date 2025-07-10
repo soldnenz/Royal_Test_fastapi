@@ -16,7 +16,7 @@ class RabbitMQHandler(logging.Handler):
     
     def __init__(
         self,
-        rabbitmq_url: str = "amqp://guest:guest@localhost:5672/",
+        rabbitmq_url: str = "amqp://royal_logger:Royal_Logger_Pass@localhost:5672/royal_logs",
         exchange_name: str = "logs",
         routing_key: str = "application.logs",
         level: int = logging.WARNING,
@@ -98,11 +98,14 @@ class RabbitMQHandler(logging.Handler):
             # Подготавливаем данные для отправки
             log_data = self._prepare_log_data(record)
             
+            # Используем настроенный routing key
+            routing_key = self.routing_key
+            
             # Отправляем в RabbitMQ
             await self.broker.publish(
                 message=log_data,
                 exchange=self.exchange_name,
-                routing_key=self.routing_key
+                routing_key=routing_key
             )
             
         except Exception as e:
@@ -175,7 +178,7 @@ class RabbitMQLogPublisher:
     
     def __init__(
         self,
-        rabbitmq_url: str = "amqp://guest:guest@localhost:5672/",
+        rabbitmq_url: str = "amqp://royal_logger:Royal_Logger_Pass@localhost:5672/royal_logs",
         exchange_name: str = "logs",
         routing_key: str = "application.logs"
     ):
@@ -242,11 +245,14 @@ class RabbitMQLogPublisher:
                 "source": "structured_logger"
             }
             
+            # Используем настроенный routing key
+            routing_key = self.routing_key
+            
             # Отправляем в RabbitMQ
             await self.broker.publish(
                 message=log_data,
                 exchange=self.exchange_name,
-                routing_key=self.routing_key
+                routing_key=routing_key
             )
             
             return True
@@ -275,7 +281,7 @@ def get_rabbitmq_publisher() -> RabbitMQLogPublisher:
     if _rabbitmq_publisher is None:
         # Получаем настройки из переменных окружения
         import os
-        rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+        rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://royal_logger:Royal_Logger_Pass@localhost:5672/royal_logs")
         exchange_name = os.getenv("RABBITMQ_EXCHANGE", "logs")
         routing_key = os.getenv("RABBITMQ_ROUTING_KEY", "application.logs")
         

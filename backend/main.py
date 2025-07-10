@@ -33,6 +33,7 @@ from app.routers import solo_files_router
 from app.routers import websocket_router
 from app.routers import test_stats_router
 from app.routers import media_router
+from app.routers import question_report_router
 from app.websocket.lobby_ws import lobby_ws_endpoint, ws_manager
 from app.websocket.ping_task import ping_task
 from app.db.database import db
@@ -88,6 +89,7 @@ app.include_router(websocket_router.router, prefix="/websocket_token", tags=["we
 app.include_router(admin_router.router, prefix="/admin_function", tags=["admin_function"])
 app.include_router(test_stats_router.router, prefix="/test-stats", tags=["test-stats"])
 app.include_router(media_router.router, prefix="/media", tags=["media"])
+app.include_router(question_report_router.router, prefix="/report", tags=["reports"])
 # WebSocket endpoint для лобби
 @app.websocket("/ws/lobby/{lobby_id}")
 async def websocket_endpoint(
@@ -105,7 +107,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     logger.warning(
         section=LogSection.API,
         subsection=LogSubsection.API.ERROR,
-        message=f"HTTP исключение {code} для пути {path} (метод: {request.method})"
+        message=f"HTTP исключение {code} для пути {path} (метод: {request.method}) - {exc.detail}"
     )
 
     # Если detail — это просто строка
@@ -284,22 +286,45 @@ async def check_stalled_lobbies():
 
 @app.on_event("startup")
 async def startup_event():
+    """Запускается при старте приложения"""
     logger.info(
         section=LogSection.SYSTEM,
         subsection=LogSubsection.SYSTEM.STARTUP,
-        message="Запуск приложения Royal API"
+        message="Запуск приложения"
     )
-    asyncio.create_task(start_bot())
-    asyncio.create_task(check_stalled_lobbies())  # Запускаем проверку зависших лобби
-    # Запуск фоновых задач безопасности
+    
+    # Инициализируем rate limiter
+    from app.rate_limit.rate_limiter import get_rate_limiter
+    rate_limiter = get_rate_limiter()
+    try:
+        redis = await rate_limiter._get_redis_connection()
+        if redis:
+            logger.info(
+                section=LogSection.SYSTEM,
+                subsection=LogSubsection.SYSTEM.STARTUP,
+                message="Rate limiter успешно подключен к Redis"
+            )
+        else:
+            logger.error(
+                section=LogSection.SYSTEM,
+                subsection=LogSubsection.SYSTEM.STARTUP,
+                message="Не удалось подключиться к Redis для rate limiter"
+            )
+    except Exception as e:
+        logger.error(
+            section=LogSection.SYSTEM,
+            subsection=LogSubsection.SYSTEM.STARTUP,
+            message=f"Ошибка при инициализации rate limiter: {str(e)}"
+        )
+    
+    # Запускаем фоновые задачи
     asyncio.create_task(security_background_tasks())
-    asyncio.create_task(start_background_tasks())  # Запускаем задачи фоновой обработки
-    await ping_task.start()  # Запускаем задачу пинга WebSocket соединений
-    logger.info(
-        section=LogSection.SYSTEM,
-        subsection=LogSubsection.SYSTEM.STARTUP,
-        message="Все фоновые задачи запущены успешно"
-    )
+    asyncio.create_task(start_background_tasks())
+    await ping_task.start()  # Исправляем запуск ping task
+    asyncio.create_task(check_stalled_lobbies())
+    
+    # Запускаем бота
+    await start_bot()
 
 @app.on_event("shutdown")
 async def shutdown_event():

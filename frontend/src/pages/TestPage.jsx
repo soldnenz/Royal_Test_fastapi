@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   FaTimes, FaCheck, FaArrowLeft, FaArrowRight, FaFlag, 
@@ -7,12 +7,152 @@ import {
   FaBars, FaQuestionCircle, FaLightbulb, FaClock, FaStar, FaChartBar, FaUser
 } from 'react-icons/fa';
 import api from '../utils/axios';
+import { notify } from '../components/notifications/NotificationSystem';
 import DashboardHeader from '../components/dashboard/DashboardHeader';
 import DashboardSidebar from '../components/dashboard/DashboardSidebar';
 import { getCurrentTheme, toggleTheme, initTheme } from '../utils/themeUtil';
 import { getCurrentLanguage, setLanguage, getTranslation, localizeText, LANGUAGES } from '../utils/languageUtil';
 import './dashboard/styles.css';
 import './TestPage.css';
+
+const useMediaLoader = (url) => {
+  const cacheRef = useRef({});
+  const [media, setMedia] = useState({ src: null, isLoading: true, error: null });
+
+  useEffect(() => {
+    if (!url) {
+      setMedia({ src: null, isLoading: false, error: null });
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadMedia = async () => {
+      if (cacheRef.current[url]) {
+        setMedia({ src: cacheRef.current[url], isLoading: false, error: null });
+        return;
+      }
+
+      setMedia({ src: null, isLoading: true, error: null });
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch media: ${response.statusText}`);
+        }
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        
+        if (!isCancelled) {
+          cacheRef.current[url] = blobUrl;
+          setMedia({ src: blobUrl, isLoading: false, error: null });
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          setMedia({ src: null, isLoading: false, error: error.message });
+        }
+      }
+    };
+
+    loadMedia();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [url]);
+
+  useEffect(() => {
+    const cache = cacheRef.current;
+    return () => {
+      Object.values(cache).forEach(URL.revokeObjectURL);
+    };
+  }, []);
+
+  return media;
+};
+
+const QuestionMedia = React.memo(({
+  currentQuestion,
+  answerSubmitted,
+  isExamMode,
+  afterAnswerMedia,
+  afterAnswerMediaType,
+  videoRef,
+  afterVideoRef,
+  getTranslation
+}) => {
+  const mediaUrl = answerSubmitted && !isExamMode && afterAnswerMedia 
+    ? afterAnswerMedia 
+    : currentQuestion?.media_url;
+
+  const mediaType = answerSubmitted && !isExamMode && afterAnswerMedia
+    ? afterAnswerMediaType
+    : currentQuestion?.media_type;
+
+  const { src: loadedSrc, isLoading, error } = useMediaLoader(mediaUrl);
+  const activeVideoRef = answerSubmitted ? afterVideoRef : videoRef;
+
+  useEffect(() => {
+    if (mediaType === 'video' && loadedSrc && activeVideoRef.current) {
+      const videoElement = activeVideoRef.current;
+      
+      const playVideo = () => {
+        if (videoElement) {
+          videoElement.currentTime = 0;
+          videoElement.play().catch(e => console.error("Video play failed:", e));
+        }
+      };
+
+      playVideo(); 
+
+      const intervalId = setInterval(playVideo, 10000);
+
+      return () => clearInterval(intervalId);
+    }
+  }, [loadedSrc, mediaType, activeVideoRef]);
+
+  const handleVideoClick = () => {
+    if (activeVideoRef.current) {
+      activeVideoRef.current.currentTime = 0;
+      activeVideoRef.current.play().catch(e => console.error("Video play failed on click:", e));
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="loading-container" style={{ height: '100%', width: '100%' }}>
+        <div className="loading-bar-container"><div className="loading-bar"></div></div>
+        <div className="loading-text">{getTranslation('loadingMedia')}</div>
+      </div>
+    );
+  }
+
+  if (error || !loadedSrc) {
+    return (
+      <video className="fallback-video" src="/static/no_image.MP4" preload="metadata" playsInline muted loop autoPlay />
+    );
+  }
+
+  if (mediaType === 'video') {
+    return (
+      <video
+        ref={answerSubmitted ? afterVideoRef : videoRef}
+        key={loadedSrc}
+        className="question-video"
+        src={loadedSrc}
+        preload="metadata"
+        playsInline
+        muted
+        onClick={handleVideoClick}
+      />
+    );
+  } else {
+    return (
+      <img src={loadedSrc} key={loadedSrc} alt="Question Media" className="question-image" />
+    );
+  }
+});
+
 
 const TestPage = () => {
   const { lobbyId } = useParams();
@@ -48,16 +188,11 @@ const TestPage = () => {
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportData, setReportData] = useState({ type: '', description: '' });
   const [reportSubmitting, setReportSubmitting] = useState(false);
-  const [videoProgress, setVideoProgress] = useState(0);
-  const [videoLoading, setVideoLoading] = useState(false);
-  const [afterVideoProgress, setAfterVideoProgress] = useState(0);
-  const [afterVideoLoading, setAfterVideoLoading] = useState(false);
+  const [answerDetailsCache, setAnswerDetailsCache] = useState({});
   
   const intervalRef = useRef(null);
   const videoRef = useRef(null);
   const afterVideoRef = useRef(null);
-  const videoIntervalRef = useRef(null);
-  const videoProgressRef = useRef(null);
   const isDarkTheme = theme === 'dark';
 
   // Initialize theme
@@ -140,200 +275,6 @@ const TestPage = () => {
   // Close navigation when clicking overlay
   const closeQuestionNav = () => setIsQuestionNavOpen(false);
 
-  // Video progress tracking
-  const updateVideoProgress = useCallback((video) => {
-    if (!video || video.duration === 0) return;
-    const progress = (video.currentTime / video.duration) * 100;
-    setVideoProgress(progress);
-  }, []);
-
-  // After video progress tracking
-  const updateAfterVideoProgress = useCallback((video) => {
-    if (!video || video.duration === 0) return;
-    const progress = (video.currentTime / video.duration) * 100;
-    setAfterVideoProgress(progress);
-  }, []);
-
-  // Advanced video management with auto-loop and progress tracking
-  const setupVideoAutoplay = useCallback((video) => {
-    if (!video) return;
-
-    // Clear any existing intervals
-    if (videoIntervalRef.current) {
-      clearInterval(videoIntervalRef.current);
-    }
-    if (videoProgressRef.current) {
-      clearInterval(videoProgressRef.current);
-    }
-
-    // Set video properties
-    video.muted = true;
-    video.loop = false; // НЕ ЗАЦИКЛИВАЕМ автоматически
-    video.currentTime = 1; // Start from 1 second
-    setVideoLoading(true);
-
-    // Show loading progress
-    let loadProgress = 0;
-    const loadInterval = setInterval(() => {
-      loadProgress += 10;
-      setVideoProgress(loadProgress);
-      if (loadProgress >= 100) {
-        clearInterval(loadInterval);
-        setVideoLoading(false);
-      }
-    }, 100);
-
-    // Start playing after 1 second delay
-    setTimeout(() => {
-      video.play().then(() => {
-        setVideoLoading(false);
-        clearInterval(loadInterval);
-        
-        // Запустить повтор через 10 секунд после окончания видео
-        const handleVideoEnd = () => {
-          setTimeout(() => {
-            if (video && !video.paused && video.readyState >= 3) {
-              video.currentTime = 1;
-              video.play().catch(console.log);
-            }
-          }, 10000); // 10 секунд после окончания
-        };
-        
-        video.addEventListener('ended', handleVideoEnd);
-        
-        // Cleanup для ended listener
-        return () => {
-          video.removeEventListener('ended', handleVideoEnd);
-        };
-      }).catch(console.log);
-    }, 1000);
-
-    // Track video progress
-    videoProgressRef.current = setInterval(() => {
-      updateVideoProgress(video);
-    }, 100);
-
-    // Handle click to restart
-    const handleVideoClick = () => {
-      video.currentTime = 1;
-      video.play().catch(console.log);
-    };
-
-    video.addEventListener('click', handleVideoClick);
-
-    // Cleanup function
-    return () => {
-      video.removeEventListener('click', handleVideoClick);
-      if (videoIntervalRef.current) {
-        clearInterval(videoIntervalRef.current);
-      }
-      if (videoProgressRef.current) {
-        clearInterval(videoProgressRef.current);
-      }
-      clearInterval(loadInterval);
-    };
-  }, [updateVideoProgress]);
-
-  // After video autoplay setup
-  const setupAfterVideoAutoplay = useCallback((video) => {
-    if (!video) return;
-
-    if (videoIntervalRef.current) {
-      clearInterval(videoIntervalRef.current);
-    }
-    if (videoProgressRef.current) {
-      clearInterval(videoProgressRef.current);
-    }
-
-    video.muted = true;
-    video.loop = false;
-    video.currentTime = 1;
-    setAfterVideoLoading(true);
-
-    // Loading animation interval
-    const loadInterval = setInterval(() => {
-      if (video.readyState >= 3) {
-        clearInterval(loadInterval);
-      }
-    }, 100);
-
-    // Start playing after 1 second delay
-    setTimeout(() => {
-      video.play().then(() => {
-        setAfterVideoLoading(false);
-        clearInterval(loadInterval);
-        
-        // Запустить повтор через 10 секунд после окончания видео
-        const handleVideoEnd = () => {
-          setTimeout(() => {
-            if (video && !video.paused && video.readyState >= 3) {
-              video.currentTime = 1;
-              video.play().catch(console.log);
-            }
-          }, 10000); // 10 секунд после окончания
-        };
-        
-        video.addEventListener('ended', handleVideoEnd);
-        
-        // Cleanup для ended listener
-        return () => {
-          video.removeEventListener('ended', handleVideoEnd);
-        };
-      }).catch(console.log);
-    }, 1000);
-
-    // Track video progress
-    videoProgressRef.current = setInterval(() => {
-      updateAfterVideoProgress(video);
-    }, 100);
-
-    // Handle click to restart
-    const handleVideoClick = () => {
-      video.currentTime = 1;
-      video.play().catch(console.log);
-    };
-
-    video.addEventListener('click', handleVideoClick);
-
-    // Cleanup function
-    return () => {
-      video.removeEventListener('click', handleVideoClick);
-      if (videoIntervalRef.current) {
-        clearInterval(videoIntervalRef.current);
-      }
-      if (videoProgressRef.current) {
-        clearInterval(videoProgressRef.current);
-      }
-      clearInterval(loadInterval);
-    };
-  }, [updateAfterVideoProgress]);
-
-  // Setup video when media loads
-  useEffect(() => {
-    if (videoRef.current && currentQuestion?.has_media && currentQuestion?.media_type === 'video') {
-      return setupVideoAutoplay(videoRef.current);
-    }
-  }, [currentQuestion, setupVideoAutoplay]);
-
-  // Setup after-answer video
-  useEffect(() => {
-    if (afterVideoRef.current && afterAnswerMedia && afterAnswerMediaType === 'video') {
-      return setupAfterVideoAutoplay(afterVideoRef.current);
-    }
-  }, [afterAnswerMedia, afterAnswerMediaType, setupAfterVideoAutoplay]);
-
-  // Cleanup intervals on unmount
-  useEffect(() => {
-    return () => {
-      if (videoIntervalRef.current) {
-        clearInterval(videoIntervalRef.current);
-      }
-      if (videoProgressRef.current) {
-        clearInterval(videoProgressRef.current);
-      }
-    };
-  }, []);
-
   // Report functionality
   const handleOpenReport = () => {
     setShowReportModal(true);
@@ -351,18 +292,20 @@ const TestPage = () => {
 
     setReportSubmitting(true);
     try {
-              await api.post(`/lobby_solo/${lobbyId}/report`, {
+      // Отправляем жалобу на новый защищённый эндпоинт
+      await api.post(`/report/test/submit`, {
+        lobby_id: lobbyId,
         question_id: questions[currentQuestionIndex],
         report_type: reportData.type,
         description: reportData.description
       });
       
-      // Show success message
-      alert(getTranslation('reportSubmittedSuccessfully') || 'Report submitted successfully');
+      // Уведомление об успешной отправке
+      notify.success(getTranslation('reportSubmittedSuccessfully') || 'Report submitted successfully', { important: true });
       handleCloseReport();
     } catch (err) {
       console.error('Error submitting report:', err);
-      alert(getTranslation('reportSubmissionFailed') || 'Failed to submit report. Please try again.');
+      notify.error(getTranslation('reportSubmissionFailed') || 'Failed to submit report. Please try again.');
     } finally {
       setReportSubmitting(false);
     }
@@ -446,7 +389,7 @@ const TestPage = () => {
             }
           }
         } else {
-          setError(response.data.message || 'Failed to load test information');
+          showError(response.data.message || 'Failed to load test information');
         }
         
         setLoading(false);
@@ -454,7 +397,7 @@ const TestPage = () => {
         fetchLobbyInfo.isLoading = false;
       } catch (err) {
         console.error('[SECURITY] Error fetching secure lobby info:', err);
-        setError(err.response?.data?.message || 'Failed to load test information');
+        showError(err.response?.data?.message || 'Failed to load test information');
         setLoading(false);
         setSyncing(false);
         fetchLobbyInfo.isLoading = false;
@@ -466,7 +409,11 @@ const TestPage = () => {
 
   // Fetch current question with security checks
   const fetchCurrentQuestion = async () => {
-    if (!questions.length || currentQuestionIndex >= questions.length) return;
+    console.log('[CALL] fetchCurrentQuestion start');
+    if (!questions.length || currentQuestionIndex >= questions.length) {
+        console.log('[CALL] fetchCurrentQuestion end - no questions or index out of bounds.');
+        return;
+    }
     
     const questionId = questions[currentQuestionIndex];
     
@@ -474,6 +421,7 @@ const TestPage = () => {
     const requestKey = `${questionId}_${currentQuestionIndex}`;
     if (fetchCurrentQuestion.requestKey === requestKey && fetchCurrentQuestion.isLoading) {
       console.log(`[DEBOUNCE] Skipping duplicate request for question ${questionId}`);
+      console.log('[CALL] fetchCurrentQuestion end - debounced.');
       return;
     }
     
@@ -497,6 +445,7 @@ const TestPage = () => {
           user_answers: JSON.stringify(userAnswers)
         }
       });
+      console.log(`[API] GET /lobby_solo/${lobbyId}/questions/${questionId}/secure`, response.data);
       
       if (response.data.status === "ok") {
         const questionData = response.data.data;
@@ -508,7 +457,8 @@ const TestPage = () => {
         if (questionData.has_media && questionData.media_access_granted) {
           // Используем обновленный solo_files_router для безопасного доступа к медиа
           // Кэшируем URL для предотвращения повторных запросов
-          const mediaUrl = `/api/files_solo/secure/media/${questionId}?lobby_id=${lobbyId}&t=${Date.now()}`;
+          const mediaUrl = `/api/files_solo/secure/media/${questionId}?lobby_id=${lobbyId}`;
+          console.log(`[MEDIA] Setting media URL for question ${questionId}: ${mediaUrl}`);
           questionData.media_url = mediaUrl;
           
           // Determine media type
@@ -535,8 +485,6 @@ const TestPage = () => {
         setExplanation(null);
         setAfterAnswerMedia(null);
         setAfterAnswerMediaType('image');
-        setAfterVideoProgress(0);
-        setAfterVideoLoading(false);
         
         if (userAnswers[questionId] !== undefined) {
           setSelectedAnswer(userAnswers[questionId]);
@@ -558,7 +506,7 @@ const TestPage = () => {
         mediaContainers.forEach(container => container.classList.remove('loading'));
       } else {
         console.error(`[SECURITY] Failed to load question ${questionId}:`, response.data.message);
-        setError(response.data.message || 'Failed to load question');
+        showError(response.data.message || 'Failed to load question');
         setMediaLoading(false);
         fetchCurrentQuestion.isLoading = false;
         
@@ -571,12 +519,12 @@ const TestPage = () => {
       
       if (err.response?.status === 403) {
         console.log(`[SECURITY] Access denied for question ${questionId}:`, err.response.data.message);
-        setError('Доступ запрещен. Ответьте на текущий вопрос.');
+        showError('Доступ запрещен. Ответьте на текущий вопрос.');
       } else if (err.response?.status === 429) {
         console.log(`[SECURITY] Rate limit exceeded for question ${questionId}`);
-        setError('Слишком много запросов. Подождите немного.');
+        showError('Слишком много запросов. Подождите немного.');
       } else {
-        setError(err.response?.data?.message || 'Failed to load question');
+        showError(err.response?.data?.message || 'Failed to load question');
       }
       setMediaLoading(false);
       fetchCurrentQuestion.isLoading = false;
@@ -585,6 +533,7 @@ const TestPage = () => {
       const mediaContainers = document.querySelectorAll('.media-container');
       mediaContainers.forEach(container => container.classList.remove('loading'));
     }
+    console.log('[CALL] fetchCurrentQuestion end');
   };
 
   // Save user answers to localStorage
@@ -673,7 +622,25 @@ const TestPage = () => {
   }, [isExamMode, testCompleted, lobbyId]);
 
   const fetchCorrectAnswerSecure = async (questionId, updatedAnswersParam = null) => {
-    // Prevent duplicate requests
+    console.log('[CALL] fetchCorrectAnswerSecure start', { questionId, updatedAnswersParam: !!updatedAnswersParam });
+
+    // 1. Check cache first
+    if (answerDetailsCache[questionId]) {
+      console.log(`[CACHE] Using cached answer details for question ${questionId}`);
+      const cachedData = answerDetailsCache[questionId];
+      setCorrectAnswer(cachedData.correctAnswer);
+      setExplanation(cachedData.explanation);
+      if (cachedData.afterAnswerMedia) {
+        setAfterAnswerMedia(cachedData.afterAnswerMedia);
+        setAfterAnswerMediaType(cachedData.afterAnswerMediaType);
+      } else {
+        setAfterAnswerMedia(null);
+        setAfterAnswerMediaType('image');
+      }
+      console.log('[CALL] fetchCorrectAnswerSecure end (from cache)');
+      return;
+    }
+
     if (fetchCorrectAnswerSecure.isLoading && fetchCorrectAnswerSecure.currentQuestionId === questionId) {
       console.log(`[DEBOUNCE] Skipping duplicate correct answer request for question ${questionId}`);
       return;
@@ -684,22 +651,12 @@ const TestPage = () => {
     
     try {
       console.log(`[SECURITY] Fetching secure correct answer for question: ${questionId}`);
-      console.log(`[DEBUG] userAnswers:`, userAnswers);
-      console.log(`[DEBUG] selectedAnswer:`, selectedAnswer);
-      console.log(`[DEBUG] currentQuestionIndex:`, currentQuestionIndex);
-      console.log(`[DEBUG] updatedAnswersParam:`, updatedAnswersParam);
       
-      // Используем переданные обновленные ответы или текущие
-      const answersToUse = updatedAnswersParam || userAnswers;
+      const currentAnswers = updatedAnswersParam || userAnswers;
       
-      // Включаем текущий ответ пользователя в проверку доступа
-      const currentAnswers = { ...answersToUse };
-      if (selectedAnswer !== null) {
-        currentAnswers[questionId] = selectedAnswer;
-      }
+      console.log(`[DEBUG] currentAnswers for correct-answer check:`, currentAnswers);
       
-      console.log(`[DEBUG] currentAnswers:`, currentAnswers);
-      
+      // 2. Fetch correct answer data
       const response = await api.get(`/lobby_solo/${lobbyId}/secure/correct-answer`, {
         params: { 
           question_id: questionId,
@@ -707,36 +664,87 @@ const TestPage = () => {
           exam_mode: isExamMode
         }
       });
+      console.log(`[API] GET /lobby_solo/${lobbyId}/secure/correct-answer`, response.data);
       
       if (response.data.status === "ok") {
         const correctData = response.data.data;
         console.log('[SECURITY] Received secure correct answer data:', correctData);
         
-        // Security: In exam mode, no correct answer data should be returned
         if (isExamMode && correctData.correct_answer_index !== undefined) {
           console.error('[SECURITY] VIOLATION: Correct answer leaked in exam mode!');
+          fetchCorrectAnswerSecure.isLoading = false;
           return;
         }
         
-        setCorrectAnswer({
+        const newCorrectAnswer = {
           index: correctData.correct_answer_index,
           hasAfterAnswerMedia: correctData.has_after_answer_media
-        });
+        };
+        setCorrectAnswer(newCorrectAnswer);
         
-        if (correctData.explanation && Object.keys(correctData.explanation).length > 0) {
-          console.log('[SECURITY] Setting secure explanation:', correctData.explanation);
-          setExplanation(correctData.explanation);
-        } else {
-          setExplanation(null);
-        }
+        const newExplanation = correctData.explanation && Object.keys(correctData.explanation).length > 0 ? correctData.explanation : null;
+        setExplanation(newExplanation);
+
+        let newAfterAnswerMedia = null;
+        let newAfterAnswerMediaType = 'image';
         
-        // Security: Only fetch after-answer media if access is granted
+        // 3. Merged logic to fetch after-answer media
         if (correctData.has_after_answer_media && correctData.after_media_access_granted) {
           console.log('[SECURITY] Fetching secure after answer media for question:', questionId);
-          fetchAfterAnswerMediaSecure(questionId, updatedAnswersParam);
-        } else if (correctData.has_after_answer_media && !correctData.after_media_access_granted) {
-          console.log('[SECURITY] After answer media access denied for question:', questionId);
+          
+          try {
+              setVideoError(false);
+              const accessResponse = await api.get(`/lobby_solo/${lobbyId}/secure/after-answer-media-access`, {
+                params: {
+                  question_id: questionId,
+                  user_answers: JSON.stringify(currentAnswers)
+                }
+              });
+              console.log(`[API] GET /lobby_solo/${lobbyId}/secure/after-answer-media-access`, accessResponse.data);
+
+              if (accessResponse.data.status === "ok" && accessResponse.data.data.access_granted) {
+                const questionResponse = await api.get(`/lobby_solo/${lobbyId}/questions/${questionId}/secure`, {
+                  params: {
+                    current_index: currentQuestionIndex,
+                    user_answers: JSON.stringify(currentAnswers)
+                  }
+                });
+                console.log(`[API] GET /lobby_solo/${lobbyId}/questions/${questionId}/secure (for after media)`, questionResponse.data);
+
+                if (questionResponse.data.status === "ok") {
+                  const questionData = questionResponse.data.data;
+                  newAfterAnswerMedia = `/api/files_solo/secure/after-answer-media/${questionId}?lobby_id=${lobbyId}`;
+                  setAfterAnswerMedia(newAfterAnswerMedia);
+
+                  if (questionData.after_answer_media_filename) {
+                    const filename = questionData.after_answer_media_filename.toLowerCase();
+                    if (filename.endsWith('.mp4') || filename.endsWith('.webm') || filename.endsWith('.mov')) {
+                      newAfterAnswerMediaType = 'video';
+                    }
+                  }
+                  setAfterAnswerMediaType(newAfterAnswerMediaType);
+                }
+              }
+          } catch (err) {
+              console.error('[SECURITY] Error fetching secure after-answer media:', err);
+              setAfterAnswerMedia(null);
+              setAfterAnswerMediaType('image');
+              setVideoError(false);
+          }
         }
+        
+        // 4. Update cache
+        console.log(`[CACHE] Caching answer details for question ${questionId}`);
+        setAnswerDetailsCache(prevCache => ({
+            ...prevCache,
+            [questionId]: {
+                correctAnswer: newCorrectAnswer,
+                explanation: newExplanation,
+                afterAnswerMedia: newAfterAnswerMedia,
+                afterAnswerMediaType: newAfterAnswerMediaType,
+            }
+        }));
+
       }
     } catch (err) {
       console.error('[SECURITY] Error fetching secure correct answer:', err);
@@ -748,98 +756,21 @@ const TestPage = () => {
       }
     } finally {
       fetchCorrectAnswerSecure.isLoading = false;
-    }
-  };
-
-  const fetchAfterAnswerMediaSecure = async (questionId, updatedAnswersParam = null) => {
-    // Prevent duplicate requests
-    if (fetchAfterAnswerMediaSecure.isLoading && fetchAfterAnswerMediaSecure.currentQuestionId === questionId) {
-      console.log(`[DEBOUNCE] Skipping duplicate after answer media request for question ${questionId}`);
-      return;
-    }
-    
-    fetchAfterAnswerMediaSecure.isLoading = true;
-    fetchAfterAnswerMediaSecure.currentQuestionId = questionId;
-    
-    try {
-      setVideoError(false);
-      
-      console.log(`[SECURITY] Fetching secure after answer media for question: ${questionId}`);
-      console.log(`[DEBUG] userAnswers:`, userAnswers);
-      console.log(`[DEBUG] selectedAnswer:`, selectedAnswer);
-      console.log(`[DEBUG] updatedAnswersParam:`, updatedAnswersParam);
-      
-      // Используем переданные обновленные ответы или текущие
-      const answersToUse = updatedAnswersParam || userAnswers;
-      
-      // Security: Check access before fetching media
-      // Включаем текущий ответ пользователя в проверку доступа
-      const currentAnswers = { ...answersToUse };
-      if (selectedAnswer !== null) {
-        currentAnswers[questionId] = selectedAnswer;
-      }
-      
-      console.log(`[DEBUG] currentAnswers:`, currentAnswers);
-      
-      const accessResponse = await api.get(`/lobby_solo/${lobbyId}/secure/after-answer-media-access`, {
-        params: {
-          question_id: questionId,
-          user_answers: JSON.stringify(currentAnswers)
-        }
-      });
-      
-      if (accessResponse.data.status === "ok" && accessResponse.data.data.access_granted) {
-        const questionResponse = await api.get(`/lobby_solo/${lobbyId}/questions/${questionId}/secure`, {
-          params: {
-            current_index: currentQuestionIndex,
-            user_answers: JSON.stringify(currentAnswers)
-          }
-        });
-        
-        if (questionResponse.data.status === "ok") {
-          const questionData = questionResponse.data.data;
-          
-          // Используем обновленный solo_files_router для безопасного доступа к дополнительному медиа
-          const mediaUrl = `/api/files_solo/secure/after-answer-media/${questionId}?lobby_id=${lobbyId}&t=${Date.now()}`;
-          console.log('[SECURITY] Setting secure after answer media URL:', mediaUrl);
-          setAfterAnswerMedia(mediaUrl);
-          
-          if (questionData.after_answer_media_filename) {
-            const filename = questionData.after_answer_media_filename.toLowerCase();
-            if (filename.endsWith('.mp4') || filename.endsWith('.webm') || filename.endsWith('.mov')) {
-              console.log('[SECURITY] Setting after answer media type to video:', filename);
-              setAfterAnswerMediaType('video');
-            } else {
-              console.log('[SECURITY] Setting after answer media type to image:', filename);
-              setAfterAnswerMediaType('image');
-            }
-          } else {
-            setAfterAnswerMediaType('image');
-          }
-        }
-      } else {
-        console.log('[SECURITY] After answer media access denied for question:', questionId);
-        setAfterAnswerMedia(null);
-        setAfterAnswerMediaType('image');
-      }
-      
-      setVideoError(false);
-    } catch (err) {
-      console.error('[SECURITY] Error fetching secure after-answer media:', err);
-      setAfterAnswerMedia(null);
-      setAfterAnswerMediaType('image');
-      setVideoError(false);
-    } finally {
-      fetchAfterAnswerMediaSecure.isLoading = false;
+      console.log('[CALL] fetchCorrectAnswerSecure end', { questionId });
     }
   };
 
   const handleAnswerSubmit = async (answerIndex) => {
-    if (answerSubmitted) return;
+    console.log('[ACTION] handleAnswerSubmit start', { answerIndex });
+    if (answerSubmitted) {
+      console.log('[ACTION] handleAnswerSubmit end - already submitted.');
+      return;
+    }
     
     // Prevent duplicate submissions
     if (handleAnswerSubmit.isSubmitting) {
       console.log('[DEBOUNCE] Skipping duplicate answer submission');
+      console.log('[ACTION] handleAnswerSubmit end - submission in progress.');
       return;
     }
     
@@ -864,6 +795,7 @@ const TestPage = () => {
         exam_mode: isExamMode,
         time_left: timeLeft
       });
+      console.log(`[API] POST /lobby_solo/${lobbyId}/secure/answer`, response.data);
       
       if (response.data.status === "ok") {
         console.log('[SECURITY] Secure answer submitted successfully:', response.data);
@@ -873,6 +805,7 @@ const TestPage = () => {
         
         if (shouldShowAnswer) {
           try {
+            console.log('[ACTION] handleAnswerSubmit -> calling fetchCorrectAnswerSecure');
             // Передаем обновленные ответы напрямую
             await fetchCorrectAnswerSecure(questionId, updatedAnswers);
           } catch (err) {
@@ -887,21 +820,23 @@ const TestPage = () => {
       
       if (err.response?.status === 403) {
         console.log('[SECURITY] Answer submission denied:', err.response.data.message);
-        setError('Доступ запрещен. Проверьте права доступа.');
+        showError('Доступ запрещен. Проверьте права доступа.');
       } else if (err.response?.status === 429) {
         console.log('[SECURITY] Rate limit exceeded for answer submission');
-        setError('Слишком много попыток. Подождите немного.');
+        showError('Слишком много попыток. Подождите немного.');
       } else if (err.response && !err.response.data?.message?.includes("не активен")) {
-        setError(err.response?.data?.message || 'Failed to submit your answer');
+        showError(err.response?.data?.message || 'Failed to submit your answer');
       }
     } finally {
       setSyncing(false);
       handleAnswerSubmit.isSubmitting = false;
+      console.log('[ACTION] handleAnswerSubmit end');
     }
   };
 
   // Fetch current question effect with debouncing
   useEffect(() => {
+    console.log('[EFFECT] Trigger fetchCurrentQuestion.', { lobbyId, questions_length: questions.length, currentQuestionIndex, userAnswers_keys: Object.keys(userAnswers), isExamMode, testCompleted });
     if (testCompleted) return;
     
     const isLastQuestion = currentQuestionIndex === questions.length - 1;
@@ -921,24 +856,23 @@ const TestPage = () => {
              err.response?.data?.message?.includes("не запущен"))) {
           console.log("Test status changed to inactive");
           if (isLastQuestion) {
-            setError(null);
+            showError(null);
           }
         } else {
           console.error('Error fetching question:', err);
-          setError(err.response?.data?.message || 'Failed to load question');
+          showError(err.response?.data?.message || 'Failed to load question');
         }
       });
     }, 100); // 100ms debounce
     
     return () => clearTimeout(timeoutId);
-  }, [lobbyId, questions, currentQuestionIndex, userAnswers, isExamMode, testCompleted]);
+  }, [lobbyId, questions, currentQuestionIndex, isExamMode, testCompleted]);
 
   const handleNextQuestion = () => {
     if (currentQuestionIndex < questions.length - 1) {
       // Reset loading states
       fetchCurrentQuestion.isLoading = false;
       fetchCorrectAnswerSecure.isLoading = false;
-      fetchAfterAnswerMediaSecure.isLoading = false;
       
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     }
@@ -949,7 +883,6 @@ const TestPage = () => {
       // Reset loading states
       fetchCurrentQuestion.isLoading = false;
       fetchCorrectAnswerSecure.isLoading = false;
-      fetchAfterAnswerMediaSecure.isLoading = false;
       
       const newIndex = currentQuestionIndex - 1;
       setCurrentQuestionIndex(newIndex);
@@ -1017,7 +950,7 @@ const TestPage = () => {
           
           fetchTestResultsSecure();
         } else {
-          setError(err.response?.data?.message || 'Failed to finish test');
+          showError(err.response?.data?.message || 'Failed to finish test');
         }
       } finally {
         setSyncing(false);
@@ -1025,7 +958,7 @@ const TestPage = () => {
     } catch (e) {
       console.error('[SECURITY] Unexpected error in secure finishTest:', e);
       setSyncing(false);
-      setError('An unexpected error occurred');
+      showError('An unexpected error occurred');
     }
   };
 
@@ -1042,7 +975,7 @@ const TestPage = () => {
         localStorage.removeItem(`userAnswers_${lobbyId}`);
         localStorage.removeItem(`currentQuestionIndex_${lobbyId}`);
       } else {
-        setError(response.data.message || 'Failed to load test results');
+        showError(response.data.message || 'Failed to load test results');
       }
     } catch (err) {
       console.error('[SECURITY] Error fetching secure test results:', err);
@@ -1062,7 +995,7 @@ const TestPage = () => {
         localStorage.removeItem(`userAnswers_${lobbyId}`);
         localStorage.removeItem(`currentQuestionIndex_${lobbyId}`);
       } else {
-        setError(err.response?.data?.message || 'Failed to load test results');
+        showError(err.response?.data?.message || 'Failed to load test results');
       }
     }
   };
@@ -1085,6 +1018,14 @@ const TestPage = () => {
   const handleReturnToDashboard = () => {
     navigate('/dashboard');
   };
+
+  // -------------------------------------------------------------
+  // Helper: show error both in UI and notification system
+  // -------------------------------------------------------------
+  const showError = useCallback((msg) => {
+    setError(msg);
+    notify.error(msg, { important: true });
+  }, []);
 
   // Loading state
   if (loading) {
@@ -1299,112 +1240,16 @@ const TestPage = () => {
                           <div className="loading-text">{getTranslation('loadingMedia')}</div>
                         </div>
                       ) : (
-                        <>
-                          {/* Show after-answer media if available and answered */}
-                          {answerSubmitted && !isExamMode && afterAnswerMedia ? (
-                            afterAnswerMediaType === 'video' ? (
-                              <video 
-                                ref={afterVideoRef}
-                                className="question-video"
-                                src={afterAnswerMedia}
-                                onError={e => {
-                                  const status = e.target.error?.code;
-                                  // fallback: always try to show no_image.MP4 on error
-                                  setAfterAnswerMedia('/static/no_image.MP4');
-                                  setAfterAnswerMediaType('video');
-                                }}
-                                onLoadedData={() => {
-                                  // ...
-                                }}
-                                preload="metadata"
-                                playsInline
-                                muted
-                                loop
-                              />
-                            ) : (
-                              <img 
-                                src={afterAnswerMedia}
-                                alt="After Answer Media"
-                                className="question-image"
-                                onError={e => {
-                                  setAfterAnswerMedia('/static/no_image.MP4');
-                                  setAfterAnswerMediaType('video');
-                                }}
-                                onLoad={e => {
-                                  // ...
-                                }}
-                              />
-                            )
-                          ) : (
-                            (() => {
-                              // ...
-                              if (!currentQuestion.has_media) {
-                                return (
-                                  <video 
-                                    className="fallback-video"
-                                    src="/static/no_image.MP4"
-                                    preload="metadata"
-                                    playsInline
-                                    muted
-                                    loop
-                                    autoPlay
-                                  />
-                                );
-                              }
-                              if (currentQuestion.has_media && !currentQuestion.media_url) {
-                                return (
-                                  <video 
-                                    className="fallback-video"
-                                    src="/static/no_image.MP4"
-                                    preload="metadata"
-                                    playsInline
-                                    muted
-                                    loop
-                                    autoPlay
-                                  />
-                                );
-                              }
-                              if (currentQuestion.media_type === 'video') {
-                                return (
-                                  <video 
-                                    ref={videoRef}
-                                    className="question-video"
-                                    src={currentQuestion.media_url}
-                                    onError={e => {
-                                      // При любой ошибке загрузки показываем заглушку
-                                      setVideoError(false);
-                                      setCurrentQuestion(q => ({ ...q, media_url: '/static/no_image.MP4', media_type: 'video' }));
-                                      e.target.style.display = 'none';
-                                    }}
-                                    onLoadedData={() => {
-                                      setVideoError(false);
-                                    }}
-                                    preload="metadata"
-                                    playsInline
-                                    muted
-                                    loop
-                                  />
-                                );
-                              } else {
-                                return (
-                                  <img 
-                                    src={currentQuestion.media_url}
-                                    alt="Question"
-                                    className="question-image"
-                                    onError={e => {
-                                      // При любой ошибке загрузки показываем заглушку
-                                      setCurrentQuestion(q => ({ ...q, media_url: '/static/no_image.MP4', media_type: 'video' }));
-                                      e.target.style.display = 'none';
-                                    }}
-                                    onLoad={() => {
-                                      setVideoError(false);
-                                    }}
-                                  />
-                                );
-                              }
-                            })()
-                          )}
-                        </>
+                        <QuestionMedia
+                          currentQuestion={currentQuestion}
+                          answerSubmitted={answerSubmitted}
+                          isExamMode={isExamMode}
+                          afterAnswerMedia={afterAnswerMedia}
+                          afterAnswerMediaType={afterAnswerMediaType}
+                          videoRef={videoRef}
+                          afterVideoRef={afterVideoRef}
+                          getTranslation={getTranslation}
+                        />
                       )}
                     </div>
                   </div>
@@ -1562,7 +1407,7 @@ const TestPage = () => {
                   <option value="">{getTranslation('selectReportType')}</option>
                   <option value="incorrect_answer">{getTranslation('incorrectAnswer')}</option>
                   <option value="unclear_question">{getTranslation('unclearQuestion')}</option>
-                  <option value="technical_issue">{getTranslation('technicalIssue')}</option>
+                  <option value="technical_error">{getTranslation('technicalIssue')}</option>
                   <option value="inappropriate_content">{getTranslation('inappropriateContent')}</option>
                   <option value="other">{getTranslation('other')}</option>
                 </select>

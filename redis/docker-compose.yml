@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7.2-alpine
+    container_name: royal_test_redis
+    restart: unless-stopped
+    
+    # Ограничения ресурсов
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+      - ./logs:/var/log/redis
+    command: redis-server /usr/local/etc/redis/redis.conf
+    environment:
+      - TZ=Asia/Tashkent
+    networks:
+      - redis_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  redis_network:
+    driver: bridge 

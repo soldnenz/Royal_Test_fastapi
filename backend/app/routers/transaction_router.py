@@ -1,22 +1,23 @@
-from fastapi import APIRouter, Depends, HTTPException
-from bson import ObjectId
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from app.core.security import get_current_actor
 from app.db.database import get_database
-from app.admin.permissions import get_current_admin_user
-from fastapi.responses import JSONResponse
-from app.core.finance import get_user_balance, credit_user_balance, debit_user_balance
 from app.core.response import success
 from app.logging import get_logger, LogSection, LogSubsection
+from bson import ObjectId
 from datetime import datetime
+from app.rate_limit import rate_limit_ip
 
 router = APIRouter()
 logger = get_logger(__name__)
 
 # 🔍 Получение баланса пользователя
 @router.get("/balance/{user_id}", response_model=dict)
+@rate_limit_ip("balance_view", max_requests=120, window_seconds=30)
 async def get_balance(
     user_id: str,
+    request: Request,
     db=Depends(get_database),
-    current_user=Depends(get_current_admin_user)
+    current_user=Depends(get_current_actor)
 ):
     if current_user["role"] not in {"admin", "moderator"}:
         logger.warning(
@@ -61,9 +62,11 @@ async def get_balance(
 
 # 📊 Просмотр всех транзакций
 @router.get("/transactions", response_model=list)
+@rate_limit_ip("transactions_list", max_requests=20, window_seconds=60)
 async def get_all_transactions(
+    request: Request,
     db=Depends(get_database),
-    current_user=Depends(get_current_admin_user)
+    current_user=Depends(get_current_actor)
 ):
     if current_user["role"] not in {"admin", "moderator"}:
         logger.warning(
@@ -97,10 +100,12 @@ async def get_all_transactions(
 
 # 💰 Пополнение баланса пользователя
 @router.post("/credit", response_model=dict)
+@rate_limit_ip("balance_credit", max_requests=5, window_seconds=600)
 async def add_money(
     request_data: dict,
+    request: Request,
     db=Depends(get_database),
-    current_user=Depends(get_current_admin_user)
+    current_user=Depends(get_current_actor)
 ):
     if current_user["role"] not in {"admin", "moderator"}:
         logger.warning(
@@ -193,10 +198,12 @@ async def add_money(
 
 # 💸 Списание денег с баланса пользователя
 @router.post("/debit", response_model=dict)
+@rate_limit_ip("balance_debit", max_requests=3, window_seconds=600)
 async def subtract_money(
     request_data: dict,
+    request: Request,
     db=Depends(get_database),
-    current_user=Depends(get_current_admin_user)
+    current_user=Depends(get_current_actor)
 ):
     if current_user["role"] not in {"admin", "moderator"}:
         logger.warning(

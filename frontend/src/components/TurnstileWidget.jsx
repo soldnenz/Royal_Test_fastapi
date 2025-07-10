@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 
-const TurnstileWidget = ({ 
+const TurnstileWidget = forwardRef(({ 
   sitekey = "0x4AAAAAABj8yamqHNqfr8nW", 
   onSuccess, 
   onError, 
@@ -9,12 +9,53 @@ const TurnstileWidget = ({
   className = "",
   size = "normal",
   theme = "auto"
-}) => {
+}, ref) => {
   const { theme: appTheme } = useTheme();
   const containerRef = useRef(null);
   const widgetIdRef = useRef(null);
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [scriptError, setScriptError] = useState(false);
+
+  // Expose reset method to parent components
+  useImperativeHandle(ref, () => ({
+    reset: () => {
+      resetWidget();
+    },
+    getWidgetId: () => widgetIdRef.current,
+    getResponse: () => {
+      if (window.turnstile && widgetIdRef.current) {
+        try {
+          return window.turnstile.getResponse(widgetIdRef.current);
+        } catch (e) {
+          console.error('Error getting Turnstile response:', e);
+          return null;
+        }
+      }
+      return null;
+    },
+    execute: () => {
+      if (window.turnstile && widgetIdRef.current) {
+        try {
+          window.turnstile.execute(widgetIdRef.current);
+        } catch (e) {
+          console.error('Error executing Turnstile widget:', e);
+        }
+      }
+    }
+  }));
+
+  const resetWidget = () => {
+    if (window.turnstile && widgetIdRef.current) {
+      try {
+        console.log('Resetting Turnstile widget');
+        window.turnstile.reset(widgetIdRef.current);
+      } catch (error) {
+        console.error('Error resetting Turnstile widget:', error);
+        // If reset fails, try to re-render
+        renderWidget();
+      }
+    }
+  };
 
   useEffect(() => {
     // Проверяем, не загружен ли уже скрипт
@@ -92,6 +133,7 @@ const TurnstileWidget = ({
         theme: turnstileTheme,
         size: size,
         callback: (token) => {
+          console.log('Turnstile token generated successfully');
           if (onSuccess) onSuccess(token);
         },
         'error-callback': (error) => {
@@ -99,6 +141,7 @@ const TurnstileWidget = ({
           if (onError) onError(error);
         },
         'expired-callback': () => {
+          console.log('Turnstile token expired');
           if (onExpired) onExpired();
         },
         'refresh-expired': 'auto',
@@ -106,6 +149,8 @@ const TurnstileWidget = ({
         'retry': 'auto',
         'retry-interval': 5000
       });
+      
+      console.log('Turnstile widget rendered with ID:', widgetIdRef.current);
     } catch (error) {
       console.error('Error rendering Turnstile widget:', error);
       if (onError) onError(error);
@@ -138,6 +183,8 @@ const TurnstileWidget = ({
       }}
     />
   );
-};
+});
+
+TurnstileWidget.displayName = 'TurnstileWidget';
 
 export default TurnstileWidget; 

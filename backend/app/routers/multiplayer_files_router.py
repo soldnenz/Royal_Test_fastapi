@@ -10,6 +10,7 @@ from app.logging import get_logger, LogSection, LogSubsection
 from app.core.config import settings
 import random
 import string
+from app.rate_limit import rate_limit_ip
 
 router = APIRouter(tags=["Multiplayer Files"])
 logger = get_logger(__name__)
@@ -45,8 +46,10 @@ def get_user_id(current_user):
     return str(current_user["id"])
 
 @router.get("/files/media/{question_id}", summary="Получить медиа-файл вопроса (мультиплеер)")
+@rate_limit_ip("multiplayer_media_download", max_requests=100, window_seconds=60)
 async def get_question_media(
     question_id: str,
+    request: Request,
     current_user: dict = Depends(get_current_actor),
     db = Depends(get_database)
 ):
@@ -344,7 +347,9 @@ async def get_question_media(
         )
 
 @router.get("/files/after-answer-media/{question_id}", summary="Получить дополнительный медиа-файл после ответа (мультиплеер)")
+@rate_limit_ip("multiplayer_after_answer_media", max_requests=100, window_seconds=60)
 async def get_after_answer_media(
+    request: Request,
     question_id: str,
     lobby_id: str = Query(None, description="ID лобби, в котором пользователь ответил на вопрос"),
     current_user: dict = Depends(get_current_actor),

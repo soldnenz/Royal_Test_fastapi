@@ -2,26 +2,34 @@ import os
 import json
 import asyncio
 import signal
+import sys
 from typing import Optional
 
 import aio_pika
 
+# Настраиваем кодировку для Windows
+if sys.platform == 'win32':
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+
 # ---------------------------------------------------------------------------
 # Конфигурация из переменных окружения с разумными значениями по умолчанию
 # ---------------------------------------------------------------------------
-RABBITMQ_URL: str = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
-EXCHANGE_NAME: str = os.getenv("RABBITMQ_EXCHANGE", "logs")
+RABBITMQ_URL: str = os.getenv("RABBITMQ_URL")
+EXCHANGE_NAME: str = os.getenv("RABBITMQ_EXCHANGE")
 
 # Поддерживаемые routing keys для разных сервисов
 ROUTING_KEYS = [
-    "application.logs",      # Основное приложение
-    "2fa.logs",             # Микросервис 2FA
-    "auth.logs",             # Логи аутентификации
-    "security.logs",         # Логи безопасности
-    "system.logs"            # Системные логи
+    "logs.info.application", # Основное приложение
+    "logs.info.2fa",         # Микросервис 2FA
+    "logs.info.redis",       # Redis и rate limiter
+    "logs.error.application", # Ошибки приложения
+    "logs.error.2fa",        # Ошибки 2FA
+    "logs.error.redis"       # Ошибки Redis
 ]
 
-QUEUE_NAME: str = os.getenv("RABBITMQ_QUEUE", "log_consumer_queue")
+QUEUE_NAME: str = os.getenv("RABBITMQ_QUEUE")
 
 
 async def _consume() -> None:

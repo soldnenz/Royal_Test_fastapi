@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from app.db.database import db
 from app.core.security import get_current_actor
 from app.core.response import success
@@ -9,6 +9,7 @@ import json
 import time
 from bson import ObjectId
 from app.logging import get_logger, LogSection, LogSubsection
+from app.rate_limit import rate_limit_ip
 
 # Настройка логгера
 logger = get_logger(__name__)
@@ -27,12 +28,26 @@ def serialize_datetime(obj):
         return obj
 
 def convert_answer_to_index(correct_answer_raw):
-    """Преобразует буквенный ответ (A, B, C, D) в числовой индекс (0, 1, 2, 3)"""
+    """Преобразует буквенный ответ (A-H) в числовой индекс (0-7)"""
     if isinstance(correct_answer_raw, str):
-        letter_to_index = {'A': 0, 'B': 1, 'C': 2, 'D': 3}
-        return letter_to_index.get(correct_answer_raw.upper(), 0)
+        letter_to_index = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7}
+        result = letter_to_index.get(correct_answer_raw.upper(), 0)
+        if correct_answer_raw.upper() not in letter_to_index:
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.VALIDATION,
+                message=f"Неизвестный буквенный ответ при конвертации: {correct_answer_raw}, использован индекс 0 по умолчанию"
+            )
+        return result
     else:
-        return correct_answer_raw if correct_answer_raw is not None else 0
+        if correct_answer_raw is None:
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.VALIDATION,
+                message="Получен None при конвертации ответа, использован индекс 0 по умолчанию"
+            )
+            return 0
+        return correct_answer_raw
 
 # Rate limiting для безопасности
 user_rate_limits = {}
@@ -91,8 +106,10 @@ def validate_question_access(lobby: dict, user_id: str, question_id: str, user_a
 
 # Secure endpoints for solo testing
 @router.get("/{lobby_id}/secure")
+@rate_limit_ip("solo_lobby_info", max_requests=60, window_seconds=60)
 async def get_secure_lobby(
     lobby_id: str,
+    request: Request,
     current_user: dict = Depends(get_current_actor)
 ):
     """Защищенная конечная точка информации о лобби с контролем доступа"""
@@ -100,7 +117,7 @@ async def get_secure_lobby(
         user_id = str(current_user.get('id'))
         
         # Rate limiting
-        if not check_rate_limit(user_id, "secure_lobby", max_requests=30, window_seconds=60):
+        if not check_rate_limit(user_id, "secure_lobby", max_requests=40, window_seconds=60):
             logger.warning(
                 section=LogSection.SECURITY,
                 subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
@@ -131,8 +148,22 @@ async def get_secure_lobby(
             message=f"Предоставлен безопасный доступ к лобби {lobby_id} пользователю {user_id} с {len(user_answers)} сохранёнными ответами"
         )
         
-        # Serialize lobby data to handle datetime objects
-        serialized_lobby = serialize_datetime(lobby)
+        # Prepare secure lobby data by whitelisting fields to prevent leaks
+        secure_lobby_data = {
+            "_id": lobby["_id"],
+            "host_id": str(lobby.get("host_id")),
+            "status": lobby.get("status"),
+            "mode": lobby.get("mode"),
+            "exam_mode": lobby.get("exam_mode", False),
+            "question_ids": [str(qid) for qid in lobby.get("question_ids", [])],
+            "questions_count": lobby.get("questions_count", 0),
+            "max_participants": lobby.get("max_participants"),
+            "created_at": serialize_datetime(lobby.get("created_at")),
+            "participants": [str(p) for p in lobby.get("participants", [])],
+            "categories": lobby.get("categories", []),
+            "sections": lobby.get("sections", []),
+            "subscription_type": lobby.get("subscription_type"),
+        }
         
         # Add exam timer info if in exam mode
         if lobby.get('exam_mode', False):
@@ -142,7 +173,7 @@ async def get_secure_lobby(
             if expires_at:
                 # Calculate remaining time from expiration date
                 time_left = max(0, int((expires_at - current_time).total_seconds()))
-                serialized_lobby["exam_timer"] = {
+                secure_lobby_data["exam_timer"] = {
                     "time_left": time_left,
                     "expires_at": expires_at.isoformat() if hasattr(expires_at, 'isoformat') else str(expires_at),
                     "duration": lobby.get("exam_timer_duration", 40 * 60)
@@ -150,7 +181,7 @@ async def get_secure_lobby(
             else:
                 # If no expiration date, assume full time
                 duration = lobby.get("exam_timer_duration", 40 * 60)
-                serialized_lobby["exam_timer"] = {
+                secure_lobby_data["exam_timer"] = {
                     "time_left": duration,
                     "duration": duration
                 }
@@ -158,7 +189,7 @@ async def get_secure_lobby(
         # Return secure lobby data
         return success(
             data={
-                **serialized_lobby,
+                **secure_lobby_data,
                 "user_answers": user_answers,
                 "is_host": str(lobby.get('host_id')) == user_id,
                 "current_index": lobby.get('current_index', 0)
@@ -177,7 +208,9 @@ async def get_secure_lobby(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/{lobby_id}/questions/{question_id}/secure")
+@rate_limit_ip("solo_question_get", max_requests=60, window_seconds=60)
 async def get_secure_question(
+    request: Request,
     lobby_id: str,
     question_id: str,
     current_index: int = Query(None),
@@ -282,9 +315,11 @@ async def get_secure_question(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/{lobby_id}/secure/answer")
+@rate_limit_ip("solo_answer_submit", max_requests=60, window_seconds=60)
 async def submit_secure_answer(
     lobby_id: str,
     answer_data: dict,
+    request: Request,
     current_user: dict = Depends(get_current_actor)
 ):
     """Secure answer submission with validation"""
@@ -292,7 +327,7 @@ async def submit_secure_answer(
         user_id = str(current_user.get('id'))
         
         # Rate limiting
-        if not check_rate_limit(user_id, "secure_answer", max_requests=20, window_seconds=60):
+        if not check_rate_limit(user_id, "secure_answer", max_requests=40, window_seconds=60):
             logger.warning(
                 section=LogSection.SECURITY,
                 subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
@@ -334,12 +369,41 @@ async def submit_secure_answer(
                 )
                 raise HTTPException(status_code=400, detail="Exam time has expired")
         
-        # Save answer in lobby's participants_raw_answers
+        # Получаем вопрос для проверки правильности ответа
+        question = await db.questions.find_one({"_id": ObjectId(question_id)})
+        if not question:
+            raise HTTPException(status_code=404, detail="Вопрос не найден")
+
+        # Проверяем правильность ответа из лобби
+        correct_answer = lobby.get("correct_answers", {}).get(question_id)
+        if correct_answer is None:
+            logger.error(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.ERROR,
+                message=f"Правильный ответ не найден в лобби: вопрос {question_id} в лобби {lobby_id}"
+            )
+            raise HTTPException(status_code=500, detail="Правильный ответ для данного вопроса не найден")
+
+        # Проверяем валидность индекса ответа
+        if "options" in question:
+            options_count = len(question["options"])
+            if answer_index < 0 or answer_index >= options_count:
+                logger.warning(
+                    section=LogSection.LOBBY,
+                    subsection=LogSubsection.LOBBY.VALIDATION,
+                    message=f"Недопустимый индекс ответа: пользователь {user_id} отправил индекс {answer_index}, доступно вариантов {options_count}"
+                )
+                raise HTTPException(status_code=400, detail=f"Недопустимый индекс ответа. Должен быть от 0 до {options_count-1}")
+
+        is_correct = answer_index == correct_answer
+
+        # Сохраняем оба типа ответов
         await db.lobbies.update_one(
             {"_id": lobby_id},
             {
                 "$set": {
-                    f"participants_raw_answers.{user_id}.{question_id}": answer_index
+                    f"participants_raw_answers.{user_id}.{question_id}": answer_index,  # сохраняем выбранный ответ
+                    f"participants_answers.{user_id}.{question_id}": is_correct  # сохраняем правильность
                 }
             }
         )
@@ -378,7 +442,9 @@ async def submit_secure_answer(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/{lobby_id}/secure/correct-answer")
+@rate_limit_ip("solo_correct_answer", max_requests=60, window_seconds=60)
 async def get_secure_correct_answer(
+    request: Request,
     lobby_id: str,
     question_id: str = Query(...),
     user_answers: str = Query("{}"),
@@ -390,7 +456,7 @@ async def get_secure_correct_answer(
         user_id = str(current_user.get('id'))
         
         # Rate limiting
-        if not check_rate_limit(user_id, "secure_correct_answer", max_requests=30, window_seconds=60):
+        if not check_rate_limit(user_id, "secure_correct_answer", max_requests=40, window_seconds=60):
             logger.warning(
                 section=LogSection.SECURITY,
                 subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
@@ -493,7 +559,9 @@ async def get_secure_correct_answer(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/{lobby_id}/secure/after-answer-media-access")
+@rate_limit_ip("solo_after_answer_media_access", max_requests=60, window_seconds=60)
 async def check_secure_after_media_access(
+    request: Request,
     lobby_id: str,
     question_id: str = Query(...),
     user_answers: str = Query("{}"),
@@ -559,8 +627,10 @@ async def check_secure_after_media_access(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/{lobby_id}/secure/exam-timer")
+@rate_limit_ip("solo_exam_timer_get", max_requests=120, window_seconds=30)
 async def get_secure_exam_timer(
     lobby_id: str,
+    request: Request,
     current_user: dict = Depends(get_current_actor)
 ):
     """Secure exam timer endpoint"""
@@ -636,9 +706,11 @@ async def get_secure_exam_timer(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/{lobby_id}/secure/exam-timer")
+@rate_limit_ip("solo_exam_timer_update", max_requests=110, window_seconds=300)
 async def update_secure_exam_timer(
     lobby_id: str,
     timer_data: dict,
+    request: Request,
     current_user: dict = Depends(get_current_actor)
 ):
     """Update secure exam timer"""
@@ -674,8 +746,10 @@ async def update_secure_exam_timer(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/{lobby_id}/secure/auto-close-exam")
+@rate_limit_ip("solo_exam_auto_close", max_requests=5, window_seconds=300)
 async def auto_close_expired_exam(
     lobby_id: str,
+    request: Request,
     current_user: dict = Depends(get_current_actor)
 ):
     """Auto-close expired exam lobby"""
@@ -705,9 +779,11 @@ async def auto_close_expired_exam(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/{lobby_id}/secure/finish")
+@rate_limit_ip("solo_test_finish", max_requests=5, window_seconds=300)
 async def finish_secure_test(
     lobby_id: str,
     finish_data: dict,
+    request: Request,
     current_user: dict = Depends(get_current_actor)
 ):
     """Secure test finish endpoint"""
@@ -756,8 +832,10 @@ async def finish_secure_test(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/{lobby_id}/secure/results")
+@rate_limit_ip("solo_test_results", max_requests=20, window_seconds=60)
 async def get_secure_test_results(
     lobby_id: str,
+    request: Request,
     current_user: dict = Depends(get_current_actor)
 ):
     """Enhanced secure test results endpoint with detailed analytics"""
@@ -848,67 +926,114 @@ async def get_secure_test_results(
                 message="No answers found - test not started or completed"
             )
         
-        answered_count = len(user_answers)
-        
-        # Detailed answer analysis
-        detailed_answers = []
-        correct_count = 0
-        category_stats = {}
-        
         # Get correct answers from lobby (already converted to indices)
         correct_answers = lobby.get("correct_answers", {})
-        
+        participants_answers = lobby.get("participants_answers", {}).get(user_id, {})
+
+        # Debug log for answers data
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.VALIDATION,
+            message=f"Начало проверки ответов для лобби {lobby_id}. Всего вопросов: {len(question_ids)}, Отвечено: {len(user_answers)}"
+        )
+
+        # Initialize category stats and detailed answers list
+        category_stats = {}
+        for category in lobby.get('categories', []):
+            category_stats[category] = {"correct": 0, "total": 0}
+
+        detailed_answers = []
+        correct_count = 0
+        answered_count = 0
+
         for i, question_id in enumerate(question_ids):
             question_id_str = str(question_id)
             
             # Get correct answer from lobby
-            correct_answer_index = correct_answers.get(question_id_str, 0)
+            correct_answer_index = correct_answers.get(question_id_str)
             
-            # Get question details for additional info
+            # Get user's answer
+            user_answer = user_answers.get(question_id_str)
+            
+            # Get question for category tracking and details
             question = await db.questions.find_one({"_id": question_id})
             if not question:
                 try:
                     question = await db.questions.find_one({"_id": ObjectId(question_id)})
                 except:
-                    pass
+                    question = None
             
-            user_answer = user_answers.get(question_id_str)
-            is_answered = user_answer is not None
-            is_correct = is_answered and user_answer == correct_answer_index
-            
-            if is_correct:
-                correct_count += 1
-            
-            # Category analysis (only if question found)
+            # Track category stats if question exists
+            question_category = None
             if question:
-                question_categories = question.get('categories', [])
-                for cat in question_categories:
-                    if cat not in category_stats:
-                        category_stats[cat] = {"total": 0, "correct": 0}
-                    category_stats[cat]["total"] += 1
-                    if is_correct:
-                        category_stats[cat]["correct"] += 1
-            else:
-                question_categories = []
+                question_category = question.get('category')
+                if question_category in category_stats:
+                    category_stats[question_category]["total"] += 1
             
-            # Question details
-            question_detail = {
-                "question_number": i + 1,
+            # Check if question was answered
+            is_answered = user_answer is not None
+            if is_answered:
+                answered_count += 1
+            
+            # Initialize answer details
+            answer_details = {
                 "question_id": question_id_str,
-                "question_text": question.get('question_text', {}) if question else {},
-                "options": [opt.get('text', {}) for opt in question.get('options', [])] if question else [],
-                "correct_answer_index": correct_answer_index,
-                "user_answer_index": user_answer,
+                "question_number": i + 1,
+                "category": question_category,
                 "is_answered": is_answered,
-                "is_correct": is_correct,
-                "categories": question_categories,
-                "explanation": question.get('explanation', {}) if question else {},
-                "has_media": question.get('has_media', False) if question else False,
-                "has_after_answer_media": question.get('has_after_answer_media', False) if question else False
+                "user_answer": user_answer if is_answered else None,
+                "correct_answer": correct_answer_index,
+                "is_correct": False,
+                "time_spent": None  # Можно добавить, если есть данные о времени
             }
-            detailed_answers.append(question_detail)
-        
+            
+            # Compare answers only if question was answered
+            if is_answered and correct_answer_index is not None:
+                try:
+                    # Convert both values to integers for comparison
+                    user_answer_int = int(user_answer)
+                    correct_answer_int = int(correct_answer_index)
+                    
+                    is_correct = user_answer_int == correct_answer_int
+                    answer_details["is_correct"] = is_correct
+                    
+                    if is_correct:
+                        correct_count += 1
+                        # Update category stats for correct answers
+                        if question_category in category_stats:
+                            category_stats[question_category]["correct"] += 1
+            
+                    # Log comparison result
+                    logger.info(
+                        section=LogSection.LOBBY,
+                        subsection=LogSubsection.LOBBY.VALIDATION,
+                        message=f"Сравнение ответов: вопрос {i+1}, правильный={correct_answer_int}, ответ пользователя={user_answer_int}, результат={'верно' if is_correct else 'неверно'}"
+                    )
+                    
+                except (ValueError, TypeError) as e:
+                    logger.warning(
+                        section=LogSection.LOBBY,
+                        subsection=LogSubsection.LOBBY.VALIDATION,
+                        message=f"Ошибка сравнения ответов для вопроса {question_id_str}: {str(e)}"
+                    )
+                    answer_details["error"] = str(e)
+            
+            # Add question text if available
+            if question:
+                answer_details["question_text"] = question.get("question_text", {})
+            
+            # Add to detailed answers list
+            detailed_answers.append(answer_details)
+
+        # Log final results
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.VALIDATION,
+            message=f"Итоговый результат: правильно {correct_count} из {answered_count} отвеченных вопросов (всего вопросов: {len(question_ids)})"
+        )
+
         # Calculate metrics
+        total_questions = len(question_ids)
         incorrect_count = answered_count - correct_count
         unanswered_count = total_questions - answered_count
         percentage = round((correct_count / total_questions * 100), 2) if total_questions > 0 else 0
@@ -1059,63 +1184,3 @@ async def get_secure_test_results(
             message=f"Ошибка при получении результатов теста для лобби {lobby_id}: {str(e)}"
         )
         raise HTTPException(status_code=500, detail="Internal server error")
-
-@router.post("/{lobby_id}/report")
-async def report_question(
-    lobby_id: str,
-    report_data: dict,
-    current_user: dict = Depends(get_current_actor)
-):
-    """Report a question for review"""
-    try:
-        user_id = str(current_user.get('id'))
-        
-        # Rate limiting
-        if not check_rate_limit(user_id, "report_question", max_requests=5, window_seconds=300):  # 5 reports per 5 minutes
-            logger.warning(
-                section=LogSection.SECURITY,
-                subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,
-                message=f"Превышен лимит запросов: пользователь {user_id} слишком часто отправляет жалобы на вопросы в лобби {lobby_id} (эндпоинт report_question)"
-            )
-            raise HTTPException(status_code=429, detail="Too many reports. Please wait.")
-        
-        question_id = report_data.get('question_id')
-        report_type = report_data.get('report_type')
-        description = report_data.get('description')
-        
-        if not all([question_id, report_type, description]):
-            raise HTTPException(status_code=400, detail="Missing required fields")
-        
-        # Save report
-        report_doc = {
-            "lobby_id": lobby_id,
-            "question_id": question_id,
-            "user_id": user_id,
-            "report_type": report_type,
-            "description": description,
-            "created_at": datetime.utcnow(),
-            "status": "pending"
-        }
-        
-        await db.question_reports.insert_one(report_doc)
-        
-        logger.info(
-            section=LogSection.SECURITY,
-            subsection=LogSubsection.SECURITY.AUDIT,
-            message=f"Отправлена жалоба на вопрос: пользователь {user_id} пожаловался на вопрос {question_id} в лобби {lobby_id}, тип жалобы: {report_type}, описание: {description[:100]}..."
-        )
-        
-        return success(
-            data={"report_submitted": True},
-            message="Report submitted successfully"
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            section=LogSection.LOBBY,
-            subsection=LogSubsection.LOBBY.ERROR,
-            message=f"Ошибка при отправке жалобы на вопрос от пользователя {user_id}: {str(e)}"
-        )
-        raise HTTPException(status_code=500, detail="Internal server error") 

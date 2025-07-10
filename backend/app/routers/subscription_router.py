@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from bson import ObjectId
 from datetime import datetime
 from app.schemas.subscription_schemas import (
@@ -13,14 +13,17 @@ from app.logging import get_logger, LogSection, LogSubsection
 from app.core.finance import process_referral
 from pymongo import ReturnDocument
 from app.core.response import success
+from app.rate_limit import rate_limit_ip
 
 router = APIRouter()
 logger = get_logger(__name__)
 
 # 🎯 Создание подписки
 @router.post("/", response_model=SubscriptionOut)
+@rate_limit_ip("subscription_create", max_requests=5, window_seconds=600)
 async def create_subscription(
     payload: SubscriptionCreate,
+    request: Request,
     db=Depends(get_database),
     current_user=Depends(get_current_admin_user)
 ):
@@ -196,8 +199,10 @@ async def create_subscription(
 
 
 @router.put("/cancel", response_model=dict)
+@rate_limit_ip("subscription_cancel", max_requests=10, window_seconds=600)
 async def cancel_subscription(
     data: SubscriptionCancel,
+    request: Request,
     db=Depends(get_database),
     current_user=Depends(get_current_admin_user)
 ):
@@ -270,8 +275,10 @@ async def cancel_subscription(
 
 # 🔍 Получение подписки по user_id (включая неактивную)
 @router.get("/user/{user_id}", response_model=SubscriptionOut)
+@rate_limit_ip("subscription_view", max_requests=30, window_seconds=60)
 async def get_subscription_by_user_id(
     user_id: str,
+    request: Request,
     db=Depends(get_database),
     current_user=Depends(get_current_admin_user)
 ):
@@ -346,8 +353,10 @@ async def get_subscription_by_user_id(
 
 
 @router.put("/update", response_model=dict)
+@rate_limit_ip("subscription_update", max_requests=10, window_seconds=600)
 async def update_subscription(
     data: SubscriptionUpdate,
+    request: Request,
     db=Depends(get_database),
     current_user=Depends(get_current_admin_user)
 ):

@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from app.logging import get_logger, LogSection, LogSubsection
 import asyncio
 from typing import Optional, List
+from app.rate_limit import rate_limit_ip
 
 # Настройка логгера
 logger = get_logger(__name__)
@@ -63,6 +64,7 @@ async def get_user_subscription(user_id: str):
         return None
 
 @router.post("/lobbies", summary="Создать новое лобби")
+@rate_limit_ip("lobby_create", max_requests=10, window_seconds=300)
 async def create_lobby(
     lobby_data: LobbyCreate,
     request: Request = None, 
@@ -324,7 +326,8 @@ async def create_lobby(
             "correct_answers": correct_answers_map,
             "questions_data": questions_data,
             "participants": [user_id],
-            "participants_answers": {user_id: {}},
+            "participants_answers": {user_id: {}},  # для хранения правильности ответов (true/false)
+    "participants_raw_answers": {user_id: {}},  # для хранения индексов выбранных ответов
             "current_index": 0,
             "created_at": current_time,
             "sections": lobby_data.pdd_section_uids or [],
@@ -410,7 +413,8 @@ async def create_lobby(
 
 
 @router.get("/active-lobby", summary="Получить информацию об активном лобби пользователя")
-async def get_user_active_lobby(current_user: dict = Depends(get_current_actor)):
+@rate_limit_ip("lobby_active_get", max_requests=30, window_seconds=60)
+async def get_user_active_lobby(request: Request, current_user: dict = Depends(get_current_actor)):
     user_id = get_user_id(current_user)
     logger.info(
         section=LogSection.LOBBY,
@@ -482,7 +486,8 @@ async def get_user_active_lobby(current_user: dict = Depends(get_current_actor))
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при проверке активного лобби")
 
 @router.get("/categories/stats", summary="Получить статистику по категориям и количеству вопросов")
-async def get_categories_stats(current_user: dict = Depends(get_current_actor)):
+@rate_limit_ip("categories_stats", max_requests=20, window_seconds=60)
+async def get_categories_stats(request: Request, current_user: dict = Depends(get_current_actor)):
     user_id = get_user_id(current_user)
     logger.info(
         section=LogSection.LOBBY,
@@ -587,8 +592,10 @@ async def get_categories_stats(current_user: dict = Depends(get_current_actor)):
 
 # Добавляем новый эндпоинт для получения информации о лобби
 @router.get("/lobbies/{lobby_id}", summary="Получить информацию о лобби")
+@rate_limit_ip("lobby_info_get", max_requests=40, window_seconds=60)
 async def get_lobby_info(
     lobby_id: str,
+    request: Request,
     current_user: dict = Depends(get_current_actor),
     t: str = Query(None, description="Timestamp for cache busting"),
     retry: str = Query(None, description="Retry flag for cache refresh")

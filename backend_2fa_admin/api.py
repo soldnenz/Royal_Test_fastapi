@@ -1,8 +1,6 @@
-from fastapi import FastAPI, HTTPException, Request, Depends
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
 from datetime import datetime
-import asyncio
 import time
 from typing import Optional
 
@@ -10,24 +8,11 @@ from database import get_database
 from telegram_bot import send_2fa_request, cleanup_expired_requests
 from schemas import TwoFARequest, TwoFAResponse, TwoFAStatus, HealthCheck
 from log_system import get_2fa_logger, LogSection, LogSubsection
-from config import settings
 
 logger = get_2fa_logger()
 
-app = FastAPI(
-    title="2FA Service",
-    description="Микросервис для двухфакторной аутентификации через Telegram",
-    version="1.0.0"
-)
-
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # В продакшене указать конкретные домены
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Создаем роутер
+router = APIRouter()
 
 # Rate limiting
 MAX_REQUESTS_PER_MINUTE = 10
@@ -54,27 +39,7 @@ def check_rate_limit(ip: str) -> bool:
     return True
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Событие запуска сервиса"""
-    logger.info(
-        section=LogSection.SYSTEM,
-        subsection=LogSubsection.SYSTEM.STARTUP,
-        message=f"2FA сервис запущен на {settings.host}:{settings.port}"
-    )
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Событие остановки сервиса"""
-    logger.info(
-        section=LogSection.SYSTEM,
-        subsection=LogSubsection.SYSTEM.SHUTDOWN,
-        message="2FA сервис остановлен"
-    )
-
-
-@app.get("/health", response_model=HealthCheck)
+@router.get("/health", response_model=HealthCheck)
 async def health_check():
     """Проверка здоровья сервиса"""
     try:
@@ -102,7 +67,7 @@ async def health_check():
     )
 
 
-@app.post("/send-2fa", response_model=TwoFAResponse)
+@router.post("/send-2fa", response_model=TwoFAResponse)
 async def send_2fa_request_endpoint(
     request_data: TwoFARequest,
     http_request: Request,
@@ -196,7 +161,7 @@ async def send_2fa_request_endpoint(
         )
 
 
-@app.get("/status/{request_id}", response_model=TwoFAStatus)
+@router.get("/status/{request_id}", response_model=TwoFAStatus)
 async def get_2fa_status(request_id: str, db=Depends(get_database)):
     """Получение статуса 2FA запроса"""
     try:
@@ -227,7 +192,7 @@ async def get_2fa_status(request_id: str, db=Depends(get_database)):
     )
 
 
-@app.post("/cleanup")
+@router.post("/cleanup")
 async def cleanup_endpoint():
     """Ручная очистка истекших запросов"""
     try:
@@ -242,20 +207,4 @@ async def cleanup_endpoint():
         raise HTTPException(
             status_code=500,
             detail={"message": f"Ошибка очистки: {str(e)}"}
-        )
-
-
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    """Глобальный обработчик исключений"""
-    logger.error(
-        section=LogSection.API,
-        subsection=LogSubsection.API.ERROR,
-        message=f"Необработанная ошибка: {str(exc)}",
-        extra_data={"path": request.url.path, "method": request.method}
-    )
-    
-    return JSONResponse(
-        status_code=500,
-        content={"message": "Внутренняя ошибка сервера"}
-    ) 
+        ) 

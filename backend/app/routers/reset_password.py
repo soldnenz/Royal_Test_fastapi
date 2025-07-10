@@ -3,13 +3,16 @@ import random
 import string
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Request
 from pydantic import EmailStr
 
 from app.db.database import db
 from app.schemas.auth_schemas import PasswordResetRequest, PasswordResetConfirm
 from app.core.security import hash_password
 from app.core.response import success
+from app.logging import get_logger, LogSection, LogSubsection
+from app.utils.twofa_client import twofa_client
+from app.rate_limit import rate_limit_ip
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -19,7 +22,8 @@ RESET_CODE_EXPIRE_MIN = 30   # через сколько минут код пр�
 
 
 @router.post("/request", response_model=dict)
-async def request_password_reset(data: PasswordResetRequest):
+@rate_limit_ip("password_reset_request", max_requests=3, window_seconds=900)
+async def request_password_reset(data: PasswordResetRequest, request: Request):
     """
     Эндпоинт для запроса сброса пароля по e-mail.
     Генерируем одноразовый код и отправляем (пока только логируем).
@@ -54,7 +58,8 @@ async def request_password_reset(data: PasswordResetRequest):
 
 
 @router.post("/confirm", response_model=dict)
-async def confirm_password_reset(data: PasswordResetConfirm):
+@rate_limit_ip("password_reset_confirm", max_requests=5, window_seconds=600)
+async def confirm_password_reset(data: PasswordResetConfirm, request: Request):
     """
     Эндпоинт подтверждения сброса пароля.
     Принимает email, code, new_password.

@@ -8,6 +8,7 @@ from app.core.security import get_current_actor
 from app.core.response import success
 from app.logging import get_logger, LogSection, LogSubsection
 from app.core.config import settings
+from app.rate_limit import rate_limit_ip
 
 router = APIRouter(tags=["Solo Files"])
 logger = get_logger(__name__)
@@ -46,7 +47,9 @@ def get_user_id(current_user):
     return str(current_user["id"])
 
 @router.get("/secure/media/{question_id}", summary="Получить медиа-файл вопроса (соло режим)")
+@rate_limit_ip("solo_media_download", max_requests=100, window_seconds=60)
 async def get_question_media_secure(
+    request: Request,
     question_id: str,
     lobby_id: str = Query(None, description="ID лобби для проверки доступа"),
     current_user: dict = Depends(get_current_actor),
@@ -344,7 +347,9 @@ async def get_question_media_secure(
         )
 
 @router.get("/secure/after-answer-media/{question_id}", summary="Получить дополнительный медиа-файл после ответа (соло режим)")
+@rate_limit_ip("solo_after_answer_media", max_requests=100, window_seconds=60)
 async def get_after_answer_media_secure(
+    request: Request,
     question_id: str,
     lobby_id: str = Query(None, description="ID лобби, в котором пользователь ответил на вопрос"),
     current_user: dict = Depends(get_current_actor),

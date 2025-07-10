@@ -7,19 +7,16 @@ import aio_pika
 from typing import Dict, Any
 
 # Настройки RabbitMQ
-RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
-EXCHANGE_NAME = os.getenv("RABBITMQ_EXCHANGE", "logs")
+RABBITMQ_URL = os.getenv("RABBITMQ_URL")
+EXCHANGE_NAME = os.getenv("RABBITMQ_EXCHANGE")
 
 # Поддерживаемые routing keys для разных сервисов
 ROUTING_KEYS = [
-    "application.logs",      # Основное приложение
-    "2fa.logs",             # Микросервис 2FA
-    "auth.logs",             # Логи аутентификации
-    "security.logs",         # Логи безопасности
-    "system.logs"            # Системные логи
+    "logs.info.*",           # Все информационные логи
+    "logs.error.*",          # Все логи ошибок
 ]
 
-QUEUE_NAME = os.getenv("RABBITMQ_QUEUE", "log_processing_queue")
+QUEUE_NAME = os.getenv("RABBITMQ_QUEUE")
 
 # Timezone для форматирования времени
 KZ_TIMEZONE = pytz.timezone('Asia/Almaty')
@@ -107,15 +104,31 @@ class LogProcessor:
                 "CRITICAL": "[CRIT]"
             }.get(level, "[UNKN]")
             
+            # Определяем цвета для разных уровней (ANSI escape codes)
+            color_codes = {
+                "DEBUG": "\033[36m",     # Cyan
+                "INFO": "\033[32m",      # Green
+                "WARNING": "\033[33m",   # Yellow
+                "ERROR": "\033[31m",     # Red
+                "CRITICAL": "\033[91m"   # Bright Red
+            }
+            reset_color = "\033[0m"
+            color = color_codes.get(level, "")
+            
+            # Получаем дополнительную информацию
+            user_id = log_data.get("user_id", "N/A")
+            ip_address = log_data.get("ip_address", "N/A")
+            
             return (
-                f"\n{'='*80}\n"
-                f"{level_emoji} {level} | Источник: {source}\n"
+                f"\n{color}{'='*80}{reset_color}\n"
+                f"{color}{level_emoji} {level}{reset_color} | Источник: {source}\n"
                 f"Время: {formatted_time}\n"
                 f"ID: {log_data.get('log_id', 'N/A')}\n"
                 f"Раздел: {section}/{subsection}\n"
+                f"Пользователь: {user_id} | IP: {ip_address}\n"
                 f"Сообщение: {message}\n"
                 f"Доп. данные:\n{extra_str}\n"
-                f"{'='*80}\n"
+                f"{color}{'='*80}{reset_color}\n"
             )
             
         except Exception as e:

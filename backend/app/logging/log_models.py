@@ -28,6 +28,7 @@ class LogSection(Enum):
     DATABASE = "database"
     SYSTEM = "system"
     API = "api"
+    REDIS = "redis"
 
 
 class LogSubsection:
@@ -174,6 +175,14 @@ class LogSubsection:
     # SECURITY подразделы
     class SECURITY:
         RATE_LIMIT = "rate_limit"
+        RATE_LIMIT_WARNING = "rate_limit_warning"
+        RATE_LIMIT_EXCEEDED = "rate_limit_exceeded"
+        RATE_LIMIT_BLOCKED = "rate_limit_blocked"
+        RATE_LIMIT_HIGH_ACTIVITY = "rate_limit_high_activity"
+        RATE_LIMIT_RESET = "rate_limit_reset"
+        RATE_LIMIT_INFO = "rate_limit_info"
+        RATE_LIMIT_STATS = "rate_limit_stats"
+        RATE_LIMIT_FAIL_OPEN = "rate_limit_fail_open"
         INJECTION_ATTEMPT = "injection_attempt"
         UNAUTHORIZED_ACCESS = "unauthorized_access"
         SUSPICIOUS_ACTIVITY = "suspicious_activity"
@@ -187,6 +196,10 @@ class LogSubsection:
         INJECTION = "injection"
         VALIDATION = "validation"
         TURNSTILE = "turnstile"
+        REPORT_CREATE = "report_create"
+        REPORT_VIEW = "report_view"
+        REPORT_UPDATE = "report_update"
+        REPORT_ERROR = "report_error"
     
     # DATABASE подразделы
     class DATABASE:
@@ -212,6 +225,24 @@ class LogSubsection:
         ERROR = "error"
         VALIDATION = "validation"
         PERFORMANCE = "performance"
+    
+    # REDIS подразделы
+    class REDIS:
+        CONNECTION = "connection"
+        DISCONNECTION = "disconnection"
+        ERROR = "error"
+        RATE_LIMIT = "rate_limit"
+        RATE_LIMIT_WARNING = "rate_limit_warning"
+        RATE_LIMIT_EXCEEDED = "rate_limit_exceeded"
+        RATE_LIMIT_BLOCKED = "rate_limit_blocked"
+        RATE_LIMIT_HIGH_ACTIVITY = "rate_limit_high_activity"
+        RATE_LIMIT_RESET = "rate_limit_reset"
+        RATE_LIMIT_INFO = "rate_limit_info"
+        RATE_LIMIT_STATS = "rate_limit_stats"
+        RATE_LIMIT_FAIL_OPEN = "rate_limit_fail_open"
+        MEMORY = "memory"
+        PERFORMANCE = "performance"
+        SCRIPT_LOAD = "script_load"
 
 
 class StructuredLogEntry:

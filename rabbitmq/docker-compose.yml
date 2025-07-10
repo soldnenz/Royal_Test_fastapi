@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: royal_rabbitmq
+    hostname: royal-rabbitmq
+    restart: unless-stopped
+    
+    # Переменные окружения (только основные, не deprecated)
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-royal_admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-Royal_RabbitMQ_1337}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-royal_vhost}
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:-Royal_Cookie_Secret_12345}
+      
+      # Настройки безопасности (убираем deprecated переменные)
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: >-
+        -rabbit log_levels [{connection,error},{default,warning}]
+      
+    # Порты
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"           # AMQP порт
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"  # Management UI
+      - "${RABBITMQ_EPMD_PORT:-4369}:4369"     # EPMD порт для кластеризации
+      - "${RABBITMQ_DIST_PORT:-25672}:25672"   # Распределенный Erlang порт
+    
+    # Ограничения ресурсов
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    
+    # Тома для персистентности
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - rabbitmq_logs:/var/log/rabbitmq
+      - ./config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./config/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+      - ./config/definitions.json:/etc/rabbitmq/definitions.json:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    
+    # Сетевые настройки
+    networks:
+      - rabbitmq_network
+    
+    # Настройки здоровья
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    
+    # Логирование
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+# Тома
+volumes:
+  rabbitmq_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data
+  
+  rabbitmq_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./logs
+
+# Сети
+networks:
+  rabbitmq_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16 

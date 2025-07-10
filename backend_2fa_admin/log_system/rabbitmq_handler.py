@@ -6,6 +6,7 @@ from faststream import FastStream
 from faststream.rabbit import RabbitBroker
 import aio_pika
 from .log_models import StructuredLogEntry, LogLevel
+from config import settings
 
 
 class RabbitMQHandler(logging.Handler):
@@ -16,9 +17,9 @@ class RabbitMQHandler(logging.Handler):
     
     def __init__(
         self,
-        rabbitmq_url: str = "amqp://guest:guest@localhost:5672/",
-        exchange_name: str = "logs",
-        routing_key: str = "2fa.logs",
+        rabbitmq_url: str = settings.rabbitmq_url,
+        exchange_name: str = settings.rabbitmq_exchange,
+        routing_key: str = settings.rabbitmq_routing_key,
         level: int = logging.WARNING,
         **kwargs
     ):
@@ -67,7 +68,7 @@ class RabbitMQHandler(logging.Handler):
     def emit(self, record: logging.LogRecord):
         """Отправляет лог в RabbitMQ"""
         try:
-            # Проверяем уровень лога - отправляем только WARNING и выше
+            # Проверяем уровень лога - отправляем WARNING и выше
             if record.levelno < logging.WARNING:
                 return
             
@@ -98,11 +99,14 @@ class RabbitMQHandler(logging.Handler):
             # Подготавливаем данные для отправки
             log_data = self._prepare_log_data(record)
             
+            # Используем настроенный routing key вместо динамического формирования
+            routing_key = self.routing_key
+            
             # Отправляем в RabbitMQ
             await self.broker.publish(
                 message=log_data,
                 exchange=self.exchange_name,
-                routing_key=self.routing_key
+                routing_key=routing_key
             )
             
         except Exception as e:
@@ -116,10 +120,10 @@ class RabbitMQHandler(logging.Handler):
         if hasattr(record, 'structured_data'):
             structured_entry: StructuredLogEntry = record.structured_data
             return {
-                "timestamp": structured_entry.timestamp,
+                "timestamp": structured_entry.timestamp.isoformat(),
                 "log_id": structured_entry.log_id,
-                "level": structured_entry.level,
-                "section": structured_entry.section,
+                "level": structured_entry.level.value,
+                "section": structured_entry.section.value,
                 "subsection": structured_entry.subsection,
                 "message": structured_entry.message,
                 "extra_data": structured_entry.extra_data,
@@ -149,22 +153,51 @@ class RabbitMQHandler(logging.Handler):
             "source": "2fa_standard_logger"
         }
     
-    async def close(self):
-        """Закрывает соединение с RabbitMQ"""
+    async def _async_close(self):
+        """Асинхронно закрывает соединение с RabbitMQ и все задачи"""
         # Отменяем все pending задачи
         for task in self._tasks:
             if not task.done():
                 task.cancel()
-        
+
         # Ждем завершения всех задач
         if self._tasks:
             await asyncio.gather(*self._tasks, return_exceptions=True)
-        
+
         if self.broker:
             try:
                 await self.broker.close()
             except Exception as e:
                 print(f"Error closing RabbitMQ connection: {e}")
+
+    # ------------------------------------------------------------------
+    #  Новый синхронный close — требуется logging.Handler.close
+    # ------------------------------------------------------------------
+    def close(self):
+        """Синхронно вызываемый логгером метод close.
+
+        logging.shutdown() вызывает Handler.close как обычную функцию,
+        поэтому здесь оборачиваем асинхронное закрытие, чтобы избежать
+        предупреждения "coroutine was never awaited".
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running() and not loop.is_closed():
+                # Если цикл уже запущен – просто планируем корутину
+                loop.create_task(self._async_close())
+            elif not loop.is_closed():
+                # Если цикл ещё не запущен – запускаем временный
+                loop.run_until_complete(self._async_close())
+        except RuntimeError:
+            # Нет текущего цикла или цикл закрыт – создаём новый
+            try:
+                asyncio.run(self._async_close())
+            except Exception as e:
+                # Игнорируем ошибки закрытия если event loop уже недоступен
+                print(f"Info: RabbitMQ connection cleanup skipped: {e}")
+        except Exception as e:
+            # Игнорируем ошибки закрытия
+            print(f"Info: RabbitMQ connection cleanup skipped: {e}")
 
 
 class RabbitMQLogPublisher:
@@ -175,7 +208,7 @@ class RabbitMQLogPublisher:
     
     def __init__(
         self,
-        rabbitmq_url: str = "amqp://guest:guest@localhost:5672/",
+        rabbitmq_url: str = "amqp://royal_logger:Royal_Logger_Pass@localhost:5672/royal_logs",
         exchange_name: str = "logs",
         routing_key: str = "2fa.logs"
     ):
@@ -224,10 +257,10 @@ class RabbitMQLogPublisher:
             
             # Подготавливаем данные для отправки
             log_data = {
-                "timestamp": log_entry.timestamp,
+                "timestamp": log_entry.timestamp.isoformat(),
                 "log_id": log_entry.log_id,
-                "level": log_entry.level,
-                "section": log_entry.section,
+                "level": log_entry.level.value,
+                "section": log_entry.section.value,
                 "subsection": log_entry.subsection,
                 "message": log_entry.message,
                 "extra_data": log_entry.extra_data,
@@ -237,11 +270,14 @@ class RabbitMQLogPublisher:
                 "source": "2fa_structured_logger"
             }
             
+            # Используем настроенный routing key вместо динамического формирования
+            routing_key = self.routing_key
+            
             # Отправляем в RabbitMQ
             await self.broker.publish(
                 message=log_data,
                 exchange=self.exchange_name,
-                routing_key=self.routing_key
+                routing_key=routing_key
             )
             
         except Exception as e:
@@ -264,11 +300,16 @@ def get_rabbitmq_publisher() -> RabbitMQLogPublisher:
     """Получает глобальный экземпляр RabbitMQ publisher"""
     global _rabbitmq_publisher
     if _rabbitmq_publisher is None:
+        import os
         from config import settings
+        
+        # Используем переменную окружения или настройки, или fallback значение
+        rabbitmq_url = os.getenv("RABBITMQ_URL") or settings.rabbitmq_url or "amqp://royal_logger:Royal_Logger_Pass@localhost:5672/royal_logs"
+        
         _rabbitmq_publisher = RabbitMQLogPublisher(
-            rabbitmq_url=settings.rabbitmq_url or "amqp://guest:guest@localhost:5672/",
-            exchange_name=settings.rabbitmq_exchange,
-            routing_key=settings.rabbitmq_routing_key
+            rabbitmq_url=rabbitmq_url,
+            exchange_name=getattr(settings, 'rabbitmq_exchange', 'logs'),
+            routing_key=getattr(settings, 'rabbitmq_routing_key', '2fa.logs')
         )
     return _rabbitmq_publisher
 

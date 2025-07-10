@@ -1,0 +1,26 @@
+# RabbitMQ Environment Variables
+# Безопасная конфигурация для Royal Test Project
+# Скопируйте этот файл в .env и измените пароли
+#
+# ВАЖНО: Настройки производительности (память, диск) теперь управляются
+# через config/rabbitmq.conf, а не через переменные окружения
+
+# Основные настройки подключения
+RABBITMQ_USER=royal_admin
+RABBITMQ_PASSWORD=Royal_RabbitMQ_1337
+RABBITMQ_VHOST=royal_vhost
+
+# Порты
+RABBITMQ_PORT=5672
+RABBITMQ_MANAGEMENT_PORT=15672
+RABBITMQ_EPMD_PORT=4369
+RABBITMQ_DIST_PORT=25672
+
+# Настройки кластера
+RABBITMQ_ERLANG_COOKIE=Royal_Cookie_Secret_12345
+
+# Часовой пояс (GMT+5)
+TZ=Asia/Almaty
+
+# Настройки Docker
+COMPOSE_PROJECT_NAME=royal_rabbitmq 

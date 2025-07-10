@@ -29,8 +29,8 @@ class MediaManager:
         """
         if base_path is None:
             # Определяем путь относительно корня проекта
-            current_dir = Path(__file__).parent.parent.parent
-            self.base_path = current_dir / settings.MEDIA_BASE_PATH
+            project_root = Path(__file__).parent.parent.parent.parent
+            self.base_path = project_root / settings.MEDIA_BASE_PATH
         else:
             self.base_path = Path(base_path)
         
@@ -200,8 +200,7 @@ class MediaManager:
             "content_type": file.content_type,
             "file_size": file_path.stat().st_size,
             "file_hash": file_hash,
-            "relative_path": str(relative_path),
-            "absolute_path": str(file_path),
+            "relative_path": str(relative_path).replace("\\", "/"),
             "created_by": created_by,
             "created_at": start_time,
             "updated_at": start_time,
@@ -231,7 +230,7 @@ class MediaManager:
                 "original_filename": file.filename,
                 "content_type": file.content_type,
                 "file_size": file_metadata["file_size"],
-                "relative_path": str(relative_path),
+                "relative_path": str(relative_path).replace("\\", "/"),
                 "created_at": start_time.isoformat(),
                 "created_by": created_by
             }
@@ -265,7 +264,7 @@ class MediaManager:
                 return None
             
             # Проверяем существование файла
-            file_path = Path(file_info["absolute_path"])
+            file_path = self.base_path / file_info["relative_path"]
             if not file_path.exists():
                 logger.warning(
                     section=LogSection.FILES,
@@ -316,7 +315,7 @@ class MediaManager:
                 return False
             
             # Удаляем файл с диска
-            file_path = Path(file_info["absolute_path"])
+            file_path = self.base_path / file_info["relative_path"]
             if file_path.exists():
                 file_path.unlink()
                 logger.info(
@@ -365,7 +364,6 @@ class MediaManager:
             # Удаляем служебные поля из обновлений
             updates.pop("_id", None)
             updates.pop("file_hash", None)
-            updates.pop("absolute_path", None)
             updates.pop("relative_path", None)
             updates.pop("safe_filename", None)
 
@@ -506,7 +504,7 @@ class MediaManager:
                 return None
             
             # Проверяем существование файла
-            file_path = Path(file_info["absolute_path"])
+            file_path = self.base_path / file_info["relative_path"]
             if not file_path.exists():
                 logger.warning(
                     section=LogSection.FILES,

@@ -7,6 +7,7 @@ from app.core.security import get_current_actor
 from app.core.response import success
 from app.admin.permissions import get_current_admin_user
 from app.logging import get_logger, LogSection, LogSubsection
+from app.rate_limit import rate_limit_ip
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -30,6 +31,7 @@ def convert_answer_to_index(correct_answer_raw):
         return correct_answer_raw if correct_answer_raw is not None else 0
 
 @router.get("/user/{user_id}/simple-stats")
+@rate_limit_ip("user_stats_simple", max_requests=120, window_seconds=30)
 async def get_user_simple_stats(
     user_id: str,
     request: Request,
@@ -71,84 +73,33 @@ async def get_user_simple_stats(
             )
             raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-        # Получаем все лобби пользователя (используем host_id, а не creator_id)
+        # Получаем все завершенные лобби пользователя
         user_lobbies = await db.lobbies.find({
-            "host_id": user_id
+            "host_id": user_id,
+            "status": "finished",  # Только завершенные тесты
+            "participants": user_id  # Пользователь должен быть участником
         }).sort("created_at", -1).to_list(None)
         
-        # Получаем ответы пользователя
-        user_answers = await db.user_answers.find({
-            "user_id": user_id
-        }).to_list(None)
-
-        # Создаем словарь ответов по lobby_id
-        answers_by_lobby = {ans["lobby_id"]: ans for ans in user_answers}
-
-        # Подсчитываем завершенные тесты и средний балл
+        # Подсчитываем статистику используя оба поля ответов
         completed_tests = 0
         total_score = 0
         questions_processed = 0
 
-        # Собираем все уникальные question_ids для одного запроса
-        all_question_ids = set()
         for lobby in user_lobbies:
-            lobby_answers = answers_by_lobby.get(lobby["_id"])
-            if lobby_answers:
-                question_ids = lobby.get("question_ids", [])
-                all_question_ids.update(question_ids)
-        
-        # Получаем все вопросы одним запросом
-        # Преобразуем все ID в ObjectId для поиска
-        search_ids = []
-        for qid in all_question_ids:
-            if isinstance(qid, str):
-                try:
-                    search_ids.append(ObjectId(qid))
-                except:
-                    search_ids.append(qid)
-            else:
-                search_ids.append(qid)
-        
-        all_questions = await db.questions.find({
-            "_id": {"$in": search_ids}
-        }).to_list(None)
-        
-        # Создаем словарь вопросов для быстрого доступа (ключи и как ObjectId, и как строки)
-        questions_dict = {}
-        for q in all_questions:
-            questions_dict[q["_id"]] = q  # ObjectId ключ
-            questions_dict[str(q["_id"])] = q  # String ключ
-
-        for lobby in user_lobbies:
-            lobby_id = lobby["_id"]
-            lobby_answers = answers_by_lobby.get(lobby_id)
+            # Получаем ответы из обоих полей
+            user_raw_answers = lobby.get("participants_raw_answers", {}).get(user_id, {})
+            user_answers = lobby.get("participants_answers", {}).get(user_id, {})
             
-            if lobby_answers:
+            if user_raw_answers and user_answers:
                 completed_tests += 1
                 
                 # Получаем вопросы лобби
                 question_ids = lobby.get("question_ids", [])
-                answers = lobby_answers.get("answers", {})
-                
-                correct_count = 0
                 total_questions = len(question_ids)
+                questions_processed += total_questions
                 
-                # Подсчитываем правильные ответы
-                for question_id in question_ids:
-                    questions_processed += 1
-                    question_id_str = str(question_id)
-                    
-                    # Получаем вопрос из словаря (быстро!)
-                    question = questions_dict.get(question_id)
-                    if not question:
-                        question = questions_dict.get(str(question_id))
-                    
-                    if question:
-                        correct_answer_index = convert_answer_to_index(question.get('correct_answer', 'A'))
-                        user_answer = answers.get(question_id_str)
-                        
-                        if user_answer == correct_answer_index:
-                            correct_count += 1
+                # Подсчитываем правильные ответы используя participants_answers
+                correct_count = sum(1 for is_correct in user_answers.values() if is_correct)
                 
                 # Подсчитываем процент
                 percentage = round((correct_count / total_questions * 100), 2) if total_questions > 0 else 0
@@ -184,6 +135,7 @@ async def get_user_simple_stats(
         raise HTTPException(status_code=500, detail="Ошибка получения статистики")
 
 @router.get("/user/{user_id}/recent-tests")
+@rate_limit_ip("user_recent_tests", max_requests=120, window_seconds=30)
 async def get_user_recent_tests(
     user_id: str,
     request: Request,
@@ -203,85 +155,29 @@ async def get_user_recent_tests(
             )
             raise HTTPException(status_code=403, detail="Нет доступа к статистике другого пользователя")
 
-        # Временной диапазон - последняя неделя
+        # Получаем все завершенные лобби пользователя за последнюю неделю
         end_date = datetime.utcnow()
         start_date = end_date - timedelta(days=7)
-
-        # Получаем недавние лобби пользователя (используем host_id, а не creator_id)
+        
         recent_lobbies = await db.lobbies.find({
             "host_id": user_id,
+            "status": "finished",  # Только завершенные тесты
+            "participants": user_id,  # Пользователь должен быть участником
             "created_at": {"$gte": start_date, "$lte": end_date}
         }).sort("created_at", -1).to_list(None)
 
-        # Получаем ответы пользователя
-        user_answers = await db.user_answers.find({
-            "user_id": user_id
-        }).to_list(None)
-
-        answers_by_lobby = {ans["lobby_id"]: ans for ans in user_answers}
-
         recent_tests = []
-        questions_processed = 0
-
-        # Собираем все уникальные question_ids для одного запроса
-        all_question_ids = set()
+        
         for lobby in recent_lobbies:
-            lobby_answers = answers_by_lobby.get(lobby["_id"])
-            if lobby_answers:
-                question_ids = lobby.get("question_ids", [])
-                all_question_ids.update(question_ids)
-        
-        # Получаем все вопросы одним запросом
-        # Преобразуем все ID в ObjectId для поиска
-        search_ids = []
-        for qid in all_question_ids:
-            if isinstance(qid, str):
-                try:
-                    search_ids.append(ObjectId(qid))
-                except:
-                    search_ids.append(qid)
-            else:
-                search_ids.append(qid)
-        
-        all_questions = await db.questions.find({
-            "_id": {"$in": search_ids}
-        }).to_list(None)
-        
-        # Создаем словарь вопросов для быстрого доступа (ключи и как ObjectId, и как строки)
-        questions_dict = {}
-        for q in all_questions:
-            questions_dict[q["_id"]] = q  # ObjectId ключ
-            questions_dict[str(q["_id"])] = q  # String ключ
-
-        for lobby in recent_lobbies:
-            lobby_id = lobby["_id"]
-            lobby_answers = answers_by_lobby.get(lobby_id)
+            # Получаем ответы из обоих полей
+            user_raw_answers = lobby.get("participants_raw_answers", {}).get(user_id, {})
+            user_answers = lobby.get("participants_answers", {}).get(user_id, {})
             
-            if lobby_answers:
-                # Получаем вопросы лобби
-                question_ids = lobby.get("question_ids", [])
-                answers = lobby_answers.get("answers", {})
-                
-                correct_count = 0
-                answered_count = len(answers)
-                total_questions = len(question_ids)
-                
-                # Подсчитываем правильные ответы
-                for question_id in question_ids:
-                    questions_processed += 1
-                    question_id_str = str(question_id)
-                    
-                    # Получаем вопрос из словаря (быстро!)
-                    question = questions_dict.get(question_id)
-                    if not question:
-                        question = questions_dict.get(str(question_id))
-                    
-                    if question:
-                        correct_answer_index = convert_answer_to_index(question.get('correct_answer', 'A'))
-                        user_answer = answers.get(question_id_str)
-                        
-                        if user_answer == correct_answer_index:
-                            correct_count += 1
+            if user_raw_answers and user_answers:
+                lobby_id = lobby["_id"]
+                total_questions = len(lobby.get("question_ids", []))
+                answered_count = len(user_raw_answers)
+                correct_count = sum(1 for is_correct in user_answers.values() if is_correct)
                 
                 # Подсчитываем длительность
                 test_duration = 0
@@ -298,9 +194,9 @@ async def get_user_recent_tests(
                 
                 recent_tests.append({
                     "lobby_id": str(lobby_id),
-                    "completed_at": lobby.get('finished_at') or lobby.get('created_at'),  # Используем finished_at если есть
-                    "score": percentage,  # Изменено: используем score для фронтенда
-                    "duration": test_duration,  # Изменено: duration в секундах
+                    "completed_at": lobby.get('finished_at') or lobby.get('created_at'),
+                    "score": percentage,
+                    "duration": test_duration,
                     "correct_answers": correct_count,
                     "total_questions": total_questions,
                     "type": "exam" if lobby.get("exam_mode", False) else "practice",
@@ -335,6 +231,7 @@ async def get_user_recent_tests(
         raise HTTPException(status_code=500, detail="Ошибка получения недавних тестов")
 
 @router.get("/user/{user_id}/all-tests")
+@rate_limit_ip("user_all_tests", max_requests=120, window_seconds=30)
 async def get_user_all_tests(
     user_id: str,
     request: Request,
@@ -354,61 +251,27 @@ async def get_user_all_tests(
             )
             raise HTTPException(status_code=403, detail="Нет доступа к статистике другого пользователя")
 
-        # Получаем все лобби пользователя (используем host_id, а не creator_id)
+        # Получаем только завершенные лобби пользователя
         all_lobbies = await db.lobbies.find({
-            "host_id": user_id
+            "host_id": user_id,
+            "status": "finished",  # Только завершенные тесты
+            "participants": user_id,  # Пользователь должен быть участником
+            "finished_at": {"$exists": True}  # Убедимся, что тест действительно завершен
         }).sort("created_at", -1).to_list(None)
-
-        # Получаем ответы пользователя
-        user_answers = await db.user_answers.find({
-            "user_id": user_id
-        }).to_list(None)
-
-        answers_by_lobby = {ans["lobby_id"]: ans for ans in user_answers}
 
         all_tests = []
 
         for lobby in all_lobbies:
             lobby_id = lobby["_id"]
-            lobby_answers = answers_by_lobby.get(lobby_id)
             
-            # Базовая информация о тесте
-            test_info = {
-                "lobby_id": str(lobby_id),
-                "date": lobby.get('created_at'),
-                "type": "exam" if lobby.get("exam_mode", False) else "practice",
-                "categories": lobby.get('categories', []),
-                "sections": lobby.get('sections', []),
-                "total_questions": len(lobby.get("question_ids", [])),
-                "status": "completed" if lobby_answers else "not_completed"
-            }
+            # Получаем ответы из обоих полей
+            user_raw_answers = lobby.get("participants_raw_answers", {}).get(user_id, {})
+            user_answers = lobby.get("participants_answers", {}).get(user_id, {})
             
-            if lobby_answers:
-                # Получаем вопросы лобби
-                question_ids = lobby.get("question_ids", [])
-                answers = lobby_answers.get("answers", {})
-                
-                correct_count = 0
-                answered_count = len(answers)
-                total_questions = len(question_ids)
-                
-                # Подсчитываем правильные ответы
-                for question_id in question_ids:
-                    question_id_str = str(question_id)
-                    
-                    question = await db.questions.find_one({"_id": question_id})
-                    if not question:
-                        try:
-                            question = await db.questions.find_one({"_id": ObjectId(question_id)})
-                        except:
-                            continue
-                    
-                    if question:
-                        correct_answer_index = convert_answer_to_index(question.get('correct_answer', 'A'))
-                        user_answer = answers.get(question_id_str)
-                        
-                        if user_answer == correct_answer_index:
-                            correct_count += 1
+            if user_raw_answers and user_answers:  # Проверяем наличие ответов
+                total_questions = len(lobby.get("question_ids", []))
+                answered_count = len(user_raw_answers)
+                correct_count = sum(1 for is_correct in user_answers.values() if is_correct)
                 
                 # Подсчитываем длительность
                 test_duration = 0
@@ -423,45 +286,39 @@ async def get_user_all_tests(
                 
                 percentage = round((correct_count / total_questions * 100), 2) if total_questions > 0 else 0
                 
-                # Дополняем информацию результатами
-                test_info.update({
+                test_info = {
+                    "lobby_id": str(lobby_id),
+                    "date": lobby.get('created_at'),
+                    "finished_at": lobby.get('finished_at'),
+                    "type": "exam" if lobby.get("exam_mode", False) else "practice",
+                    "categories": lobby.get('categories', []),
+                    "sections": lobby.get('sections', []),
+                    "total_questions": total_questions,
                     "answered_questions": answered_count,
                     "correct_answers": correct_count,
                     "percentage": percentage,
                     "passed": percentage >= 70,
                     "duration_seconds": test_duration,
-                    "completion_rate": round((answered_count / total_questions * 100), 2) if total_questions > 0 else 0,
-                    "finished_at": lobby.get('finished_at')
-                })
-            else:
-                # Тест не завершен
-                test_info.update({
-                    "answered_questions": 0,
-                    "correct_answers": 0,
-                    "percentage": 0,
-                    "passed": False,
-                    "duration_seconds": 0,
-                    "completion_rate": 0,
-                    "finished_at": None
-                })
-            
-            all_tests.append(test_info)
+                    "completion_rate": round((answered_count / total_questions * 100), 2) if total_questions > 0 else 0
+                }
+                
+                all_tests.append(test_info)
 
         result_data = {
             "all_tests": serialize_datetime(all_tests),
             "total_count": len(all_tests),
-            "completed_count": len([t for t in all_tests if t["status"] == "completed"])
+            "completed_count": len(all_tests)  # Все тесты завершены
         }
 
         logger.info(
             section=LogSection.USER,
             subsection=LogSubsection.USER.PROFILE,
-            message=f"Получен полный список тестов для пользователя {user_id}: {len(all_tests)} тестов ({len([t for t in all_tests if t['status'] == 'completed'])} завершённых)"
+            message=f"Получен полный список завершенных тестов для пользователя {user_id}: {len(all_tests)} тестов"
         )
         
         return success(
             data=result_data,
-            message="Все тесты получены успешно"
+            message="Все завершенные тесты получены успешно"
         )
 
     except HTTPException:
@@ -475,8 +332,10 @@ async def get_user_all_tests(
         raise HTTPException(status_code=500, detail="Ошибка получения всех тестов")
 
 @router.get("/{lobby_id}/secure/results")
+@rate_limit_ip("test_results_secure", max_requests=20, window_seconds=60)
 async def get_secure_test_results(
     lobby_id: str,
+    request: Request,
     current_user: dict = Depends(get_current_actor)
 ):
     """Получить детальные результаты теста (перенесено из solo_lobby_router)"""
@@ -493,11 +352,130 @@ async def get_secure_test_results(
             )
             raise HTTPException(status_code=404, detail="Lobby not found")
         
-        # Get user answers
-        user_answers_doc = await db.user_answers.find_one({
-            "lobby_id": lobby_id,
-            "user_id": user_id
-        })
+        # Проверяем, завершен ли тест
+        if lobby.get('status') != 'finished':
+            logger.warning(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.SECURITY,
+                message=f"Попытка получить результаты незавершенного теста: лобби {lobby_id}, пользователь {user_id}, статус {lobby.get('status')}"
+            )
+            raise HTTPException(status_code=403, detail="Test is not finished yet")
+        
+        # Проверяем, является ли пользователь участником лобби
+        if user_id not in lobby.get('participants', []):
+            logger.warning(
+                section=LogSection.SECURITY,
+                subsection=LogSubsection.SECURITY.ACCESS_DENIED,
+                message=f"Попытка получить результаты теста пользователем {user_id}, не являющимся участником лобби {lobby_id}"
+            )
+            raise HTTPException(status_code=403, detail="Access denied - user is not a participant")
+
+        # Get question IDs from lobby
+        question_ids = lobby.get("question_ids", [])
+        if not question_ids:
+            logger.error(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.VALIDATION,
+                message=f"В лобби {lobby_id} отсутствуют вопросы"
+            )
+            raise HTTPException(status_code=500, detail="No questions found in lobby")
+        
+        # Get correct answers from lobby (already converted to indices)
+        correct_answers = lobby.get("correct_answers", {})
+        user_raw_answers = lobby.get("participants_raw_answers", {}).get(user_id, {})
+        user_answers = lobby.get("participants_answers", {}).get(user_id, {})
+
+        # Debug log for answers data
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.VALIDATION,
+            message=f"Начало проверки ответов для лобби {lobby_id}. Всего вопросов: {len(question_ids)}, Отвечено: {len(user_raw_answers)}"
+        )
+
+        answered_count = len(user_raw_answers)  # Используем raw_answers для подсчета отвеченных вопросов
+
+        # Detailed answer analysis
+        detailed_answers = []
+        correct_count = 0
+        category_stats = {}
+
+        for i, question_id in enumerate(question_ids):
+            question_id_str = str(question_id)
+            
+            # Get correct answer from lobby
+            correct_answer_index = correct_answers.get(question_id_str)
+            
+            # Get question details
+            question = await db.questions.find_one({"_id": question_id})
+            if not question:
+                try:
+                    question = await db.questions.find_one({"_id": ObjectId(question_id)})
+                except:
+                    pass
+            
+            # Get user's answer from raw_answers
+            user_answer = user_raw_answers.get(question_id_str)
+            is_answered = user_answer is not None
+            
+            # Compare answers only if question was answered
+            is_correct = False
+            if is_answered and correct_answer_index is not None:
+                try:
+                    # Convert both values to integers for comparison
+                    user_answer_int = int(user_answer)
+                    correct_answer_int = int(correct_answer_index)
+                    is_correct = user_answer_int == correct_answer_int
+                    
+                    if is_correct:
+                        correct_count += 1
+                        
+                    # Log comparison result
+                    logger.info(
+                        section=LogSection.LOBBY,
+                        subsection=LogSubsection.LOBBY.VALIDATION,
+                        message=f"Сравнение ответов: вопрос {i+1}, правильный={correct_answer_int}, ответ пользователя={user_answer_int}, результат={'верно' if is_correct else 'неверно'}"
+                    )
+                    
+                except (ValueError, TypeError) as e:
+                    logger.warning(
+                        section=LogSection.LOBBY,
+                        subsection=LogSubsection.LOBBY.VALIDATION,
+                        message=f"Ошибка сравнения ответов для вопроса {question_id_str}: {str(e)}"
+                    )
+            
+            if question:
+                # Category analysis
+                question_categories = question.get('categories', [])
+                for cat in question_categories:
+                    if cat not in category_stats:
+                        category_stats[cat] = {"total": 0, "correct": 0}
+                    category_stats[cat]["total"] += 1
+                    if is_correct:
+                        category_stats[cat]["correct"] += 1
+                
+                # Question details
+                question_detail = {
+                    "question_number": i + 1,
+                    "question_id": question_id_str,
+                    "question_text": question.get('question_text', {}),
+                    "options": [opt.get('text', {}) for opt in question.get('options', [])],
+                    "correct_answer_index": correct_answer_index,  # Use correct answer from lobby
+                    "user_answer_index": user_answer,
+                    "is_answered": is_answered,
+                    "is_correct": is_correct,
+                    "categories": question_categories,
+                    "explanation": question.get('explanation', {}),
+                    "has_media": question.get('has_media', False),
+                    "has_after_answer_media": question.get('has_after_answer_media', False)
+                }
+                detailed_answers.append(question_detail)
+
+        # Log final results
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.VALIDATION,
+            message=f"Итоговый результат: правильно {correct_count} из {answered_count} отвеченных вопросов (всего вопросов: {len(question_ids)})"
+        )
         
         # Get user profile for additional info
         user_profile = await db.users.find_one({"_id": user_id})
@@ -530,7 +508,13 @@ async def get_secure_test_results(
         question_ids = lobby.get('question_ids', [])
         total_questions = len(question_ids)
         
-        if not user_answers_doc:
+        if not user_raw_answers or not user_answers:
+            # Log warning and return zero-answer result
+            logger.error(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.RESULTS,
+                message=f"Отсутствуют ответы пользователя {user_id} в participants_raw_answers или participants_answers для лобби {lobby_id}"
+            )
             # No answers - early exit or didn't start
             return success(
                 data={
@@ -565,60 +549,6 @@ async def get_secure_test_results(
                 },
                 message="No answers found - test not started or completed"
             )
-        
-        user_answers = user_answers_doc.get('answers', {})
-        answered_count = len(user_answers)
-        
-        # Detailed answer analysis
-        detailed_answers = []
-        correct_count = 0
-        category_stats = {}
-        
-        for i, question_id in enumerate(question_ids):
-            question_id_str = str(question_id)
-            
-            # Get question details
-            question = await db.questions.find_one({"_id": question_id})
-            if not question:
-                try:
-                    question = await db.questions.find_one({"_id": ObjectId(question_id)})
-                except:
-                    pass
-            
-            if question:
-                correct_answer_index = convert_answer_to_index(question.get('correct_answer', 'A'))
-                user_answer = user_answers.get(question_id_str)
-                is_answered = user_answer is not None
-                is_correct = is_answered and user_answer == correct_answer_index
-                
-                if is_correct:
-                    correct_count += 1
-                
-                # Category analysis
-                question_categories = question.get('categories', [])
-                for cat in question_categories:
-                    if cat not in category_stats:
-                        category_stats[cat] = {"total": 0, "correct": 0}
-                    category_stats[cat]["total"] += 1
-                    if is_correct:
-                        category_stats[cat]["correct"] += 1
-                
-                # Question details
-                question_detail = {
-                    "question_number": i + 1,
-                    "question_id": question_id_str,
-                    "question_text": question.get('question_text', {}),
-                    "options": [opt.get('text', {}) for opt in question.get('options', [])],
-                    "correct_answer_index": correct_answer_index,
-                    "user_answer_index": user_answer,
-                    "is_answered": is_answered,
-                    "is_correct": is_correct,
-                    "categories": question_categories,
-                    "explanation": question.get('explanation', {}),
-                    "has_media": question.get('has_media', False),
-                    "has_after_answer_media": question.get('has_after_answer_media', False)
-                }
-                detailed_answers.append(question_detail)
         
         # Calculate metrics
         incorrect_count = answered_count - correct_count
@@ -767,6 +697,7 @@ async def get_secure_test_results(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/user/{user_id}/stats")
+@rate_limit_ip("user_stats_full", max_requests=120, window_seconds=30)
 async def get_user_test_stats(
     user_id: str,
     request: Request,
@@ -813,23 +744,17 @@ async def get_user_test_stats(
         end_date = datetime.utcnow()
         start_date = end_date - timedelta(days=days)
 
-        # Получаем все лобби пользователя (используем host_id, а не creator_id)
+        # Получаем только завершенные лобби пользователя
         user_lobbies = await db.lobbies.find({
             "host_id": user_id,
+            "status": "finished",  # Только завершенные тесты
+            "participants": user_id,  # Пользователь должен быть участником
             "created_at": {"$gte": start_date, "$lte": end_date}
         }).sort("created_at", -1).to_list(None)
 
-        # Получаем ответы пользователя
-        user_answers = await db.user_answers.find({
-            "user_id": user_id
-        }).to_list(None)
-
-        # Создаем словарь ответов по lobby_id
-        answers_by_lobby = {ans["lobby_id"]: ans for ans in user_answers}
-
         # Инициализация статистики
         total_tests = len(user_lobbies)
-        completed_tests = 0
+        completed_tests = total_tests  # Все тесты завершены
         total_score = 0
         total_questions_answered = 0
         total_questions_total = 0
@@ -856,55 +781,18 @@ async def get_user_test_stats(
             else:
                 practice_tests += 1
                 
-            # Получаем ответы для этого лобби
-            lobby_answers = answers_by_lobby.get(lobby_id)
+            # Получаем ответы из обоих полей
+            user_raw_answers = lobby.get("participants_raw_answers", {}).get(user_id, {})
+            user_answers = lobby.get("participants_answers", {}).get(user_id, {})
             
-            if lobby_answers:
-                completed_tests += 1
-                
+            if user_raw_answers and user_answers:
                 # Получаем вопросы лобби
-                question_ids = lobby.get("question_ids", [])
-                answers = lobby_answers.get("answers", {})
-                
-                correct_count = 0
-                answered_count = len(answers)
-                total_questions = len(question_ids)
+                total_questions = len(lobby.get("question_ids", []))
+                answered_count = len(user_raw_answers)
+                correct_count = sum(1 for is_correct in user_answers.values() if is_correct)
                 
                 total_questions_answered += answered_count
                 total_questions_total += total_questions
-                
-                # Подсчитываем правильные ответы и статистику по категориям
-                for i, question_id in enumerate(question_ids):
-                    question_id_str = str(question_id)
-                    
-                    # Получаем вопрос
-                    question = await db.questions.find_one({"_id": question_id})
-                    if not question:
-                        try:
-                            question = await db.questions.find_one({"_id": ObjectId(question_id)})
-                        except:
-                            continue
-                    
-                    if question:
-                        correct_answer_index = convert_answer_to_index(question.get('correct_answer', 'A'))
-                        user_answer = answers.get(question_id_str)
-                        is_correct = user_answer == correct_answer_index
-                        
-                        if is_correct:
-                            correct_count += 1
-                        
-                        # Статистика по категориям
-                        question_categories = question.get('categories', [])
-                        for cat in question_categories:
-                            if cat not in category_stats:
-                                category_stats[cat] = {
-                                    "total_questions": 0,
-                                    "correct_answers": 0,
-                                    "tests_count": 0
-                                }
-                            category_stats[cat]["total_questions"] += 1
-                            if is_correct:
-                                category_stats[cat]["correct_answers"] += 1
                 
                 # Подсчитываем процент
                 percentage = round((correct_count / total_questions * 100), 2) if total_questions > 0 else 0
@@ -928,6 +816,7 @@ async def get_user_test_stats(
                     recent_tests.append({
                         "lobby_id": str(lobby_id),
                         "date": lobby.get('created_at'),
+                        "finished_at": lobby.get('finished_at'),
                         "type": "exam" if is_exam else "practice",
                         "categories": lobby.get('categories', []),
                         "sections": lobby.get('sections', []),
@@ -996,12 +885,12 @@ async def get_user_test_stats(
                 "end_date": end_date.isoformat()
             },
             "overall_stats": {
-                "total_tests_started": total_tests,
-                "completed_tests": completed_tests,  # Новая метрика: завершено тестов
+                "total_tests": total_tests,
+                "completed_tests": completed_tests,
                 "passed_tests": passed_tests,
-                "completion_rate": round((completed_tests / total_tests * 100), 2) if total_tests > 0 else 0,
+                "completion_rate": 100,  # Все тесты завершены
                 "pass_rate": round((passed_tests / completed_tests * 100), 2) if completed_tests > 0 else 0,
-                "average_score": average_score,  # Новая метрика: средний балл за все тесты
+                "average_score": average_score,
                 "overall_accuracy": overall_accuracy,
                 "exam_tests": exam_tests,
                 "practice_tests": practice_tests,
@@ -1017,7 +906,7 @@ async def get_user_test_stats(
                 }
                 for cat, stats in sorted(category_stats.items(), key=lambda x: x[1]["percentage"], reverse=True)
             ],
-            "recent_tests": serialize_datetime(recent_tests),  # Новая секция: недавние тесты
+            "recent_tests": serialize_datetime(recent_tests),
             "daily_stats": [
                 {
                     "date": date,
@@ -1183,6 +1072,7 @@ async def calculate_period_stats(user_id: str, lobbies: List[Dict]) -> Dict[str,
     }
 
 @router.get("/admin/global-stats")
+@rate_limit_ip("admin_global_stats", max_requests=20, window_seconds=60)
 async def get_global_test_stats(
     request: Request,
     days: Optional[int] = Query(30, description="Количество дней для анализа"),
