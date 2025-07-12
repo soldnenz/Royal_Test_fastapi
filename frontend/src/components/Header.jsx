@@ -4,7 +4,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { translations } from '../translations/translations';
 
-const Header = () => {
+const Header = ({ variant = 'default' }) => {
   const { theme, toggleTheme } = useTheme();
   const { language, changeLanguage } = useLanguage();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -13,6 +13,10 @@ const Header = () => {
   const t = translations[language];
 
   useEffect(() => {
+    if (variant === 'guest') {
+      setIsAuthenticated(false);
+      return;
+    }
     const checkAuth = async () => {
       try {
         const response = await fetch('/api/users/me', { credentials: 'include' });
@@ -25,7 +29,7 @@ const Header = () => {
       }
     };
     checkAuth();
-  }, []);
+  }, [variant]);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -91,12 +95,14 @@ const Header = () => {
               </Link>
             ) : (
               <>
-                <Link
-                  to="/login"
-                  className="px-4 py-2 bg-gray-100 dark:bg-dark-700 rounded-lg shadow-md text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-dark-600 transition-colors"
-                >
-                  {t.login}
-                </Link>
+                {variant !== 'guest' && (
+                  <Link
+                    to="/login"
+                    className="px-4 py-2 bg-gray-100 dark:bg-dark-700 rounded-lg shadow-md text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-dark-600 transition-colors"
+                  >
+                    {t.login}
+                  </Link>
+                )}
                 <Link
                   to="/registration"
                   className="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200"
@@ -175,13 +181,15 @@ const Header = () => {
                 </Link>
               ) : (
                 <>
-                  <Link
-                    to="/login"
-                    className="py-2 px-4 bg-gray-100 dark:bg-dark-700 rounded-lg shadow-md text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-dark-600 text-center transition-colors"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    {t.login}
-                  </Link>
+                  {variant !== 'guest' && (
+                    <Link
+                      to="/login"
+                      className="py-2 px-4 bg-gray-100 dark:bg-dark-700 rounded-lg shadow-md text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-dark-600 text-center transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      {t.login}
+                    </Link>
+                  )}
                   <Link
                     to="/registration"
                     className="py-2 px-4 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-lg text-center shadow-md"

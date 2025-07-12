@@ -5,9 +5,8 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { translations } from '../../translations/translations';
 import api from '../../utils/axios';
 import QRCode from 'qrcode';
-import Header from '../../components/Header';
-import Sidebar from '../../components/dashboard/DashboardSidebar';
-import useLobbyWebSocket from '../../hooks/useLobbyWebSocket';
+import LobbyHeader from '../../components/lobby/LobbyHeader';
+import useMultiplayerSocket from '../../hooks/useMultiplayerSocket';
 import { 
   FaTimes, 
   FaPlay, 
@@ -27,7 +26,9 @@ import {
   FaTruckMoving, 
   FaBusAlt,
   FaSignOutAlt,
-  FaCheck
+  FaCheck,
+  FaUserPlus,
+  FaQrcode
 } from 'react-icons/fa';
 import { 
   MdDirectionsBike, 
@@ -45,6 +46,7 @@ const LobbyWaitingPage = () => {
   const navigate = useNavigate();
   
   const [lobby, setLobby] = useState(null);
+  const [participants, setParticipants] = useState([]); // <-- Храним полный список участников здесь
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [qrCodeUrl, setQrCodeUrl] = useState('');
@@ -53,24 +55,86 @@ const LobbyWaitingPage = () => {
   const [userSubscription, setUserSubscription] = useState(null);
   const [subscriptionError, setSubscriptionError] = useState('');
   const [canJoinLobby, setCanJoinLobby] = useState(false);
-  const [hasTriedToJoin, setHasTriedToJoin] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
-  
+  const [isGuest, setIsGuest] = useState(() => localStorage.getItem('isGuest') === 'true');
+  const [guestNickname, setGuestNickname] = useState('');
+  const [modalMessage, setModalMessage] = useState(null);
+  // Удаляем состояние isCurrentUserHost
+  // const [isCurrentUserHost, setIsCurrentUserHost] = useState(false);
+
   const timeLeftRef = useRef(0);
 
-  // WebSocket connection for lobby
-  const {
-    isConnected: wsConnected,
-    reconnectAttempts,
-    participants,
-    connect: connectWebSocket,
-    disconnect: disconnectWebSocket,
-    reconnect: reconnectWebSocket,
-    updateParticipantsStatus,
-    setParticipants
-  } = useLobbyWebSocket(lobbyId);
+  useEffect(() => {
+    const guestInfo = localStorage.getItem('guestInfo');
+    if (guestInfo) {
+      const { nickname } = JSON.parse(guestInfo);
+      setGuestNickname(nickname);
+    }
+  }, []);
+
+  // 1. Функция для получения списка участников по HTTP
+  const fetchParticipants = useCallback(async () => {
+    if (!lobbyId) return;
+    try {
+      const response = await api.get(`/multiplayer/lobbies/${lobbyId}/participants`);
+      if (response.data.status === 'ok') {
+        setParticipants(response.data.data.participants || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch participants:', error);
+      setError(t['failedToLoadParticipants'] || 'Не удалось загрузить участников');
+    }
+  }, [lobbyId, t]);
+
+  // 2. Колбэк для сокета: при входе/выходе пользователя, перезапрашиваем список
+  const handleUserEvent = useCallback((event) => {
+    console.log(`Socket event received: ${event}, fetching participants...`);
+    fetchParticipants();
+  }, [fetchParticipants]);
+  
+  const handleSocketError = useCallback((errorMessage) => {
+    setError(errorMessage);
+  }, []);
+
+  const handleKicked = useCallback((reason) => {
+    setModalMessage({
+      title: 'Вы были исключены',
+      message: reason,
+      buttonText: 'Вернуться на главную',
+      redirectPath: isGuest ? '/' : '/dashboard'
+    });
+  }, [isGuest]);
+
+  const handleLobbyClosed = useCallback((reason) => {
+    setModalMessage({
+      title: 'Лобби закрыто',
+      message: reason,
+      buttonText: 'Вернуться в дашборд',
+      redirectPath: isGuest ? '/' : '/dashboard'
+    });
+  }, [isGuest]);
+
+  const handleLobbyStarted = useCallback((data) => {
+    console.log('Lobby started event received:', data);
+    // Немедленный переход на страницу теста
+    navigate(`/multiplayer/test/${lobbyId}`);
+  }, [navigate, lobbyId]);
+
+  // 3. Инициализация сокета
+  const { 
+    isConnected: wsConnected, 
+    onlineUsers, 
+    sendEvent: sendSocketEvent, // <-- Получаем новую функцию
+    disconnect: disconnectSocket 
+  } = useMultiplayerSocket(
+    lobbyId, 
+    handleUserEvent, 
+    handleSocketError,
+    handleKicked,
+    handleLobbyClosed,
+    handleLobbyStarted
+  );
 
   // Get current user ID from API
   const getCurrentUserId = useCallback(async () => {
@@ -85,269 +149,81 @@ const LobbyWaitingPage = () => {
     return null;
   }, []);
 
-  // Fetch lobby data
-  const fetchLobbyData = async () => {
-    try {
-      const response = await api.get(`/lobbies/lobbies/${lobbyId}`);
-      
-      if (response.data.status === 'ok') {
-        const lobbyData = response.data.data;
-        setLobby(lobbyData);
-        
-        // Check subscription access - inline to avoid circular dependencies
-        const hasAccess = await (async () => {
-          try {
-            const userId = await getCurrentUserId();
-            setCurrentUserId(userId);
-            const isHost = userId && lobbyData.host_id === userId;
-            
-            if (isHost) {
-              setCanJoinLobby(true);
-              return true;
-            }
-            
-            // Для лобби созданного School подпиской - любой может войти
-            if (lobbyData.host_subscription_type?.toLowerCase() === 'school') {
-              setCanJoinLobby(true);
-              return true;
-            }
-            
-            const subscriptionResponse = await api.get('/users/my/subscription');
-            
-            if (subscriptionResponse.data.status === 'ok') {
-              const subData = subscriptionResponse.data.data;
-              
-              if (subData.has_subscription) {
-                const subscription = {
-                  subscription_type: subData.subscription_type,
-                  expires_at: subData.expires_at,
-                  days_left: subData.days_left,
-                  duration_days: subData.duration_days
-                };
-                setUserSubscription(subscription);
-                
-                const lobbyCategories = lobbyData.categories || [];
-                const userSubscriptionType = subscription.subscription_type.toLowerCase();
-                
-                let allowedCategories = [];
-                switch (userSubscriptionType) {
-                  case 'economy':
-                    allowedCategories = ['A1', 'A', 'B1', 'B', 'BE'];
-                    break;
-                  case 'vip':
-                  case 'royal':
-                  case 'school':
-                    allowedCategories = null;
-                    break;
-                  default:
-                    allowedCategories = ['B'];
-                }
-                
-                if (allowedCategories && lobbyCategories.length > 0) {
-                  const hasAccessToCategories = lobbyCategories.some(cat => allowedCategories.includes(cat));
-                  if (!hasAccessToCategories) {
-                    setSubscriptionError(
-                      `Ваша подписка "${subscription.subscription_type}" рассчитана на категории: ${allowedCategories.join(', ')}, ` +
-                      `а лобби настроено на категории: ${lobbyCategories.join(', ')}`
-                    );
-                    setCanJoinLobby(false);
-                    return false;
-                  }
-                }
-                
-                setCanJoinLobby(true);
-                return true;
-                
-              } else {
-                // Нет подписки - для обычных лобби это ошибка
-                setSubscriptionError('Вы не зарегистрированы или у вас нет подписки');
-                setCanJoinLobby(false);
-                return false;
-              }
-            } else {
-              setSubscriptionError('Не удалось получить информацию о подписке');
-              setCanJoinLobby(false);
-              return false;
-            }
-          } catch (error) {
-            console.error('Error checking subscription:', error);
-            setSubscriptionError('Ошибка при проверке подписки');
-            setCanJoinLobby(false);
-            return false;
-          }
-        })();
-        
-        // Auto-join if access is granted
-        if (hasAccess && !hasTriedToJoin) {
-          const userId = await getCurrentUserId();
-          if (userId && !lobbyData.participants?.includes(userId)) {
-            setHasTriedToJoin(true);
-            try {
-              const response = await api.post(`/lobbies/lobbies/${lobbyId}/join`);
-              if (response.data.status === 'ok') {
-                console.log('Successfully joined lobby');
-              } else {
-                setError(response.data.message || 'Failed to join lobby');
-              }
-            } catch (error) {
-              console.error('Error joining lobby:', error);
-              setError(error.response?.data?.message || 'Failed to join lobby');
-            }
-          }
-        }
-        
-        // Calculate time left - используем время с сервера если доступно
-        let timeLeftSeconds = 0;
-        
-        if (lobbyData.remaining_seconds !== undefined) {
-          // Если сервер предоставляет remaining_seconds, используем его
-          timeLeftSeconds = Math.max(0, lobbyData.remaining_seconds);
-        } else {
-          // Fallback: вычисляем на клиенте (4 часа от создания)
-          try {
-            // Парсим время создания - добавляем 'Z' если его нет для UTC
-            let createdAtString = lobbyData.created_at;
-            if (!createdAtString.endsWith('Z') && !createdAtString.includes('+')) {
-              createdAtString += 'Z';
-            }
-            
-            const createdAt = new Date(createdAtString);
-            const expiresAt = new Date(createdAt.getTime() + 4 * 60 * 60 * 1000); // 4 hours
-            const now = new Date();
-            timeLeftSeconds = Math.max(0, Math.floor((expiresAt - now) / 1000));
-            
-            console.log('Lobby time calculation (fallback):', {
-              created_at: lobbyData.created_at,
-              createdAtString,
-              createdAt: createdAt.toISOString(),
-              expiresAt: expiresAt.toISOString(),
-              now: now.toISOString(),
-              timeLeftSeconds
-            });
-          } catch (error) {
-            console.error('Error calculating lobby time:', error);
-            // Если не можем вычислить время, устанавливаем 4 часа
-            timeLeftSeconds = 4 * 60 * 60; // 4 hours
-          }
-        }
-        
-        console.log('Final timeLeftSeconds:', timeLeftSeconds);
-        setTimeLeft(timeLeftSeconds);
-        timeLeftRef.current = timeLeftSeconds;
-        
-        // Get participant details
-        const participantsIds = lobbyData.participants || [];
-        if (Array.isArray(participantsIds) && participantsIds.length > 0) {
-          const participantPromises = participantsIds.map(async (userId) => {
-            try {
-              const userResponse = await api.get(`/users/${userId}`);
-              return {
-                id: userId,
-                name: userResponse.data.data?.full_name || 'Unknown User',
-                online: true // This would be updated via WebSocket
-              };
-            } catch (error) {
-              console.error(`Failed to fetch user ${userId}:`, error);
-              return {
-                id: userId,
-                name: 'Unknown User',
-                online: true // Считаем участников онлайн по умолчанию
-              };
-            }
-          });
-          
-          const participantDetails = await Promise.all(participantPromises);
-          
-          // Убеждаемся, что текущий пользователь в списке
-          const userId = await getCurrentUserId();
-          if (userId && !participantDetails.some(p => p.id === userId)) {
-                          try {
-                const currentUserResponse = await api.get(`/users/${userId}`);
-                participantDetails.push({
-                  id: userId,
-                  name: currentUserResponse.data.data?.full_name || 'You',
-                  online: true
-                });
-              } catch (error) {
-                console.error('Failed to fetch current user:', error);
-                participantDetails.push({
-                  id: userId,
-                  name: 'You',
-                  online: true
-                });
-              }
-          }
-          
-          setParticipants(() => participantDetails);
-        } else {
-          setParticipants(() => []);
-        }
-        
-      } else {
-        setError(response.data.message || t['failedToLoadLobby'] || 'Failed to load lobby');
-      }
-    } catch (error) {
-      console.error('Error fetching lobby data:', error);
-      setError(error.response?.data?.message || t['failedToLoadLobby'] || 'Failed to load lobby');
-    }
-  };
-
-  // Handle WebSocket events and lobby status changes
+  // Первоначальная загрузка данных о лобби и участниках
   useEffect(() => {
-    // Poll lobby status to detect when test starts
-    const statusCheckInterval = setInterval(async () => {
+    const initialize = async () => {
+      setLoading(true);
       try {
-        const response = await api.get(`/lobbies/lobbies/${lobbyId}`);
-        if (response.data.status === 'ok') {
-          const lobbyData = response.data.data;
-          
-          // If lobby status changed to active/in_progress, navigate to test
-          if (lobbyData.status === 'active' || lobbyData.status === 'in_progress') {
-            clearInterval(statusCheckInterval);
-            navigate(`/multiplayer/test/${lobbyId}`);
-          }
-          
-          // If lobby was completed or closed, handle appropriately
-          else if (lobbyData.status === 'completed' || lobbyData.status === 'inactive') {
-            clearInterval(statusCheckInterval);
-            setError('Лобби было закрыто');
-            setTimeout(() => {
-              navigate('/dashboard', { replace: true });
-            }, 3000);
-          }
+        const [lobbyResponse] = await Promise.all([
+          api.get(`/multiplayer/lobbies/${lobbyId}`),
+          fetchParticipants()
+        ]);
+        
+        if (lobbyResponse.data.status === 'ok') {
+          const lobbyData = lobbyResponse.data.data;
+          setLobby(lobbyData);
+          // Логика установки времени и QR-кода остается здесь
+        } else {
+          setError(lobbyResponse.data.message || t['failedToLoadLobby']);
         }
       } catch (error) {
-        // Ignore polling errors, continue checking
-        console.log('Status check error (ignored):', error);
-      }
-    }, 2000); // Check every 2 seconds
-
-    // Listen for kick events
-    const handleKick = (data) => {
-      if (data.kicked_user_id === currentUserId) {
-        clearInterval(statusCheckInterval);
-        setError('Вы были исключены из лобби');
-        setTimeout(() => {
-          navigate('/dashboard', { replace: true });
-        }, 3000);
+        setError(error.response?.data?.message || t['failedToLoadLobby']);
+      } finally {
+        setLoading(false);
       }
     };
+    if (lobbyId) {
+      initialize();
+    }
+  }, [lobbyId, fetchParticipants, t]);
 
-    // Listen for lobby close events
-    const handleLobbyClose = () => {
-      clearInterval(statusCheckInterval);
-      setError('Лобби было закрыто хостом');
-      setTimeout(() => {
-        navigate('/dashboard', { replace: true });
-      }, 3000);
-    };
+  // Удаляем useEffect для определения хоста
 
-    // Cleanup on unmount
-    return () => {
-      clearInterval(statusCheckInterval);
-    };
-    
-  }, [lobbyId, navigate, currentUserId]);
+
+  // Логика с таймером и QR-кодом, которая зависит от `lobby`
+  useEffect(() => {
+    if (!lobby) return;
+
+    // Countdown timer
+    let timeLeftSeconds = 0;
+    if (lobby.remaining_seconds !== undefined) {
+      timeLeftSeconds = Math.max(0, lobby.remaining_seconds);
+    } else {
+      try {
+        let createdAtString = lobby.created_at;
+        if (!createdAtString.endsWith('Z') && !createdAtString.includes('+')) {
+          createdAtString += 'Z';
+        }
+        const createdAt = new Date(createdAtString);
+        const expiresAt = new Date(createdAt.getTime() + 4 * 60 * 60 * 1000);
+        const now = new Date();
+        timeLeftSeconds = Math.max(0, Math.floor((expiresAt - now) / 1000));
+      } catch (error) {
+        timeLeftSeconds = 4 * 60 * 60;
+      }
+    }
+    setTimeLeft(timeLeftSeconds);
+    timeLeftRef.current = timeLeftSeconds;
+
+    const timer = setInterval(() => {
+        if (timeLeftRef.current > 0) {
+            timeLeftRef.current -= 1;
+            setTimeLeft(timeLeftRef.current);
+        } else {
+            clearInterval(timer);
+            setError(t['lobbyExpired'] || 'Lobby has expired');
+            setTimeout(() => {
+              navigate('/dashboard');
+            }, 3000);
+        }
+    }, 1000);
+
+    // QR Code generation
+    const lobbyUrl = `${window.location.origin}/multiplayer/join/${lobbyId}`;
+    generateQRCode(lobbyUrl);
+
+    return () => clearInterval(timer);
+  }, [lobby, lobbyId, isDark, navigate, t]);
 
   // Category icons mapping
   const getCategoryIcon = (categories) => {
@@ -412,57 +288,23 @@ const LobbyWaitingPage = () => {
     }
   };
 
-  // Countdown timer
-  useEffect(() => {
-    // Не запускаем таймер, пока лобби не загружено
-    if (!lobby) return;
-    
-    const timer = setInterval(() => {
-      if (timeLeftRef.current > 0) {
-        timeLeftRef.current -= 1;
-        setTimeLeft(timeLeftRef.current);
-      } else {
-        clearInterval(timer);
-        setError(t['lobbyExpired'] || 'Lobby has expired');
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 3000);
-      }
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [lobby, navigate, t]); // Добавляем lobby в зависимости
-
-  // Initialize
-  useEffect(() => {
-    const initialize = async () => {
-      setLoading(true);
-      await fetchLobbyData();
-      setLoading(false);
-    };
-
-    initialize();
-  }, [lobbyId]);
-
-  // Generate QR code when lobby is loaded
-  useEffect(() => {
-    if (lobby) {
-      const lobbyUrl = `${window.location.origin}/multiplayer/join/${lobbyId}`;
-      generateQRCode(lobbyUrl);
-    }
-  }, [lobby, lobbyId, isDark]);
-
   // Start test
   const handleStartTest = async () => {
     try {
       setLoading(true);
-      const response = await api.post(`/lobbies/lobbies/${lobbyId}/start`);
+      
+      // 1. Сначала отправляем HTTP запрос на обычный роутер старта
+      const response = await api.post(`/multiplayer/lobbies/${lobbyId}/start`);
       
       if (response.data.status === 'ok') {
-        // Wait a moment for the lobby status to update, then navigate
+        // 2. При успешном старте отправляем событие в сокет для уведомления всех участников
+        sendSocketEvent('start_test', { lobby_id: lobbyId });
+        
+        // 3. Навигация произойдет по событию 'lobby_started' от сокета
+        // Но добавим таймер на случай, если событие не придет
         setTimeout(() => {
           navigate(`/multiplayer/test/${lobbyId}`);
-        }, 1000);
+        }, 2000);
       } else {
         setError(response.data.message || t['failedToStartTest'] || 'Failed to start test');
       }
@@ -483,49 +325,88 @@ const LobbyWaitingPage = () => {
     try {
       setLoading(true);
       
-      // Close WebSocket connection first
-      disconnectWebSocket(1000, 'Lobby closed by host');
-      
-      const response = await api.post(`/lobbies/lobbies/${lobbyId}/close`);
+      // 1. Сначала отправляем HTTP запрос на обычный роутер закрытия
+      const response = await api.post(`/multiplayer/lobbies/${lobbyId}/close`);
       
       if (response.data.status === 'ok') {
-        // Force navigation after a short delay
+        // 2. При успешном закрытии отправляем событие в сокет для уведомления всех участников
+        sendSocketEvent('close_lobby', { lobby_id: lobbyId });
+        
+        // 3. Навигация произойдет по событию 'lobby_closed' от сокета
+        // Но добавим таймер на случай, если событие не придет
         setTimeout(() => {
           navigate('/dashboard', { replace: true });
-        }, 500);
+        }, 1500);
       } else {
         setError(response.data.message || t['failedToCloseLobby'] || 'Failed to close lobby');
       }
     } catch (error) {
       console.error('Error closing lobby:', error);
       setError(error.response?.data?.message || t['failedToCloseLobby'] || 'Failed to close lobby');
-      // Navigate anyway after error
-      setTimeout(() => {
-        navigate('/dashboard', { replace: true });
-      }, 2000);
     } finally {
       setLoading(false);
     }
   };
 
-  // Kick participant (host only)
+  // Обновляем функцию handleKickParticipant
   const handleKickParticipant = async (userId) => {
-    if (!confirm(t['confirmKickUser'] || 'Are you sure you want to kick this user?')) {
+    console.log('handleKickParticipant called with userId:', userId);
+    console.log('Current lobby state:', lobby);
+    console.log('Is host?', lobby?.is_host);
+
+    if (!lobby?.is_host) {
+        console.log('Cannot kick - user is not host');
+        return;
+    }
+
+    try {
+        if (!window.confirm(t['confirmKickUser'] || 'Точно кикнуть этого пользователя?')) {
+            console.log('Kick cancelled by user');
+            return;
+        }
+
+        console.log('Sending kick request...');
+        
+        // 1. Сначала отправляем HTTP запрос
+        const response = await api.post(`/multiplayer/lobbies/${lobbyId}/kick`, {
+            target_user_id: userId
+        });
+        
+        if (response.data.status === 'ok') {
+            // 2. При успешном кике отправляем событие в сокет для уведомления
+            sendSocketEvent('kick_user', { 
+                lobby_id: lobbyId, 
+                target_user_id: userId 
+            });
+            console.log('Kick successful');
+        } else {
+            console.error('Kick failed:', response.data.message);
+            setError(response.data.message || t['failedToKickUser'] || 'Failed to kick user');
+        }
+    } catch (error) {
+        console.error('Kick error:', error);
+        setError(error.response?.data?.message || t['failedToKickUser'] || 'Failed to kick user');
+    }
+  };
+
+  // Leave lobby (guest)
+  const handleGuestLeave = async (confirm = false) => {
+    if (confirm && !window.confirm('Вы действительно хотите выйти из лобби?')) {
       return;
     }
-    
     try {
-      const response = await api.post(`/lobbies/lobbies/${lobbyId}/kick`, { target_user_id: userId });
-      
-      if (response.data.status === 'ok') {
-        // WebSocket will handle the update, no need to manually refresh
-        console.log('User kicked successfully');
-      } else {
-        setError(response.data.message || t['failedToKickUser'] || 'Failed to kick user');
-      }
-    } catch (error) {
-      console.error('Error kicking user:', error);
-      setError(error.response?.data?.message || t['failedToKickUser'] || 'Failed to kick user');
+      setLoading(true);
+      // Явно отключаем сокет перед выходом
+      disconnectSocket();
+      api.post(`/multiplayer/lobbies/${lobbyId}/leave`);
+    } catch (e) {
+      console.error("Failed to notify backend of leaving, but leaving anyway", e);
+    } finally {
+      localStorage.removeItem('token');
+      localStorage.removeItem('isGuest');
+      localStorage.removeItem('ws_token');
+      delete api.defaults.headers.common['Authorization'];
+      navigate('/', { replace: true });
     }
   };
 
@@ -536,7 +417,9 @@ const LobbyWaitingPage = () => {
     }
     
     try {
-      const response = await api.post(`/lobbies/lobbies/${lobbyId}/leave`);
+      // Явно отключаем сокет перед выходом
+      disconnectSocket();
+      const response = await api.post(`/multiplayer/lobbies/${lobbyId}/leave`);
       
       if (response.data.status === 'ok') {
         // Navigate back to dashboard
@@ -550,20 +433,20 @@ const LobbyWaitingPage = () => {
     }
   };
 
-  // Периодическое обновление статуса участников
-  useEffect(() => {
-    if (!lobby || lobby.status !== 'waiting') return;
-    
-    // Обновляем статус каждые 15 секунд
-    const statusInterval = setInterval(() => {
-      updateParticipantsStatus();
-    }, 15000);
-    
-    // Первое обновление сразу
-    updateParticipantsStatus();
-    
-    return () => clearInterval(statusInterval);
-  }, [lobby, lobbyId, updateParticipantsStatus]);
+  // Периодическое обновление статуса участников (убираем, так как теперь это делает Socket.IO)
+  // useEffect(() => {
+  //   if (!lobby || lobby.status !== 'waiting') return;
+  //   
+  //   // Обновляем статус каждые 15 секунд
+  //   const statusInterval = setInterval(() => {
+  //     updateParticipantsStatus();
+  //   }, 15000);
+  //   
+  //   // Первое обновление сразу
+  //   updateParticipantsStatus();
+  //   
+  //   return () => clearInterval(statusInterval);
+  // }, [lobby, lobbyId, updateParticipantsStatus]);
 
   if (loading && !lobby) {
     return (
@@ -591,22 +474,18 @@ const LobbyWaitingPage = () => {
     );
   }
 
+  const isHost = lobby?.is_host === true; // Simplified check
+
   return (
     <div className={`lobby-waiting-page ${isDark ? 'dark-theme' : ''}`}>
-      <Header />
-      <Sidebar isOpen={sidebarOpen} toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+      <LobbyHeader isGuest={isGuest} />
       
       <div className="main-content">
         <div className="lobby-container">
           {/* Lobby Header */}
           <div className="lobby-header">
             <div className="header-left">
-              <button className="sidebar-toggle-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-              <button className="back-btn" onClick={() => navigate('/dashboard')}>
+              <button className="back-btn" onClick={() => isGuest ? handleGuestLeave() : navigate('/dashboard')}>
                 <FaArrowLeft />
               </button>
             </div>
@@ -623,18 +502,9 @@ const LobbyWaitingPage = () => {
                 <div className="status-indicator offline">
                   <FaExclamationTriangle />
                   <span>
-                    {reconnectAttempts > 0 
-                      ? `${t['reconnecting'] || 'Переподключение'} (${reconnectAttempts}/5)`
-                      : (t['connecting'] || 'Connecting...')
-                    }
+                    {t['connecting'] || 'Connecting...'}
                   </span>
-                  <button 
-                    className="reconnect-btn"
-                    onClick={reconnectWebSocket}
-                    title="Переподключиться"
-                  >
-                    <FaWifi />
-                  </button>
+                  {/* Убираем кнопку реконнекта, т.к. он автоматический */}
                 </div>
               )}
             </div>
@@ -781,10 +651,10 @@ const LobbyWaitingPage = () => {
             </div>
             
             <div className="participants-list">
-              {Array.isArray(participants) && participants.map((participant, index) => (
+              {Array.isArray(participants) && participants.map((participant) => (
                 <div 
-                  key={participant.id} 
-                  className={`participant-item ${!participant.online ? 'offline' : ''}`}
+                  key={participant.user_id}
+                  className={`participant-item ${!onlineUsers.includes(participant.user_id) ? 'offline' : ''}`}
                 >
                   <div className="participant-info">
                     <div className="participant-avatar">
@@ -793,38 +663,33 @@ const LobbyWaitingPage = () => {
                     <div className="participant-details">
                       <span className="participant-name">{participant.name}</span>
                       <span className="participant-status">
-                        {participant.id === lobby?.host_id && (
+                        <div className={`status-dot ${onlineUsers.includes(participant.user_id) ? 'online' : 'offline'}`}></div>
+                        {participant.is_host ? (
                           <>
                             {lobby?.host_subscription_type === 'royal' ? <FaCrown /> : <FaGraduationCap />}
                             {t['host'] || 'Host'}
                           </>
-                        )}
-                        {participant.id !== lobby?.host_id && (
+                        ) : (
                           <>
-                            {participant.online ? (
-                              <>
-                                <div className="status-dot online"></div>
-                                {t['online'] || 'Online'}
-                              </>
-                            ) : (
-                              <>
-                                <div className="status-dot offline"></div>
-                                {t['offline'] || 'Offline'}
-                              </>
-                            )}
+                            {onlineUsers.includes(participant.user_id) ? (t['online'] || 'Online') : (t['offline'] || 'Offline')}
                           </>
                         )}
                       </span>
                     </div>
                   </div>
                   
-                  {lobby?.is_host && participant.id !== lobby?.host_id && (
+                  {lobby?.is_host && !participant.is_host && (
                     <button 
-                      className="kick-btn"
-                      onClick={() => handleKickParticipant(participant.id)}
-                      title={t['kickUser'] || 'Kick user'}
+                        className="kick-btn"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('Kick button clicked for participant:', participant);
+                            handleKickParticipant(participant.user_id);
+                        }}
+                        title={t['kickUser'] || 'Исключить пользователя'}
                     >
-                      <FaUserTimes />
+                        <FaTimes />
                     </button>
                   )}
                 </div>
@@ -846,59 +711,71 @@ const LobbyWaitingPage = () => {
         </div>
 
         {/* Action Buttons */}
-        {lobby?.is_host ? (
-          <div className="lobby-actions">
-            <button 
-              className="action-btn close-btn"
-              onClick={handleCloseLobby}
-              disabled={loading}
-            >
-              <FaTimes />
-              {t['closeLobby'] || 'Закрыть лобби'}
-            </button>
-            
-            <button 
-              className={`action-btn start-btn ${loading ? 'loading' : ''}`}
-              onClick={handleStartTest}
-              disabled={loading || participants.length < 2}
-            >
-              {loading ? (
-                <div className="spinner"></div>
-              ) : (
-                <>
-                  <FaPlay />
-                  {t['startTest'] || 'Начать тест'}
-                </>
-              )}
-            </button>
-          </div>
-        ) : (
-          <div className="non-host-actions">
-            <div className="waiting-for-host">
-              <div className="waiting-message">
-                <FaClock />
-                <h3>Ожидание хоста</h3>
-                <p>Лобби начнется, когда хост запустит тест</p>
+        <div className="lobby-actions-container">
+          {lobby?.is_host ? (
+            <div className="lobby-actions host-actions">
+              <button 
+                className="action-btn start-btn"
+                onClick={handleStartTest}
+                disabled={loading || participants.length < 2 || !wsConnected}
+              >
+                <FaPlay />
+                <span>{t['startTest'] || 'Начать тест'}</span>
+                {loading && <div className="spinner"></div>}
+              </button>
+              <button 
+                className="action-btn close-btn"
+                onClick={handleCloseLobby}
+                disabled={loading || !wsConnected} // Блокируем кнопку закрытия если нет связи
+              >
+                <FaTimes />
+                <span>{t['closeLobby'] || 'Закрыть лобби'}</span>
+              </button>
+            </div>
+          ) : (
+            <div className="lobby-actions non-host-actions">
+              <div className="waiting-for-host">
+                <div className="waiting-message">
+                  <FaClock />
+                  <div className="waiting-text">
+                    <h3>Ожидание хоста</h3>
+                    <p>Тест начнется, когда хост его запустит</p>
+                  </div>
+                </div>
                 <div className="host-info">
-                  <span>Хост: {participants.find(p => p.id === lobby?.host_id)?.name || 'Unknown'}</span>
+                  <span>Хост: <strong>{participants.find(p => p.is_host)?.name || lobby?.host_name || 'Unknown'}</strong></span>
                 </div>
               </div>
-            </div>
-            
-            <div className="lobby-actions non-host">
               <button 
                 className="action-btn leave-btn"
-                onClick={handleLeaveLobby}
+                onClick={() => isGuest ? handleGuestLeave(true) : handleLeaveLobby()}
                 disabled={loading}
               >
                 <FaSignOutAlt />
-                Выйти из лобби
+                <span>Выйти из лобби</span>
               </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
         </div>
       </div>
+      
+      {/* Kick/Close Modal */}
+      {modalMessage && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <FaExclamationTriangle className="modal-icon" />
+            <h3>{modalMessage.title}</h3>
+            <p>{modalMessage.message}</p>
+            <button 
+              onClick={() => navigate(modalMessage.redirectPath, { replace: true })}
+              className="modal-button"
+            >
+              {modalMessage.buttonText}
+            </button>
+          </div>
+        </div>
+      )}
       
       {/* QR Code Modal */}
       {qrModalOpen && (

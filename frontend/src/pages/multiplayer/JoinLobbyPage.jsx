@@ -46,7 +46,7 @@ const JoinLobbyPage = () => {
         
         // Load lobby data using public endpoint first
         console.log('Loading lobby data...');
-        const lobbyResponse = await api.get(`/lobbies/lobbies/${lobbyId}/public`);
+        const lobbyResponse = await api.get(`/multiplayer/lobbies/${lobbyId}/public`);
         if (lobbyResponse.data.status !== 'ok') {
           setError(lobbyResponse.data.message || 'Лобби не найдено');
           return;
@@ -168,9 +168,14 @@ const JoinLobbyPage = () => {
   // Auto-join lobby for authenticated users
   const autoJoinLobby = async () => {
     try {
-      const joinResponse = await api.post(`/lobbies/lobbies/${lobbyId}/join`);
+      const joinResponse = await api.post(`/multiplayer/lobbies/${lobbyId}/join`);
       
       if (joinResponse.data.status === 'ok') {
+        const wsToken = joinResponse.data.data.ws_token;
+        if (wsToken) {
+          localStorage.removeItem('ws_token');
+          localStorage.setItem('ws_token', wsToken);
+        }
         // Redirect to lobby waiting page immediately
         navigate(`/multiplayer/lobby/${lobbyId}`, { replace: true });
       } else {
@@ -216,9 +221,14 @@ const JoinLobbyPage = () => {
       api.defaults.headers.common['Authorization'] = `Bearer ${guestToken}`;
 
       // Join the lobby
-      const joinResponse = await api.post(`/lobbies/lobbies/${lobbyId}/join`);
+      const joinResponse = await api.post(`/multiplayer/lobbies/${lobbyId}/join`);
       
       if (joinResponse.data.status === 'ok') {
+        const wsToken = joinResponse.data.data.ws_token;
+        if (wsToken) {
+          localStorage.removeItem('ws_token');
+          localStorage.setItem('ws_token', wsToken);
+        }
         // Redirect to lobby waiting page
         navigate(`/multiplayer/lobby/${lobbyId}`, { replace: true });
       } else {

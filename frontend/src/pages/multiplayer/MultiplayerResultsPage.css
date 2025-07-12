@@ -1,0 +1,120 @@
+.multiplayer-results-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: #f0f2f5;
+    padding: 2rem;
+}
+
+.results-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 500px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.results-header {
+    background: linear-gradient(135deg, #6e8efb, #a777e3);
+    color: white;
+    padding: 2rem;
+    text-align: center;
+    position: relative;
+}
+
+.trophy-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.results-header h1 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+.results-header p {
+    margin-top: 0.5rem;
+    opacity: 0.8;
+}
+
+.results-list {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.player-result-row {
+    display: grid;
+    grid-template-columns: 50px 1fr auto;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+}
+
+.player-result-row:hover {
+    background-color: #f9f9f9;
+}
+
+.player-rank {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #888;
+}
+
+.player-name {
+    font-weight: 500;
+}
+
+.player-score {
+    font-family: monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    background: #eee;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+
+.player-result-row.winner {
+    background-color: #fffbeb;
+    border: 1px solid #fde68a;
+}
+
+.player-result-row.winner .player-rank {
+    color: #f59e0b; /* amber-500 */
+}
+
+.player-result-row.winner .player-name {
+    font-weight: 700;
+}
+
+.results-actions {
+    padding: 1.5rem;
+    text-align: center;
+    border-top: 1px solid #eee;
+}
+
+.back-to-dashboard-btn {
+    background: #6e8efb;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.back-to-dashboard-btn:hover {
+    background: #5a75e1;
+} 

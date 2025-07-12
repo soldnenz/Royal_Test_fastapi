@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
-import Header from '../components/Header';
+import DashboardHeader from '../components/dashboard/DashboardHeader';
 import Footer from '../components/Footer';
 import { handleReferralFromUrl } from '../utils/referralHelper';
 
@@ -12,7 +12,7 @@ const MainLayout = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Header />
+      <DashboardHeader />
       <main className="flex-grow">
         <Outlet />
       </main>

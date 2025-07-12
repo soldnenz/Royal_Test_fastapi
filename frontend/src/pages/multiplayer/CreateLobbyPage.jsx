@@ -259,10 +259,18 @@ const CreateLobbyPage = () => {
 
       console.log('Creating lobby with data:', lobbyData);
       
-              const response = await api.post('/global-lobby/lobbies', lobbyData);
+      const response = await api.post('/multiplayer/lobbies', lobbyData);
       
       if (response.data.status === 'ok') {
         const lobbyId = response.data.data.lobby_id;
+        const wsToken = response.data.data.ws_token;
+
+        // Сохраняем WS токен
+        if (wsToken) {
+          localStorage.removeItem('ws_token');
+          localStorage.setItem('ws_token', wsToken);
+        }
+
         console.log('Lobby created successfully:', lobbyId);
         navigate(`/multiplayer/lobby/${lobbyId}`);
       } else {

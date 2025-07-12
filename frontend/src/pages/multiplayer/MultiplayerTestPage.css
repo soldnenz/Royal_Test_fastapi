@@ -941,8 +941,8 @@ body {
   padding: var(--space-1);
   border-radius: 50%;
   transition: var(--transition);
-  opacity: 0;
-  pointer-events: none;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .participant-card:hover .kick-btn {

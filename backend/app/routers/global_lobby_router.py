@@ -4,19 +4,19 @@ from app.utils.id_generator import generate_unique_lobby_id
 from datetime import datetime, timedelta
 from app.core.security import get_current_actor
 from app.core.response import success
-from app.websocket.lobby_ws import ws_manager
 from bson import ObjectId
 from pydantic import BaseModel
 from app.logging import get_logger, LogSection, LogSubsection
 import asyncio
 from typing import Optional, List
 from app.rate_limit import rate_limit_ip
+from app.multiplayer.ws_utils import create_ws_token
 
 # Настройка логгера
 logger = get_logger(__name__)
 
 # Создаем роутер
-router = APIRouter(prefix="/global-lobby", tags=["Global Lobby"])
+router = APIRouter()
 
 # Maximum time a lobby can be active (4 hours in seconds)
 MAX_LOBBY_LIFETIME = 4 * 60 * 60
@@ -25,12 +25,10 @@ MAX_LOBBY_LIFETIME = 4 * 60 * 60
 EXAM_TIMER_DURATION = 40 * 60
 
 class LobbyCreate(BaseModel):
-    mode: str = "solo"
     categories: List[str] = None
     pdd_section_uids: Optional[List[str]] = None
     questions_count: int = 40
     exam_mode: bool = False
-    max_participants: int = 8
 
 def get_user_id(current_user):
     """
@@ -71,10 +69,11 @@ async def create_lobby(
     current_user: dict = Depends(get_current_actor)
 ):
     user_id = get_user_id(current_user)
+    mode = "solo"
     logger.info(
         section=LogSection.LOBBY,
         subsection=LogSubsection.LOBBY.CREATION,
-        message=f"Запрос создания лобби: пользователь {user_id} создаёт {lobby_data.mode}-лобби на {lobby_data.questions_count} вопросов"
+        message=f"Запрос создания лобби: пользователь {user_id} создаёт {mode}-лобби на {lobby_data.questions_count} вопросов"
     )
     logger.info(
         section=LogSection.LOBBY,
@@ -160,18 +159,6 @@ async def create_lobby(
             subsection=LogSubsection.LOBBY.VALIDATION,
             message=f"Проверка разделов ПДД: разделы {lobby_data.pdd_section_uids}, количество {len(lobby_data.pdd_section_uids) if lobby_data.pdd_section_uids else 0}, подписка {subscription_type}"
         )
-        
-        # Проверка прав на создание лобби
-        if lobby_data.mode == "multi" and subscription_type not in ["Royal", "School"]:
-            logger.warning(
-                section=LogSection.LOBBY,
-                subsection=LogSubsection.LOBBY.SECURITY,
-                message=f"Отказ в мультиплеере: пользователь {user_id} с подпиской {subscription_type} не может создать multi-лобби, требуется Royal или School"
-            )
-            raise HTTPException(
-                status_code=403, 
-                detail="Для создания многопользовательского лобби требуется подписка Royal или School"
-            )
         
         # Обрабатываем разделы ПДД (доступно для VIP, Royal и School)
         if lobby_data.pdd_section_uids is not None and len(lobby_data.pdd_section_uids) > 0 and subscription_type.lower() not in ["vip", "royal", "school"]:
@@ -309,11 +296,11 @@ async def create_lobby(
             message=f"ID лобби сгенерирован: создано уникальное лобби {lobby_id}"
         )
         
-        initial_status = "waiting" if lobby_data.mode in ["multi", "multiplayer"] else "in_progress"
+        initial_status = "in_progress"
         logger.info(
             section=LogSection.LOBBY,
             subsection=LogSubsection.LOBBY.LIFECYCLE,
-            message=f"Статус лобби установлен: лобби {lobby_id} получило статус {initial_status} для режима {lobby_data.mode}"
+            message=f"Статус лобби установлен: лобби {lobby_id} получило статус {initial_status} для режима {mode}"
         )
         
         # Подготавливаем данные лобби
@@ -327,15 +314,15 @@ async def create_lobby(
             "questions_data": questions_data,
             "participants": [user_id],
             "participants_answers": {user_id: {}},  # для хранения правильности ответов (true/false)
-    "participants_raw_answers": {user_id: {}},  # для хранения индексов выбранных ответов
+            "participants_raw_answers": {user_id: {}},  # для хранения индексов выбранных ответов
             "current_index": 0,
             "created_at": current_time,
             "sections": lobby_data.pdd_section_uids or [],
             "categories": lobby_data.categories or [],
-            "mode": lobby_data.mode,
+            "mode": mode,
             "subscription_type": subscription_type,
             "exam_mode": lobby_data.exam_mode,
-            "max_participants": lobby_data.max_participants,
+            "max_participants": 1,
             "questions_count": questions_count
         }
         
@@ -355,40 +342,21 @@ async def create_lobby(
             logger.info(
                 section=LogSection.LOBBY,
                 subsection=LogSubsection.LOBBY.DATABASE,
-                message=f"Лобби сохранено в БД: лобби {lobby_id} успешно создано с {questions_count} вопросами в режиме {lobby_data.mode}"
+                message=f"Лобби сохранено в БД: лобби {lobby_id} успешно создано с {questions_count} вопросами в режиме {mode}"
             )
-            
-            # Если solo режим, отправляем WebSocket сообщение о начале теста
-            if lobby_data.mode not in ["multi", "multiplayer"]:
-                first_question_id = question_ids[0] if question_ids else None
-                if first_question_id:
-                    try:
-                        logger.info(
-                            section=LogSection.WEBSOCKET,
-                            subsection=LogSubsection.WEBSOCKET.MESSAGE_SEND,
-                            message=f"Отправка WS старта: лобби {lobby_id} solo-режим, отправляется start с вопросом {first_question_id}"
-                        )
-                        await ws_manager.send_json(lobby_id, {
-                            "type": "start",
-                            "data": {"question_id": first_question_id}
-                        })
-                    except Exception as e:
-                        logger.error(
-                            section=LogSection.WEBSOCKET,
-                            subsection=LogSubsection.WEBSOCKET.ERROR,
-                            message=f"Ошибка отправки WS сообщения: лобби {lobby_id}, ошибка {str(e)}"
-                        )
-            
+        
+
             response_data = {
                 "lobby_id": lobby_id, 
                 "status": initial_status, 
                 "questions_count": questions_count,
                 "categories": lobby_data.categories,
                 "sections": lobby_data.pdd_section_uids,
-                "auto_started": lobby_data.mode not in ["multi", "multiplayer"],
+                "auto_started": True,
                 "exam_mode": lobby_data.exam_mode
             }
             
+            # Добавляем информацию о таймере экзамена
             if lobby_data.exam_mode:
                 response_data["exam_timer_duration"] = EXAM_TIMER_DURATION
                 response_data["exam_timer_expires_at"] = lobby_doc["exam_timer_expires_at"].isoformat()
@@ -588,119 +556,4 @@ async def get_categories_stats(request: Request, current_user: dict = Depends(ge
             subsection=LogSubsection.LOBBY.ERROR,
             message=f"Ошибка получения статистики категорий: пользователь {user_id}, ошибка {str(e)}"
         )
-        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
-
-# Добавляем новый эндпоинт для получения информации о лобби
-@router.get("/lobbies/{lobby_id}", summary="Получить информацию о лобби")
-@rate_limit_ip("lobby_info_get", max_requests=40, window_seconds=60)
-async def get_lobby_info(
-    lobby_id: str,
-    request: Request,
-    current_user: dict = Depends(get_current_actor),
-    t: str = Query(None, description="Timestamp for cache busting"),
-    retry: str = Query(None, description="Retry flag for cache refresh")
-):
-    """
-    Получает информацию о лобби по его ID.
-    """
-    user_id = get_user_id(current_user)
-    logger.info(
-        section=LogSection.LOBBY,
-        subsection=LogSubsection.LOBBY.ACCESS,
-        message=f"Запрос информации о лобби: пользователь {user_id} запрашивает данные лобби {lobby_id}"
-    )
-    
-    try:
-        # Получаем лобби напрямую из БД (без кэша)
-        lobby = await db.lobbies.find_one({"_id": lobby_id})
-        if not lobby:
-            raise HTTPException(status_code=404, detail="Лобби не найдено")
-        
-        is_host = user_id == lobby.get("host_id")
-        
-        # Получаем тип подписки хоста
-        host_subscription = await get_user_subscription(lobby["host_id"])
-        host_subscription_type = host_subscription["subscription_type"] if host_subscription else "Demo"
-        
-        # Calculate remaining time if lobby is active
-        remaining_seconds = 0
-        if lobby["status"] in ["waiting", "in_progress"] and lobby.get("created_at"):
-            lobby_age = (datetime.utcnow() - lobby["created_at"]).total_seconds()
-            remaining_seconds = max(0, MAX_LOBBY_LIFETIME - lobby_age)
-            
-            # Логирование для отладки
-            logger.info(
-                section=LogSection.LOBBY,
-                subsection=LogSubsection.LOBBY.ACCESS,
-                message=f"Расчёт времени лобби: лобби {lobby_id} создано {lobby['created_at']}, возраст {lobby_age:.2f} сек, осталось {remaining_seconds:.2f} сек"
-            )
-        
-        # Получаем имя хоста
-        host_user = await db.users.find_one({"_id": ObjectId(lobby["host_id"])})
-        host_name = host_user.get("full_name", "Неизвестный пользователь") if host_user else "Неизвестный пользователь"
-        
-        # Формируем ответ
-        response_data = {
-            "id": str(lobby["_id"]),
-            "host_id": lobby["host_id"],
-            "host_name": host_name,
-            "is_host": is_host,
-            "current_user_id": user_id,
-            "status": lobby["status"],
-            "participants": lobby.get("participants", []),  # Добавляем массив участников
-            "participants_count": len(lobby["participants"]),
-            "created_at": lobby["created_at"].isoformat() if isinstance(lobby["created_at"], datetime) else str(lobby["created_at"]),
-            "mode": lobby["mode"],
-            "categories": lobby["categories"],
-            "sections": lobby["sections"],
-            "exam_mode": lobby.get("exam_mode", False),
-            "question_ids": lobby.get("question_ids", []),
-            "questions_count": lobby.get("questions_count", len(lobby.get("question_ids", []))),  # Добавляем количество вопросов
-            "remaining_seconds": int(remaining_seconds),
-            "max_participants": lobby.get("max_participants", 8),  # Добавляем максимальное количество участников
-            "host_subscription_type": host_subscription_type  # Добавляем тип подписки хоста
-        }
-        
-        # Добавляем ответы участников для хоста
-        if is_host:
-            response_data["participants_answers"] = lobby.get("participants_answers", {})
-            response_data["participants_raw_answers"] = lobby.get("participants_raw_answers", {})
-        else:
-            # Для обычных участников добавляем только их собственные ответы
-            response_data["user_answers"] = lobby.get("participants_answers", {}).get(user_id, {})
-        
-        # Добавляем current_index для всех участников (нужно для валидации доступа к вопросам)
-        response_data["current_index"] = lobby.get("current_index", 0)
-        
-        # Добавляем информацию о таймере экзамена
-        if lobby.get("exam_mode", False):
-            current_time = datetime.utcnow()
-            expires_at = lobby.get("exam_timer_expires_at")
-            if expires_at:
-                exam_time_left = max(0, int((expires_at - current_time).total_seconds()))
-                response_data["exam_timer"] = {
-                    "time_left": exam_time_left,
-                    "expires_at": expires_at.isoformat(),
-                    "duration": lobby.get("exam_timer_duration", EXAM_TIMER_DURATION)
-                }
-            else:
-                response_data["exam_timer"] = {
-                    "time_left": EXAM_TIMER_DURATION,
-                    "duration": EXAM_TIMER_DURATION
-                }
-        
-        logger.info(
-            section=LogSection.LOBBY,
-            subsection=LogSubsection.LOBBY.ACCESS,
-            message=f"Информация о лобби возвращена: лобби {lobby_id} статус {lobby['status']}, участников {len(lobby['participants'])}, хост {host_name}"
-        )
-        return success(data=response_data)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            section=LogSection.LOBBY,
-            subsection=LogSubsection.LOBBY.ERROR,
-            message=f"Ошибка получения информации о лобби: лобби {lobby_id}, пользователь {user_id}, ошибка {str(e)}"
-        )
-        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера") 
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}") 

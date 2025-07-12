@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: str = "Royal_Redis_1337"  # Устанавливаем пароль по умолчанию
     REDIS_DB: int = 1  # Используем БД 1 для рейт лимитов
+    REDIS_MULTIPLAYER_DB: int = 2 # Используем БД 2 для мультиплеера
     REDIS_RATE_LIMIT_PREFIX: str = "royal_rate_limit"
     REDIS_FAIL_OPEN: bool = True
     REDIS_WARNING_THRESHOLD: float = 0.8

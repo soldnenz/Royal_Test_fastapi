@@ -1,0 +1,175 @@
+WARNING 2025-07-12 10:02:42,455 django.request Bad Request: /api/instance/
+WARNING 2025-07-12 10:03:47,159 django.request Bad Request: /api/instance/
+WARNING 2025-07-12 10:03:57,834 django.request Bad Request: /api/instance/
+WARNING 2025-07-12 10:04:06,128 django.request Bad Request: /api/instance/
+WARNING 2025-07-12 10:04:22,966 django.request Bad Request: /api/instance/
+WARNING 2025-07-12 10:06:33,898 django.request Bad Request: /api/instance/
+WARNING 2025-07-12 10:06:49,746 django.request Bad Request: /api/instance/
+WARNING 2025-07-12 10:12:20,067 django.request Bad Request: /api/instance/
+WARNING 2025-07-12 10:12:28,501 django.request Bad Request: /api/instance/
+ERROR 2025-07-12 10:16:54,383 redisinsight Unknown command error from redis instance:
+Traceback (most recent call last):
+  File "./redisinsight/utils/__init__.py", line 199, in _wrapped_view
+  File "./redisinsight/core/views/decorators.py", line 21, in wrapped_view
+  File "./redisinsight/redisai/views.py", line 40, in _wrapped_view
+  File "./redisinsight/redisai/views.py", line 85, in models_view
+  File "./redisinsight/redisai/services.py", line 180, in list_models
+  File "./redisinsight/redisai/services.py", line 156, in _list_models
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 901, in execute_command
+    return self.parse_response(conn, command_name, **options)
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 915, in parse_response
+    response = connection.read_response()
+  File "/usr/local/lib/python3.6/site-packages/redis/connection.py", line 756, in read_response
+    raise response
+redis.exceptions.ResponseError: unknown command 'AI._MODELSCAN', with args beginning with: 
+ERROR 2025-07-12 10:16:54,387 django.request Unknown Status Code: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/redisai/models/
+WARNING 2025-07-12 10:16:55,686 django.request Bad Request: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/redisgraph/check-module-loaded/
+WARNING 2025-07-12 10:16:56,037 django.request Bad Request: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/check-redisearch-module-loaded/
+ERROR 2025-07-12 10:16:59,392 redisinsight Unknown command error from redis instance:
+Traceback (most recent call last):
+  File "./redisinsight/utils/__init__.py", line 199, in _wrapped_view
+  File "./redisinsight/core/views/decorators.py", line 21, in wrapped_view
+  File "./redisinsight/redisai/views.py", line 40, in _wrapped_view
+  File "./redisinsight/redisai/views.py", line 224, in scripts_view
+  File "./redisinsight/redisai/services.py", line 205, in list_scripts
+  File "./redisinsight/redisai/services.py", line 184, in _list_scripts
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 901, in execute_command
+    return self.parse_response(conn, command_name, **options)
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 915, in parse_response
+    response = connection.read_response()
+  File "/usr/local/lib/python3.6/site-packages/redis/connection.py", line 756, in read_response
+    raise response
+redis.exceptions.ResponseError: unknown command 'AI._SCRIPTSCAN', with args beginning with: 
+ERROR 2025-07-12 10:16:59,393 django.request Unknown Status Code: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/redisai/scripts/
+WARNING 2025-07-12 10:16:59,968 django.request Bad Request: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/redistimeseries/module-info/
+WARNING 2025-07-12 10:16:59,991 django.request Bad Request: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/redistimeseries/module-info/
+ERROR 2025-07-12 10:17:07,895 redisinsight Unknown command error from redis instance:
+Traceback (most recent call last):
+  File "./redisinsight/utils/__init__.py", line 199, in _wrapped_view
+  File "./redisinsight/core/views/decorators.py", line 21, in wrapped_view
+  File "./redisinsight/config/views.py", line 50, in get_config
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 901, in execute_command
+    return self.parse_response(conn, command_name, **options)
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 915, in parse_response
+    response = connection.read_response()
+  File "/usr/local/lib/python3.6/site-packages/redis/connection.py", line 756, in read_response
+    raise response
+redis.exceptions.ResponseError: unknown command 'CONFIG', with args beginning with: 'GET' '*' 
+ERROR 2025-07-12 10:17:07,896 django.request Unknown Status Code: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/get-config/
+ERROR 2025-07-12 10:17:10,644 redisinsight Unknown command error from redis instance:
+Traceback (most recent call last):
+  File "./redisinsight/utils/__init__.py", line 199, in _wrapped_view
+  File "./redisinsight/core/views/decorators.py", line 21, in wrapped_view
+  File "./redisinsight/slowlog/views.py", line 39, in _wrapped_view
+  File "./redisinsight/slowlog/views.py", line 58, in get_configured_slowlog
+  File "./redisinsight/slowlog/services.py", line 34, in get_configured_slowlog_value
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 1239, in config_get
+    return self.execute_command('CONFIG GET', pattern)
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 901, in execute_command
+    return self.parse_response(conn, command_name, **options)
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 915, in parse_response
+    response = connection.read_response()
+  File "/usr/local/lib/python3.6/site-packages/redis/connection.py", line 756, in read_response
+    raise response
+redis.exceptions.ResponseError: unknown command 'CONFIG', with args beginning with: 'GET' 'slowlog-log-slower-than' 
+ERROR 2025-07-12 10:17:10,647 django.request Unknown Status Code: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/get-configured-slowlog/
+WARNING 2025-07-12 10:17:26,863 django.request Bad Request: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/check-redisearch-module-loaded/
+WARNING 2025-07-12 10:17:27,502 django.request Bad Request: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/redistimeseries/module-info/
+ERROR 2025-07-12 10:17:28,380 redisinsight Unknown command error from redis instance:
+Traceback (most recent call last):
+  File "./redisinsight/utils/__init__.py", line 199, in _wrapped_view
+  File "./redisinsight/core/views/decorators.py", line 21, in wrapped_view
+  File "./redisinsight/redisai/views.py", line 40, in _wrapped_view
+  File "./redisinsight/redisai/views.py", line 85, in models_view
+  File "./redisinsight/redisai/services.py", line 180, in list_models
+  File "./redisinsight/redisai/services.py", line 156, in _list_models
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 901, in execute_command
+    return self.parse_response(conn, command_name, **options)
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 915, in parse_response
+    response = connection.read_response()
+  File "/usr/local/lib/python3.6/site-packages/redis/connection.py", line 756, in read_response
+    raise response
+redis.exceptions.ResponseError: unknown command 'AI._MODELSCAN', with args beginning with: 
+ERROR 2025-07-12 10:17:28,382 redisinsight Unknown command error from redis instance:
+Traceback (most recent call last):
+  File "./redisinsight/utils/__init__.py", line 199, in _wrapped_view
+  File "./redisinsight/core/views/decorators.py", line 21, in wrapped_view
+  File "./redisinsight/redisai/views.py", line 40, in _wrapped_view
+  File "./redisinsight/redisai/views.py", line 224, in scripts_view
+  File "./redisinsight/redisai/services.py", line 205, in list_scripts
+  File "./redisinsight/redisai/services.py", line 184, in _list_scripts
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 901, in execute_command
+    return self.parse_response(conn, command_name, **options)
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 915, in parse_response
+    response = connection.read_response()
+  File "/usr/local/lib/python3.6/site-packages/redis/connection.py", line 756, in read_response
+    raise response
+redis.exceptions.ResponseError: unknown command 'AI._SCRIPTSCAN', with args beginning with: 
+ERROR 2025-07-12 10:17:28,383 django.request Unknown Status Code: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/redisai/models/
+ERROR 2025-07-12 10:17:28,393 django.request Unknown Status Code: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/redisai/scripts/
+WARNING 2025-07-12 10:17:29,762 django.request Bad Request: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/redisgraph/check-module-loaded/
+WARNING 2025-07-12 10:19:33,371 django.request Bad Request: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/redisgraph/check-module-loaded/
+ERROR 2025-07-12 10:19:35,397 redisinsight Unknown command error from redis instance:
+Traceback (most recent call last):
+  File "./redisinsight/utils/__init__.py", line 199, in _wrapped_view
+  File "./redisinsight/core/views/decorators.py", line 21, in wrapped_view
+  File "./redisinsight/redisai/views.py", line 40, in _wrapped_view
+  File "./redisinsight/redisai/views.py", line 85, in models_view
+  File "./redisinsight/redisai/services.py", line 180, in list_models
+  File "./redisinsight/redisai/services.py", line 156, in _list_models
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 901, in execute_command
+    return self.parse_response(conn, command_name, **options)
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 915, in parse_response
+    response = connection.read_response()
+  File "/usr/local/lib/python3.6/site-packages/redis/connection.py", line 756, in read_response
+    raise response
+redis.exceptions.ResponseError: unknown command 'AI._MODELSCAN', with args beginning with: 
+ERROR 2025-07-12 10:19:35,400 redisinsight Unknown command error from redis instance:
+Traceback (most recent call last):
+  File "./redisinsight/utils/__init__.py", line 199, in _wrapped_view
+  File "./redisinsight/core/views/decorators.py", line 21, in wrapped_view
+  File "./redisinsight/redisai/views.py", line 40, in _wrapped_view
+  File "./redisinsight/redisai/views.py", line 224, in scripts_view
+  File "./redisinsight/redisai/services.py", line 205, in list_scripts
+  File "./redisinsight/redisai/services.py", line 184, in _list_scripts
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 901, in execute_command
+    return self.parse_response(conn, command_name, **options)
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 915, in parse_response
+    response = connection.read_response()
+  File "/usr/local/lib/python3.6/site-packages/redis/connection.py", line 756, in read_response
+    raise response
+redis.exceptions.ResponseError: unknown command 'AI._SCRIPTSCAN', with args beginning with: 
+ERROR 2025-07-12 10:19:35,400 django.request Unknown Status Code: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/redisai/models/
+ERROR 2025-07-12 10:19:35,412 django.request Unknown Status Code: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/redisai/scripts/
+WARNING 2025-07-12 10:19:35,844 django.request Bad Request: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/redistimeseries/module-info/
+WARNING 2025-07-12 10:19:36,859 django.request Bad Request: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/check-redisearch-module-loaded/
+ERROR 2025-07-12 10:19:38,218 redisinsight Unknown command error from redis instance:
+Traceback (most recent call last):
+  File "./redisinsight/utils/__init__.py", line 199, in _wrapped_view
+  File "./redisinsight/core/views/decorators.py", line 21, in wrapped_view
+  File "./redisinsight/slowlog/views.py", line 39, in _wrapped_view
+  File "./redisinsight/slowlog/views.py", line 58, in get_configured_slowlog
+  File "./redisinsight/slowlog/services.py", line 34, in get_configured_slowlog_value
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 1239, in config_get
+    return self.execute_command('CONFIG GET', pattern)
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 901, in execute_command
+    return self.parse_response(conn, command_name, **options)
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 915, in parse_response
+    response = connection.read_response()
+  File "/usr/local/lib/python3.6/site-packages/redis/connection.py", line 756, in read_response
+    raise response
+redis.exceptions.ResponseError: unknown command 'CONFIG', with args beginning with: 'GET' 'slowlog-log-slower-than' 
+ERROR 2025-07-12 10:19:38,219 django.request Unknown Status Code: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/get-configured-slowlog/
+ERROR 2025-07-12 10:19:42,758 redisinsight Unknown command error from redis instance:
+Traceback (most recent call last):
+  File "./redisinsight/utils/__init__.py", line 199, in _wrapped_view
+  File "./redisinsight/core/views/decorators.py", line 21, in wrapped_view
+  File "./redisinsight/config/views.py", line 50, in get_config
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 901, in execute_command
+    return self.parse_response(conn, command_name, **options)
+  File "/usr/local/lib/python3.6/site-packages/redis/client.py", line 915, in parse_response
+    response = connection.read_response()
+  File "/usr/local/lib/python3.6/site-packages/redis/connection.py", line 756, in read_response
+    raise response
+redis.exceptions.ResponseError: unknown command 'CONFIG', with args beginning with: 'GET' '*' 
+ERROR 2025-07-12 10:19:42,759 django.request Unknown Status Code: /api/instance/5e6e7118-6083-402e-a836-ab84643d0d41/get-config/

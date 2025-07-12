@@ -1,7 +1,6 @@
 # app/main.py
 
 import asyncio
-from app.core.validation_translator import translate_error_ru
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
@@ -17,25 +16,40 @@ from starlette.status import (
 )
 from aiogram import Dispatcher
 from datetime import datetime, timedelta
-import json
 
 from app.logging import setup_application_logging, get_logger, LogSection, LogSubsection, close_all_rabbitmq_connections
 from app.core.security import security_background_tasks
 from app.core.response import error
-from app.routers import authentication, user, reset_password, admin_router, test_router, subscription_router, referrals_router, transaction_router, admin_router
-# Telegram 2FA теперь обрабатывается отдельным микросервисом
-from app.routers import lobby_router
-from app.routers.lobby_router import start_background_tasks
-from app.routers import global_lobby_router
-from app.routers import multiplayer_files_router
-from app.routers import solo_lobby_router
-from app.routers import solo_files_router
-from app.routers import websocket_router
-from app.routers import test_stats_router
-from app.routers import media_router
-from app.routers import question_report_router
-from app.websocket.lobby_ws import lobby_ws_endpoint, ws_manager
-from app.websocket.ping_task import ping_task
+from app.routers import (
+    user,
+    authentication,
+    test_router,
+    media_router,
+    subscription_router,
+    test_stats_router,
+    admin_router,
+    reset_password,
+    solo_lobby_router,
+    solo_files_router,
+    referrals_router,
+    question_report_router,
+    global_lobby_router,
+    transaction_router
+)
+from app.multiplayer import (
+    create_lobby_router,
+    join_router,
+    lobby_info_router,
+    participants_router,
+    kick_router,
+    close_router,
+    start_router,
+    question_router,
+    answer_router,
+    media_router,
+    after_answer_media_router,
+    next_question_router
+)
 from app.db.database import db
 
 # Инициализация новой структурированной системы логирования
@@ -73,31 +87,35 @@ app.add_middleware(
 )
 
 # Подключаем роутеры
-app.include_router(authentication.router, prefix="/auth", tags=["authentication"])
-app.include_router(user.router, prefix="/users", tags=["users"])
+app.include_router(authentication.router, prefix="/auth", tags=["Authentication"])
+app.include_router(user.router, prefix="/users", tags=["Users"])
 app.include_router(reset_password.router, prefix="/reset", tags=["reset-password"])
-app.include_router(test_router.router, prefix="/tests", tags=["tests"])
+app.include_router(test_router.router, prefix="/tests", tags=["Tests"])
 app.include_router(subscription_router.router, prefix="/subscriptions")
 app.include_router(referrals_router.router, prefix="/referrals")
 app.include_router(transaction_router.router, prefix="/transactions")
-app.include_router(lobby_router.router, prefix="/lobbies", tags=["lobbies"])
-app.include_router(global_lobby_router.router, tags=["global-lobby"])
-app.include_router(multiplayer_files_router.router, prefix="/files_multiplayer", tags=["files_multiplayer"])
+app.include_router(global_lobby_router.router, prefix="/global-lobby", tags=["Global Lobby"])
 app.include_router(solo_lobby_router.router, prefix="/lobby_solo", tags=["solo-lobbies"])
 app.include_router(solo_files_router.router, prefix="/files_solo", tags=["solo-files"])
-app.include_router(websocket_router.router, prefix="/websocket_token", tags=["websocket"])
 app.include_router(admin_router.router, prefix="/admin_function", tags=["admin_function"])
 app.include_router(test_stats_router.router, prefix="/test-stats", tags=["test-stats"])
 app.include_router(media_router.router, prefix="/media", tags=["media"])
 app.include_router(question_report_router.router, prefix="/report", tags=["reports"])
-# WebSocket endpoint для лобби
-@app.websocket("/ws/lobby/{lobby_id}")
-async def websocket_endpoint(
-    websocket: WebSocket, 
-    lobby_id: str, 
-    token: str = Query(None)
-):
-    await lobby_ws_endpoint(websocket, lobby_id, token)
+
+# Multiplayer Routers
+app.include_router(create_lobby_router.router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(join_router.router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(lobby_info_router.router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(participants_router.router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(kick_router.router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(close_router.router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(start_router.router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(question_router.router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(answer_router.router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(media_router.router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(after_answer_media_router.router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(next_question_router.router, prefix="/multiplayer", tags=["Multiplayer"])
+
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
@@ -250,28 +268,15 @@ async def check_stalled_lobbies():
 
                 # Рассылаем JSON всем участникам (любой режим)
                 try:
-                    await ws_manager.broadcast_to_lobby(lobby_id, finish_payload)
+                    # The original code had ws_manager.broadcast_to_lobby(lobby_id, finish_payload)
+                    # ws_manager is no longer imported, so this line is removed.
+                    # If WebSocket communication is still needed, it must be re-implemented.
+                    pass # Placeholder for future WebSocket communication
                 except Exception as ws_err:
                     logger.error(
                         section=LogSection.WEBSOCKET,
                         subsection=LogSubsection.WEBSOCKET.ERROR,
                         message=f"Ошибка WebSocket рассылки для зависшего лобби {lobby_id}: {str(ws_err)}"
-                    )
-
-                # Закрываем все WS-соединения для этого лобби
-                if lobby_id in ws_manager.connections:
-                    connection_count = len(ws_manager.connections[lobby_id])
-                    for conn in list(ws_manager.connections[lobby_id]):
-                        try:
-                            await conn["websocket"].close(code=1000, reason="Lobby auto-finished")
-                        except Exception:
-                            pass
-                    ws_manager.connections.pop(lobby_id, None)
-                    
-                    logger.info(
-                        section=LogSection.SYSTEM,
-                        subsection=LogSubsection.SYSTEM.CLEANUP,
-                        message=f"Закрыто {connection_count} WebSocket соединений для лобби {lobby_id}"
                     )
 
         except Exception as e:
@@ -319,8 +324,6 @@ async def startup_event():
     
     # Запускаем фоновые задачи
     asyncio.create_task(security_background_tasks())
-    asyncio.create_task(start_background_tasks())
-    await ping_task.start()  # Исправляем запуск ping task
     asyncio.create_task(check_stalled_lobbies())
     
     # Запускаем бота
@@ -349,7 +352,9 @@ async def shutdown_event():
             message=f"Ошибка закрытия RabbitMQ соединений: {str(e)}"
         )
     
-    await ping_task.stop()  # Останавливаем задачу пинга при завершении
+    # The original code had await ping_task.stop()
+    # ping_task is no longer imported, so this line is removed.
+    # If WebSocket ping is still needed, it must be re-implemented.
     logger.info(
         section=LogSection.SYSTEM,
         subsection=LogSection.SYSTEM.SHUTDOWN,
