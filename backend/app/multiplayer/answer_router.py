@@ -286,6 +286,15 @@ async def get_current_question_answers(
         # Получаем ответ пользователя на текущий вопрос
         user_answer_index = participants_raw_answers.get(user_id, None)
         
+        # Проверяем наличие дополнительного медиа
+        has_after_answer_media = question.get("has_after_answer_media", False)
+        after_answer_media_file_id = question.get("after_answer_media_file_id")
+        after_answer_media_id = question.get("after_answer_media_id")
+        
+        # Если есть ID файла, но флаг не установлен, устанавливаем его
+        if (after_answer_media_file_id or after_answer_media_id) and not has_after_answer_media:
+            has_after_answer_media = True
+        
         # Подготавливаем данные ответов
         answers_data = {
             "question_id": current_question_id,
@@ -299,7 +308,11 @@ async def get_current_question_answers(
             "correct_answer_index": question.get("correct_answer_index", 0),
             "explanation": question.get("explanation", ""),
             "user_answer_index": user_answer_index,  # null если пользователь не отвечал
-            "user_is_correct": participants_answers.get(user_id, None)  # null если пользователь не отвечал
+            "user_is_correct": participants_answers.get(user_id, None),  # null если пользователь не отвечал
+            "has_after_answer_media": has_after_answer_media,
+            "after_answer_media_filename": question.get("after_answer_media_filename"),
+            "after_answer_media_file_id": after_answer_media_file_id,
+            "after_answer_media_id": after_answer_media_id
         }
         
         # Добавляем статистику ответов
@@ -310,7 +323,7 @@ async def get_current_question_answers(
         logger.info(
             section=LogSection.LOBBY,
             subsection=LogSubsection.LOBBY.ANSWERS,
-            message=f"Предоставлены ответы на текущий вопрос {current_question_id} в лобби {lobby_id}, участников ответило: {len(participants_answers)}, показать ответы: {show_answers}"
+            message=f"Предоставлены ответы на текущий вопрос {current_question_id} в лобби {lobby_id}, участников ответило: {len(participants_answers)}, показать ответы: {show_answers}, has_after_answer_media: {question.get('has_after_answer_media', False)}"
         )
         
         return success(data=answers_data)

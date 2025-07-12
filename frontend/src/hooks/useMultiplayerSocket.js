@@ -1,12 +1,25 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
-const useMultiplayerSocket = (lobbyId, onUserEvent, onError, onKicked, onLobbyClosed, onLobbyStarted) => {
+const useMultiplayerSocket = (
+  lobbyId, 
+  onUserEvent, 
+  onError, 
+  onKicked, 
+  onLobbyClosed, 
+  onLobbyStarted,
+  onParticipantAnswered,
+  onCorrectAnswerShown,
+  onNextQuestion,
+  onTestFinished,
+  onParticipantAnswerDetails
+) => {
   const [isConnected, setIsConnected] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const socketRef = useRef(null);
 
   const connect = useCallback(() => {
+    console.log('Attempting to connect to WebSocket, lobbyId:', lobbyId, 'already connected:', socketRef.current?.connected, 'stack trace:', new Error().stack);
     if (!lobbyId || socketRef.current?.connected) return;
 
     const wsToken = localStorage.getItem('ws_token');
@@ -32,7 +45,7 @@ const useMultiplayerSocket = (lobbyId, onUserEvent, onError, onKicked, onLobbyCl
       });
 
       socket.on('disconnect', (reason) => {
-        console.log('Socket.IO disconnected:', reason);
+        console.log('Socket.IO disconnected:', reason, 'lobbyId:', lobbyId);
         setIsConnected(false);
         setOnlineUsers([]);
       });
@@ -91,13 +104,39 @@ const useMultiplayerSocket = (lobbyId, onUserEvent, onError, onKicked, onLobbyCl
         console.log('Event: lobby_started', data);
         if (onLobbyStarted) onLobbyStarted(data);
       });
+
+      socket.on('participant_answered', (data) => {
+        console.log('Event: participant_answered', data);
+        if (onParticipantAnswered) onParticipantAnswered(data);
+      });
+
+      socket.on('correct_answer_shown', (data) => {
+        console.log('Event: correct_answer_shown', data);
+        if (onCorrectAnswerShown) onCorrectAnswerShown(data);
+      });
+
+      socket.on('next_question', (data) => {
+        console.log('Event: next_question', data);
+        if (onNextQuestion) onNextQuestion(data);
+      });
+
+      socket.on('test_finished', (data) => {
+        console.log('Event: test_finished', data);
+        if (onTestFinished) onTestFinished(data);
+      });
+
+      socket.on('participant_answer_details', (data) => {
+        console.log('Event: participant_answer_details', data);
+        if (onParticipantAnswerDetails) onParticipantAnswerDetails(data);
+      });
       
     } catch (error) {
       console.error('Error creating Socket.IO connection:', error);
     }
-  }, [lobbyId, onUserEvent, onError, onKicked, onLobbyClosed, onLobbyStarted]);
+  }, [lobbyId, onUserEvent, onError, onKicked, onLobbyClosed, onLobbyStarted, onParticipantAnswered, onCorrectAnswerShown, onNextQuestion, onTestFinished, onParticipantAnswerDetails]);
 
   const disconnect = useCallback(() => {
+    console.log('Disconnecting WebSocket, socketRef.current:', !!socketRef.current);
     if (socketRef.current) {
       socketRef.current.disconnect();
       socketRef.current = null;
@@ -120,13 +159,15 @@ const useMultiplayerSocket = (lobbyId, onUserEvent, onError, onKicked, onLobbyCl
 
   useEffect(() => {
     // Убираем reconnect-логику, т.к. socket.io делает это автоматически
-    if (lobbyId && onUserEvent) {
+    console.log('useMultiplayerSocket useEffect triggered, lobbyId:', lobbyId);
+    if (lobbyId) {
       connect();
     }
     return () => {
+      console.log('useMultiplayerSocket cleanup, disconnecting...');
       disconnect();
     };
-  }, [lobbyId, connect, disconnect, onUserEvent]);
+  }, [lobbyId, connect, disconnect]); // Убираем onUserEvent из зависимостей
 
   return {
     isConnected,

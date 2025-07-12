@@ -1,0 +1,5 @@
+127.0.0.1 - - [07/Jul/2025:01:39:58 +0500] "GET /.well-known/acme-challenge/d-JcryzQgzbOjEFxta5ot30sbfS4WHrjudM9Tkjv5xs HTTP/1.1" 404 548 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0" "-"
+127.0.0.1 - - [07/Jul/2025:01:40:03 +0500] "GET /.well-known/acme-challenge/favn8TfjVEbWA45i0GVDfNZwRktlmvJSMmMAXb2vpto HTTP/1.1" 404 146 "-" "win-acme/2.2.9.1701 (+https://github.com/win-acme/win-acme)" "-"
+127.0.0.1 - - [07/Jul/2025:01:42:19 +0500] "GET /.well-known/acme-challenge/test HTTP/1.1" 200 12 "-" "Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.26100.2161" "-"
+127.0.0.1 - - [07/Jul/2025:01:42:32 +0500] "GET /.well-known/acme-challenge/aBwoZ27UsNwbueXHok1TerROG_e8g76YbA6XT21oHeg HTTP/1.1" 404 146 "-" "win-acme/2.2.9.1701 (+https://github.com/win-acme/win-acme)" "-"
+127.0.0.1 - - [07/Jul/2025:01:57:07 +0500] "GET /.well-known/acme-challenge/test HTTP/1.1" 200 12 "-" "Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.26100.2161" "-"

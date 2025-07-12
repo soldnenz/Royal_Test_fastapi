@@ -10,4 +10,5 @@ from .question_router import router as question_router
 from .answer_router import router as answer_router
 from .media_router import router as media_router
 from .after_answer_media_router import router as after_answer_media_router
-from .next_question_router import router as next_question_router 
+from .next_question_router import router as next_question_router
+from .leave_router import router as leave_router 

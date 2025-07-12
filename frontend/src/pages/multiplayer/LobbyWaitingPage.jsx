@@ -7,6 +7,7 @@ import api from '../../utils/axios';
 import QRCode from 'qrcode';
 import LobbyHeader from '../../components/lobby/LobbyHeader';
 import useMultiplayerSocket from '../../hooks/useMultiplayerSocket';
+import { notify } from '../../components/notifications/NotificationSystem';
 import { 
   FaTimes, 
   FaPlay, 
@@ -94,7 +95,12 @@ const LobbyWaitingPage = () => {
   }, [fetchParticipants]);
   
   const handleSocketError = useCallback((errorMessage) => {
-    setError(errorMessage);
+    console.error('Socket error:', errorMessage);
+    // Показываем ошибку через систему уведомлений
+    notify.error(errorMessage, {
+      important: true,
+      duration: 5000
+    });
   }, []);
 
   const handleKicked = useCallback((reason) => {
@@ -133,7 +139,11 @@ const LobbyWaitingPage = () => {
     handleSocketError,
     handleKicked,
     handleLobbyClosed,
-    handleLobbyStarted
+    handleLobbyStarted,
+    null, // onParticipantAnswered
+    null, // onCorrectAnswerShown
+    null, // onNextQuestion
+    null  // onLeaveLobby
   );
 
   // Get current user ID from API
@@ -294,23 +304,42 @@ const LobbyWaitingPage = () => {
       setLoading(true);
       
       // 1. Сначала отправляем HTTP запрос на обычный роутер старта
-      const response = await api.post(`/multiplayer/lobbies/${lobbyId}/start`);
+      const response = await api.post(`/multiplayer/lobbies/${lobbyId}/start`, {
+        lobby_id: lobbyId
+      });
       
       if (response.data.status === 'ok') {
         // 2. При успешном старте отправляем событие в сокет для уведомления всех участников
         sendSocketEvent('start_test', { lobby_id: lobbyId });
         
-        // 3. Навигация произойдет по событию 'lobby_started' от сокета
-        // Но добавим таймер на случай, если событие не придет
-        setTimeout(() => {
-          navigate(`/multiplayer/test/${lobbyId}`);
-        }, 2000);
+        // 3. Показываем успешное уведомление
+        // Проверяем статус лобби для соответствующего сообщения
+        if (lobby?.status === 'in_progress') {
+          notify.info('Переход к тесту...', {
+            duration: 2000
+          });
+        } else {
+          notify.success('Тест запускается...', {
+            duration: 2000
+          });
+        }
+        
+        // 4. Переход происходит по событию 'lobby_started' от сокета
+        // НЕ добавляем setTimeout, так как переход должен быть только по WebSocket событию
       } else {
-        setError(response.data.message || t['failedToStartTest'] || 'Failed to start test');
+        // Показываем ошибку через систему уведомлений
+        notify.error(response.data.message || t['failedToStartTest'] || 'Failed to start test', {
+          important: true,
+          duration: 5000
+        });
       }
     } catch (error) {
       console.error('Error starting test:', error);
-      setError(error.response?.data?.message || t['failedToStartTest'] || 'Failed to start test');
+      // Показываем ошибку через систему уведомлений
+      notify.error(error.response?.data?.message || t['failedToStartTest'] || 'Failed to start test', {
+        important: true,
+        duration: 5000
+      });
     } finally {
       setLoading(false);
     }
@@ -332,17 +361,27 @@ const LobbyWaitingPage = () => {
         // 2. При успешном закрытии отправляем событие в сокет для уведомления всех участников
         sendSocketEvent('close_lobby', { lobby_id: lobbyId });
         
-        // 3. Навигация произойдет по событию 'lobby_closed' от сокета
-        // Но добавим таймер на случай, если событие не придет
-        setTimeout(() => {
-          navigate('/dashboard', { replace: true });
-        }, 1500);
+        // 3. Показываем успешное уведомление
+        notify.success('Лобби закрывается...', {
+          duration: 2000
+        });
+        
+        // 4. Навигация произойдет по событию 'lobby_closed' от сокета
+        // Убираем setTimeout, так как он может конфликтовать с WebSocket событием
       } else {
-        setError(response.data.message || t['failedToCloseLobby'] || 'Failed to close lobby');
+        // Показываем ошибку через систему уведомлений
+        notify.error(response.data.message || t['failedToCloseLobby'] || 'Failed to close lobby', {
+          important: true,
+          duration: 5000
+        });
       }
     } catch (error) {
       console.error('Error closing lobby:', error);
-      setError(error.response?.data?.message || t['failedToCloseLobby'] || 'Failed to close lobby');
+      // Показываем ошибку через систему уведомлений
+      notify.error(error.response?.data?.message || t['failedToCloseLobby'] || 'Failed to close lobby', {
+        important: true,
+        duration: 5000
+      });
     } finally {
       setLoading(false);
     }
@@ -379,13 +418,24 @@ const LobbyWaitingPage = () => {
                 target_user_id: userId 
             });
             console.log('Kick successful');
+            notify.success('Пользователь исключен.', {
+              duration: 2000
+            });
         } else {
             console.error('Kick failed:', response.data.message);
-            setError(response.data.message || t['failedToKickUser'] || 'Failed to kick user');
+            // Показываем ошибку через систему уведомлений
+            notify.error(response.data.message || t['failedToKickUser'] || 'Failed to kick user', {
+              important: true,
+              duration: 5000
+            });
         }
     } catch (error) {
         console.error('Kick error:', error);
-        setError(error.response?.data?.message || t['failedToKickUser'] || 'Failed to kick user');
+        // Показываем ошибку через систему уведомлений
+        notify.error(error.response?.data?.message || t['failedToKickUser'] || 'Failed to kick user', {
+          important: true,
+          duration: 5000
+        });
     }
   };
 
@@ -394,19 +444,45 @@ const LobbyWaitingPage = () => {
     if (confirm && !window.confirm('Вы действительно хотите выйти из лобби?')) {
       return;
     }
+    
     try {
       setLoading(true);
-      // Явно отключаем сокет перед выходом
+      const response = await api.post(`/multiplayer/lobbies/${lobbyId}/leave`);
+      
+      if (response.data.status === 'ok') {
+        // Отправляем событие в сокет о выходе
+        sendSocketEvent('leave_lobby', { 
+          lobby_id: lobbyId, 
+          user_id: currentUserId 
+        });
+        
+        // Отключаем сокет
       disconnectSocket();
-      api.post(`/multiplayer/lobbies/${lobbyId}/leave`);
-    } catch (e) {
-      console.error("Failed to notify backend of leaving, but leaving anyway", e);
-    } finally {
+        
+        // Очищаем localStorage
       localStorage.removeItem('token');
       localStorage.removeItem('isGuest');
       localStorage.removeItem('ws_token');
       delete api.defaults.headers.common['Authorization'];
+        
+        // Перенаправляем гостя на главную
       navigate('/', { replace: true });
+      } else {
+        // Показываем ошибку через систему уведомлений
+        notify.error(response.data.message || 'Не удалось выйти из лобби', {
+          important: true,
+          duration: 5000
+        });
+      }
+    } catch (error) {
+      console.error('Error leaving lobby:', error);
+      // Показываем ошибку через систему уведомлений
+      notify.error(error.response?.data?.message || 'Не удалось выйти из лобби', {
+        important: true,
+        duration: 5000
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -417,19 +493,40 @@ const LobbyWaitingPage = () => {
     }
     
     try {
-      // Явно отключаем сокет перед выходом
-      disconnectSocket();
       const response = await api.post(`/multiplayer/lobbies/${lobbyId}/leave`);
       
       if (response.data.status === 'ok') {
-        // Navigate back to dashboard
+        // Отправляем событие в сокет о выходе
+        sendSocketEvent('leave_lobby', { 
+          lobby_id: lobbyId, 
+          user_id: currentUserId 
+        });
+        
+        // Отключаем сокет
+        disconnectSocket();
+        
+        // Очищаем localStorage
+        localStorage.removeItem('token');
+        localStorage.removeItem('isGuest');
+        localStorage.removeItem('ws_token');
+        delete api.defaults.headers.common['Authorization'];
+        
+        // Перенаправляем пользователя
         navigate('/dashboard', { replace: true });
       } else {
-        setError(response.data.message || 'Не удалось выйти из лобби');
+        // Показываем ошибку через систему уведомлений
+        notify.error(response.data.message || 'Не удалось выйти из лобби', {
+          important: true,
+          duration: 5000
+        });
       }
     } catch (error) {
       console.error('Error leaving lobby:', error);
-      setError(error.response?.data?.message || 'Не удалось выйти из лобби');
+      // Показываем ошибку через систему уведомлений
+      notify.error(error.response?.data?.message || 'Не удалось выйти из лобби', {
+        important: true,
+        duration: 5000
+      });
     }
   };
 

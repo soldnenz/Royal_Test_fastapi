@@ -46,9 +46,10 @@ from app.multiplayer import (
     start_router,
     question_router,
     answer_router,
-    media_router,
+    media_router as multiplayer_media_router,
     after_answer_media_router,
-    next_question_router
+    next_question_router,
+    leave_router
 )
 from app.db.database import db
 
@@ -103,18 +104,19 @@ app.include_router(media_router.router, prefix="/media", tags=["media"])
 app.include_router(question_report_router.router, prefix="/report", tags=["reports"])
 
 # Multiplayer Routers
-app.include_router(create_lobby_router.router, prefix="/multiplayer", tags=["Multiplayer"])
-app.include_router(join_router.router, prefix="/multiplayer", tags=["Multiplayer"])
-app.include_router(lobby_info_router.router, prefix="/multiplayer", tags=["Multiplayer"])
-app.include_router(participants_router.router, prefix="/multiplayer", tags=["Multiplayer"])
-app.include_router(kick_router.router, prefix="/multiplayer", tags=["Multiplayer"])
-app.include_router(close_router.router, prefix="/multiplayer", tags=["Multiplayer"])
-app.include_router(start_router.router, prefix="/multiplayer", tags=["Multiplayer"])
-app.include_router(question_router.router, prefix="/multiplayer", tags=["Multiplayer"])
-app.include_router(answer_router.router, prefix="/multiplayer", tags=["Multiplayer"])
-app.include_router(media_router.router, prefix="/multiplayer", tags=["Multiplayer"])
-app.include_router(after_answer_media_router.router, prefix="/multiplayer", tags=["Multiplayer"])
-app.include_router(next_question_router.router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(create_lobby_router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(join_router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(lobby_info_router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(participants_router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(kick_router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(close_router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(start_router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(question_router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(answer_router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(multiplayer_media_router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(after_answer_media_router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(next_question_router, prefix="/multiplayer", tags=["Multiplayer"])
+app.include_router(leave_router, prefix="/multiplayer", tags=["Multiplayer"])
 
 
 @app.exception_handler(StarletteHTTPException)

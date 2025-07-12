@@ -221,6 +221,18 @@ export const notify = {
         ...options
       });
     }
+  },
+  
+  finish: (message, options = {}) => {
+    if (window.showNotification) {
+      return window.showNotification({
+        type: 'finish',
+        message,
+        duration: 3000,
+        important: true,
+        ...options
+      });
+    }
   }
 };
 

@@ -78,11 +78,6 @@ async def get_lobby(
             "host_subscription_type": host_subscription_type
         }
         
-        if is_host:
-            response_data["participants_answers"] = lobby.get("participants_answers", {})
-            response_data["participants_raw_answers"] = lobby.get("participants_raw_answers", {})
-        else:
-            response_data["user_answers"] = lobby.get("participants_answers", {}).get(user_id, {})
         
         response_data["current_index"] = lobby.get("current_index", 0)
         

@@ -111,6 +111,15 @@ async def get_current_question(
         participants_raw_answers = lobby.get("participants_raw_answers", {})
         user_answer_index = participants_raw_answers.get(current_question_id, {}).get(user_id, None)
         
+        # Проверяем наличие дополнительного медиа
+        has_after_answer_media = question.get("has_after_answer_media", False)
+        after_answer_media_file_id = question.get("after_answer_media_file_id")
+        after_answer_media_id = question.get("after_answer_media_id")
+        
+        # Если есть ID файла, но флаг не установлен, устанавливаем его
+        if (after_answer_media_file_id or after_answer_media_id) and not has_after_answer_media:
+            has_after_answer_media = True
+        
         # Подготавливаем данные вопроса
         question_data = {
             "_id": str(question["_id"]),
@@ -118,8 +127,10 @@ async def get_current_question(
             "answers": [option["text"] for option in question.get("options", [])],
             "has_media": question.get("has_media", False),
             "media_filename": question.get("media_filename"),
-            "has_after_answer_media": question.get("has_after_answer_media", False),
+            "has_after_answer_media": has_after_answer_media,
             "after_answer_media_filename": question.get("after_answer_media_filename"),
+            "after_answer_media_file_id": after_answer_media_file_id,
+            "after_answer_media_id": after_answer_media_id,
             "current_index": current_index,
             "total_questions": len(question_ids),
             "lobby_id": lobby_id,
@@ -130,18 +141,16 @@ async def get_current_question(
         # Если ответы должны быть показаны, добавляем правильный ответ
         if show_answers:
             question_data["correct_answer_index"] = question.get("correct_answer_index")
-            question_data["explanation"] = question.get("explanation")
         
         # В режиме экзамена убираем чувствительные данные
         if lobby.get("exam_mode", False):
             question_data.pop("correct_answer_index", None)
-            question_data.pop("explanation", None)
             question_data["exam_mode"] = True
         
         logger.info(
             section=LogSection.LOBBY,
             subsection=LogSubsection.LOBBY.QUESTIONS,
-            message=f"Предоставлен текущий вопрос {current_question_id} пользователю {user_id} в лобби {lobby_id}, индекс {current_index}, показывать ответы: {show_answers}"
+            message=f"Предоставлен текущий вопрос {current_question_id} пользователю {user_id} в лобби {lobby_id}, индекс {current_index}, показывать ответы: {show_answers}, has_after_answer_media: {question.get('has_after_answer_media', False)}"
         )
         
         return success(data=question_data)
@@ -315,6 +324,15 @@ async def get_specific_question(
         participants_raw_answers = lobby.get("participants_raw_answers", {})
         user_answer_index = participants_raw_answers.get(question_id, {}).get(user_id, None)
         
+        # Проверяем наличие дополнительного медиа
+        has_after_answer_media = question.get("has_after_answer_media", False)
+        after_answer_media_file_id = question.get("after_answer_media_file_id")
+        after_answer_media_id = question.get("after_answer_media_id")
+        
+        # Если есть ID файла, но флаг не установлен, устанавливаем его
+        if (after_answer_media_file_id or after_answer_media_id) and not has_after_answer_media:
+            has_after_answer_media = True
+        
         # Подготавливаем данные вопроса
         question_data = {
             "_id": str(question["_id"]),
@@ -322,8 +340,10 @@ async def get_specific_question(
             "answers": [option["text"] for option in question.get("options", [])],
             "has_media": question.get("has_media", False),
             "media_filename": question.get("media_filename"),
-            "has_after_answer_media": question.get("has_after_answer_media", False),
+            "has_after_answer_media": has_after_answer_media,
             "after_answer_media_filename": question.get("after_answer_media_filename"),
+            "after_answer_media_file_id": after_answer_media_file_id,
+            "after_answer_media_id": after_answer_media_id,
             "lobby_id": lobby_id,
             "show_answers": show_answers,  # Флаг показа ответов из лобби
             "user_answer_index": user_answer_index  # Индекс ответа пользователя (null если не отвечал)
@@ -332,18 +352,16 @@ async def get_specific_question(
         # Если ответы должны быть показаны, добавляем правильный ответ
         if show_answers:
             question_data["correct_answer_index"] = question.get("correct_answer_index")
-            question_data["explanation"] = question.get("explanation")
         
         # В режиме экзамена убираем чувствительные данные
         if lobby.get("exam_mode", False):
             question_data.pop("correct_answer_index", None)
-            question_data.pop("explanation", None)
             question_data["exam_mode"] = True
         
         logger.info(
             section=LogSection.LOBBY,
             subsection=LogSubsection.LOBBY.QUESTIONS,
-            message=f"Предоставлен конкретный вопрос {question_id} пользователю {user_id} в лобби {lobby_id}, показывать ответы: {show_answers}"
+            message=f"Предоставлен конкретный вопрос {question_id} пользователю {user_id} в лобби {lobby_id}, показывать ответы: {show_answers}, has_after_answer_media: {question.get('has_after_answer_media', False)}"
         )
         
         return success(data=question_data)

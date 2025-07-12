@@ -1,0 +1,3 @@
+127.0.0.1 - - [07/Jul/2025:02:02:22 +0500] "GET /.well-known/pki-validation/E269C068D19AC642722F774A611F05F2.txt HTTP/1.1" 200 93 "-" "Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.26100.2161" "-"
+127.0.0.1 - - [07/Jul/2025:02:04:53 +0500] "HEAD /.well-known/pki-validation/E269C068D19AC642722F774A611F05F2.txt HTTP/1.1" 200 0 "-" "Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.26100.2161" "-"
+127.0.0.1 - - [07/Jul/2025:02:04:59 +0500] "GET /.well-known/pki-validation/E269C068D19AC642722F774A611F05F2.txt HTTP/1.1" 200 93 "-" "Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.26100.2161" "-"
