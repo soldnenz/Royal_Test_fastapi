@@ -159,7 +159,7 @@ const useMultiplayerSocket = (
     } catch (error) {
       console.error('Error creating Socket.IO connection:', error);
     }
-  }, [lobbyId, onUserEvent, onError, onKicked, onLobbyClosed, onLobbyStarted, onParticipantAnswered, onCorrectAnswerShown, onNextQuestion, onTestFinished, onParticipantAnswerDetails]);
+  }, [lobbyId]); // Убираем все колбэки из зависимостей
 
   const disconnect = useCallback(() => {
     console.log('Disconnecting WebSocket, socketRef.current:', !!socketRef.current);
@@ -193,7 +193,7 @@ const useMultiplayerSocket = (
       console.log('useMultiplayerSocket cleanup, disconnecting...');
       disconnect();
     };
-  }, [lobbyId, connect, disconnect]); // Убираем onUserEvent из зависимостей
+  }, [lobbyId, connect, disconnect]);
 
   return {
     isConnected,

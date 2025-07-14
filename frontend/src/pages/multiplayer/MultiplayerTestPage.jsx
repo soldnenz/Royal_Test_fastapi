@@ -41,7 +41,10 @@ import {
   FaUsers,
   FaCog,
   FaChevronRight,
-  FaChevronLeft
+  FaChevronLeft,
+  FaTruck,
+  FaTruckMoving,
+  FaBusAlt
 } from 'react-icons/fa';
 import { 
   MdDirectionsBike, 
@@ -365,91 +368,7 @@ const MultiplayerTestPage = () => {
     }
   }, [lobbyId, t]);
 
-  // 2. Колбэки для сокета
-  const handleUserEvent = useCallback((event) => {
-    console.log(`Socket event received: ${event}, fetching participants...`);
-    fetchParticipants();
-  }, []); // Убираем fetchParticipants из зависимостей
-  
-  const handleSocketError = useCallback((errorMessage) => {
-    console.error('WebSocket error:', errorMessage);
-    // Не показываем ошибку пользователю, если это временная проблема соединения
-    if (errorMessage.includes('503') || errorMessage.includes('Service Unavailable')) {
-      console.log('WebSocket service temporarily unavailable, will retry...');
-    } else {
-      setError(errorMessage);
-    }
-  }, []);
-
-  const handleKicked = useCallback((reason) => {
-    setModalMessage({
-      title: 'Вы были исключены',
-      message: reason,
-      buttonText: 'Вернуться на главную',
-      redirectPath: isGuest ? '/' : '/dashboard'
-    });
-  }, [isGuest]);
-
-  const handleLobbyClosed = useCallback((reason) => {
-    setModalMessage({
-      title: 'Лобби закрыто',
-      message: reason,
-      buttonText: 'Вернуться в дашборд',
-      redirectPath: isGuest ? '/' : '/dashboard'
-    });
-  }, [isGuest]);
-
-  const handleTestFinished = useCallback((data) => {
-    console.log('Test finished event received:', data);
-            setTestCompleted(true);
-    navigate(`/multiplayer/results/${lobbyId}`);
-  }, [navigate, lobbyId]);
-
-  // Handle participant answered event (general notification)
-  const handleParticipantAnswered = useCallback((data) => {
-    console.log('Participant answered event received:', data);
-    // Refresh participants list to show updated answer status
-    fetchParticipants();
-    
-    // If we're the host and this is not our own answer, we should receive detailed info
-    if (isHost && data.user_id !== currentUserId) {
-      console.log('Host received participant answer notification, waiting for details...');
-    }
-  }, [isHost, currentUserId]); // Убираем fetchParticipants из зависимостей
-
-  // Handle participant answer details for host
-  const handleParticipantAnswerDetails = useCallback((data) => {
-    console.log('Participant answer details received:', data);
-    
-    // Update participant answers with the specific answer
-    setParticipantAnswers(prev => ({
-      ...prev,
-      [data.user_id]: data.answer_index
-    }));
-    
-    // If this is a host's answer, also update for all participants
-    if (data.is_host) {
-      console.log('Host answered, updating for all participants');
-    }
-    
-    // Refresh participants list to show updated answer status
-    fetchParticipants();
-  }, []); // Убираем fetchParticipants из зависимостей
-
-  // Handle correct answer shown event
-  const handleCorrectAnswerShown = useCallback((data) => {
-    console.log('Correct answer shown event received:', data);
-    setShowAnswers(true);
-    if (currentQuestion) {
-      console.log('Fetching correct answer after show answers event');
-              // Небольшая задержка для обеспечения правильного порядка загрузки
-        setTimeout(() => {
-          fetchCorrectAnswer(currentQuestion._id);
-        }, 500);
-    }
-  }, [currentQuestion]); // Убираем fetchCorrectAnswer из зависимостей
-
-  // Fetch current question
+  // Fetch current question - перемещаем выше
   const fetchCurrentQuestion = useCallback(async () => {
     if (!lobbyId) return;
     
@@ -527,27 +446,238 @@ const MultiplayerTestPage = () => {
         showError(err.response?.data?.message || 'Failed to load question');
       setMediaLoading(false);
     }
-  }, [lobbyId, fetchCorrectAnswer, showError]); // Добавляем стабильные зависимости
+  }, [lobbyId, fetchCorrectAnswer, showError]);
 
-  // Update handleNextQuestionEvent to use fetchCurrentQuestion
-  const handleNextQuestionEvent = useCallback((data) => {
-    console.log('Next question event received:', data);
-    
-    // Reset states for new question
-    setShowAnswers(false);
-    setAnswerSubmitted(false);
-    setSelectedAnswer(null);
-    setCorrectAnswer(null);
-    setExplanation(null);
-    setAfterAnswerMedia(null);
-    setAfterAnswerMediaType('image');
-    setParticipantAnswers({});
-    
-    // Update question index
-    setCurrentQuestionIndex(data.question_index);
-    
-    // Fetch new question
-    fetchCurrentQuestion();
+  // 2. Колбэки для сокета - стабилизируем их с помощью useRef
+  const socketCallbacksRef = useRef({
+    handleUserEvent: (event) => {
+      console.log(`Socket event received: ${event}, fetching participants...`);
+      fetchParticipants();
+    },
+    handleSocketError: (errorMessage) => {
+      console.error('WebSocket error:', errorMessage);
+      // Не показываем ошибку пользователю, если это временная проблема соединения
+      if (errorMessage.includes('503') || errorMessage.includes('Service Unavailable')) {
+        console.log('WebSocket service temporarily unavailable, will retry...');
+      } else {
+        setError(errorMessage);
+      }
+    },
+    handleKicked: (reason) => {
+      setModalMessage({
+        title: 'Вы были исключены',
+        message: reason,
+        buttonText: 'Вернуться на главную',
+        redirectPath: isGuest ? '/' : '/dashboard'
+      });
+    },
+    handleLobbyClosed: (reason) => {
+      setModalMessage({
+        title: 'Лобби закрыто',
+        message: reason,
+        buttonText: 'Вернуться в дашборд',
+        redirectPath: isGuest ? '/' : '/dashboard'
+      });
+    },
+    handleTestFinished: (data) => {
+      console.log('Test finished event received:', data);
+      setTestCompleted(true);
+      navigate(`/multiplayer/results/${lobbyId}`);
+    },
+    handleParticipantAnswered: (data) => {
+      console.log('Participant answered event received:', data);
+      // Refresh participants list to show updated answer status
+      fetchParticipants();
+      
+      // If we're the host and this is not our own answer, we should receive detailed info
+      if (isHost && data.user_id !== currentUserId) {
+        console.log('Host received participant answer notification, waiting for details...');
+      }
+    },
+    handleParticipantAnswerDetails: (data) => {
+      console.log('Participant answer details received:', data);
+      
+      // Update participant answers with the specific answer
+      setParticipantAnswers(prev => ({
+        ...prev,
+        [data.user_id]: data.answer_index
+      }));
+      
+      // If this is a host's answer, also update for all participants
+      if (data.is_host) {
+        console.log('Host answered, updating for all participants');
+      }
+      
+      // Refresh participants list to show updated answer status
+      fetchParticipants();
+    },
+    handleCorrectAnswerShown: (data) => {
+      console.log('Correct answer shown event received:', data);
+      setShowAnswers(true);
+      
+      // Всегда пытаемся получить правильный ответ, даже если currentQuestion еще не загружен
+      if (currentQuestion) {
+        console.log('Fetching correct answer after show answers event');
+        setTimeout(() => {
+          fetchCorrectAnswer(currentQuestion._id);
+        }, 500);
+      } else {
+        // Если currentQuestion еще не загружен, попробуем получить его и затем правильный ответ
+        console.log('Current question not loaded yet, fetching it first...');
+        setTimeout(() => {
+          fetchCurrentQuestion().then(() => {
+            // После загрузки вопроса попробуем получить правильный ответ
+            setTimeout(() => {
+              if (currentQuestion) {
+                fetchCorrectAnswer(currentQuestion._id);
+              }
+            }, 1000);
+          });
+        }, 500);
+      }
+    },
+    handleNextQuestionEvent: (data) => {
+      console.log('Next question event received:', data);
+      
+      // Reset states for new question
+      setShowAnswers(false);
+      setAnswerSubmitted(false);
+      setSelectedAnswer(null);
+      setCorrectAnswer(null);
+      setExplanation(null);
+      setAfterAnswerMedia(null);
+      setAfterAnswerMediaType('image');
+      setParticipantAnswers({});
+      
+      // Update question index
+      setCurrentQuestionIndex(data.question_index);
+      
+      // Fetch new question
+      fetchCurrentQuestion();
+    }
+  });
+
+  // Обновляем колбэки в ref при изменении зависимостей - убираем нестабильные зависимости
+  useEffect(() => {
+    socketCallbacksRef.current.handleUserEvent = (event) => {
+      console.log(`Socket event received: ${event}, fetching participants...`);
+      fetchParticipants();
+    };
+  }, []); // Убираем fetchParticipants из зависимостей
+
+  useEffect(() => {
+    socketCallbacksRef.current.handleSocketError = (errorMessage) => {
+      console.error('WebSocket error:', errorMessage);
+      if (errorMessage.includes('503') || errorMessage.includes('Service Unavailable')) {
+        console.log('WebSocket service temporarily unavailable, will retry...');
+      } else {
+        setError(errorMessage);
+      }
+    };
+  }, []); // Убираем setError из зависимостей
+
+  useEffect(() => {
+    socketCallbacksRef.current.handleKicked = (reason) => {
+      setModalMessage({
+        title: 'Вы были исключены',
+        message: reason,
+        buttonText: 'Вернуться на главную',
+        redirectPath: isGuest ? '/' : '/dashboard'
+      });
+    };
+  }, [isGuest]);
+
+  useEffect(() => {
+    socketCallbacksRef.current.handleLobbyClosed = (reason) => {
+      setModalMessage({
+        title: 'Лобби закрыто',
+        message: reason,
+        buttonText: 'Вернуться в дашборд',
+        redirectPath: isGuest ? '/' : '/dashboard'
+      });
+    };
+  }, [isGuest]);
+
+  useEffect(() => {
+    socketCallbacksRef.current.handleTestFinished = (data) => {
+      console.log('Test finished event received:', data);
+      setTestCompleted(true);
+      navigate(`/multiplayer/results/${lobbyId}`);
+    };
+  }, [navigate, lobbyId]);
+
+  useEffect(() => {
+    socketCallbacksRef.current.handleParticipantAnswered = (data) => {
+      console.log('Participant answered event received:', data);
+      fetchParticipants();
+      
+      if (isHost && data.user_id !== currentUserId) {
+        console.log('Host received participant answer notification, waiting for details...');
+      }
+    };
+  }, [isHost, currentUserId]); // Убираем fetchParticipants из зависимостей
+
+  useEffect(() => {
+    socketCallbacksRef.current.handleParticipantAnswerDetails = (data) => {
+      console.log('Participant answer details received:', data);
+      
+      setParticipantAnswers(prev => ({
+        ...prev,
+        [data.user_id]: data.answer_index
+      }));
+      
+      if (data.is_host) {
+        console.log('Host answered, updating for all participants');
+      }
+      
+      fetchParticipants();
+    };
+  }, []); // Убираем fetchParticipants из зависимостей
+
+  useEffect(() => {
+    socketCallbacksRef.current.handleCorrectAnswerShown = (data) => {
+      console.log('Correct answer shown event received:', data);
+      setShowAnswers(true);
+      
+      // Всегда пытаемся получить правильный ответ, даже если currentQuestion еще не загружен
+      if (currentQuestion) {
+        console.log('Fetching correct answer after show answers event');
+        setTimeout(() => {
+          fetchCorrectAnswer(currentQuestion._id);
+        }, 500);
+      } else {
+        // Если currentQuestion еще не загружен, попробуем получить его и затем правильный ответ
+        console.log('Current question not loaded yet, fetching it first...');
+        setTimeout(() => {
+          fetchCurrentQuestion().then(() => {
+            // После загрузки вопроса попробуем получить правильный ответ
+            setTimeout(() => {
+              if (currentQuestion) {
+                fetchCorrectAnswer(currentQuestion._id);
+              }
+            }, 1000);
+          });
+        }, 500);
+      }
+    };
+  }, [currentQuestion]); // Убираем fetchCorrectAnswer из зависимостей
+
+  useEffect(() => {
+    socketCallbacksRef.current.handleNextQuestionEvent = (data) => {
+      console.log('Next question event received:', data);
+      
+      setShowAnswers(false);
+      setAnswerSubmitted(false);
+      setSelectedAnswer(null);
+      setCorrectAnswer(null);
+      setExplanation(null);
+      setAfterAnswerMedia(null);
+      setAfterAnswerMediaType('image');
+      setParticipantAnswers({});
+      
+      setCurrentQuestionIndex(data.question_index);
+      fetchCurrentQuestion();
+    };
   }, []); // Убираем fetchCurrentQuestion из зависимостей
 
   // 3. Инициализация сокета
@@ -558,16 +688,16 @@ const MultiplayerTestPage = () => {
     disconnect: disconnectSocket 
   } = useMultiplayerSocket(
     lobbyId, 
-    handleUserEvent, 
-    handleSocketError,
-    handleKicked,
-    handleLobbyClosed,
+    socketCallbacksRef.current.handleUserEvent, 
+    socketCallbacksRef.current.handleSocketError,
+    socketCallbacksRef.current.handleKicked,
+    socketCallbacksRef.current.handleLobbyClosed,
     null, // onLobbyStarted - не нужен для тестовой страницы
-    handleParticipantAnswered,
-    handleCorrectAnswerShown,
-    handleNextQuestionEvent,
-    handleTestFinished, // onTestFinished - для завершения теста
-    handleParticipantAnswerDetails // onParticipantAnswerDetails - для хоста
+    socketCallbacksRef.current.handleParticipantAnswered,
+    socketCallbacksRef.current.handleCorrectAnswerShown,
+    socketCallbacksRef.current.handleNextQuestionEvent,
+    socketCallbacksRef.current.handleTestFinished, // onTestFinished - для завершения теста
+    socketCallbacksRef.current.handleParticipantAnswerDetails // onParticipantAnswerDetails - для хоста
   );
 
   // Load profile data
