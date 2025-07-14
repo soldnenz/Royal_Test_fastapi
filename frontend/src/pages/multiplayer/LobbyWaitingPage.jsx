@@ -146,6 +146,11 @@ const LobbyWaitingPage = () => {
     null  // onLeaveLobby
   );
 
+  // Отладочный лог для onlineUsers
+  useEffect(() => {
+    console.log('LobbyWaitingPage: onlineUsers changed:', onlineUsers);
+  }, [onlineUsers]);
+
   // Get current user ID from API
   const getCurrentUserId = useCallback(async () => {
     try {
@@ -748,10 +753,13 @@ const LobbyWaitingPage = () => {
             </div>
             
             <div className="participants-list">
-              {Array.isArray(participants) && participants.map((participant) => (
+              {Array.isArray(participants) && participants.map((participant) => {
+                const isOnline = onlineUsers.includes(participant.user_id);
+                console.log(`Participant ${participant.name} (${participant.user_id}): ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
+                return (
                 <div 
                   key={participant.user_id}
-                  className={`participant-item ${!onlineUsers.includes(participant.user_id) ? 'offline' : ''}`}
+                  className={`participant-item ${!isOnline ? 'offline' : ''}`}
                 >
                   <div className="participant-info">
                     <div className="participant-avatar">
@@ -760,7 +768,7 @@ const LobbyWaitingPage = () => {
                     <div className="participant-details">
                       <span className="participant-name">{participant.name}</span>
                       <span className="participant-status">
-                        <div className={`status-dot ${onlineUsers.includes(participant.user_id) ? 'online' : 'offline'}`}></div>
+                        <div className={`status-dot ${isOnline ? 'online' : 'offline'}`}></div>
                         {participant.is_host ? (
                           <>
                             {lobby?.host_subscription_type === 'royal' ? <FaCrown /> : <FaGraduationCap />}
@@ -768,7 +776,7 @@ const LobbyWaitingPage = () => {
                           </>
                         ) : (
                           <>
-                            {onlineUsers.includes(participant.user_id) ? (t['online'] || 'Online') : (t['offline'] || 'Offline')}
+                            {isOnline ? (t['online'] || 'Online') : (t['offline'] || 'Offline')}
                           </>
                         )}
                       </span>
@@ -790,7 +798,7 @@ const LobbyWaitingPage = () => {
                     </button>
                   )}
                 </div>
-              ))}
+              )})}
               
               {/* Empty slots */}
               {Array.from({ length: (lobby?.max_participants || 8) - participants.length }, (_, index) => (

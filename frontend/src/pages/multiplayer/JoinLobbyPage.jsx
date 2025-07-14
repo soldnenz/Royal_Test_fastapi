@@ -13,7 +13,12 @@ import {
   FaSpinner,
   FaUserPlus,
   FaSignInAlt,
-  FaArrowLeft
+  FaArrowLeft,
+  FaCheckCircle,
+  FaLock,
+  FaUnlock,
+  FaCrown,
+  FaGraduationCap
 } from 'react-icons/fa';
 import './JoinLobbyPage.css';
 
@@ -34,6 +39,7 @@ const JoinLobbyPage = () => {
   const [showNameInput, setShowNameInput] = useState(false);
   const [subscriptionError, setSubscriptionError] = useState('');
   const [userSubscription, setUserSubscription] = useState(null);
+  const [authStatus, setAuthStatus] = useState('checking'); // 'checking', 'authenticated', 'guest', 'unauthenticated'
 
   // Check authentication and load lobby data
   useEffect(() => {
@@ -43,6 +49,7 @@ const JoinLobbyPage = () => {
         setLoading(true);
         setError('');
         setSubscriptionError('');
+        setAuthStatus('checking');
         
         // Load lobby data using public endpoint first
         console.log('Loading lobby data...');
@@ -56,77 +63,148 @@ const JoinLobbyPage = () => {
         console.log('Lobby data loaded:', lobbyData);
         setLobby(lobbyData);
         
-        // Try to get user info and subscription
+        // Определяем тип лобби
+        const isSchoolLobby = lobbyData.host_subscription_type?.toLowerCase() === 'school';
+        const isRoyalLobby = lobbyData.host_subscription_type?.toLowerCase() === 'royal';
+        
+        console.log('Lobby type:', { isSchoolLobby, isRoyalLobby });
+        
+        // Try to get user info
         try {
-          console.log('Making API calls to get user info and subscription...');
-          // Get user info and subscription
-          const [userResponse, subscriptionResponse] = await Promise.all([
-            api.get('/users/me'),
-            api.get('/users/my/subscription')
-          ]);
+          console.log('Checking user authentication...');
+          const userResponse = await api.get('/users/me');
           console.log('User response:', userResponse.data);
-          console.log('Subscription response:', subscriptionResponse.data);
           
           if (userResponse.data.status === 'ok') {
             setIsAuthenticated(true);
             setUserInfo(userResponse.data.data);
+            setAuthStatus('authenticated');
             
-            // Для лобби созданного School подпиской - любой зарегистрированный пользователь может войти
-            if (lobbyData.host_subscription_type?.toLowerCase() === 'school') {
-              console.log('School lobby detected, auto-joining registered user');
+            console.log('User authenticated:', userResponse.data.data.full_name);
+            
+            // Для School лобби - зарегистрированные пользователи присоединяются сразу
+            if (isSchoolLobby) {
+              console.log('School lobby - registered user can join immediately');
               await autoJoinLobby();
               return;
             }
             
-            // Для остальных лобби проверяем подписку
-            if (subscriptionResponse.data.status === 'ok') {
-              const subData = subscriptionResponse.data.data;
-              setUserSubscription(subData);
-              
-              // Check subscription access to lobby categories
-              const subscription = subscriptionResponse.data.data;
-              const lobbyCategories = lobbyData.categories || [];
-              
-              // Проверяем наличие активной подписки
-              if (!subscription.has_subscription) {
-                setError('У вас нет активной подписки для доступа к этому лобби.');
+            // Для Royal лобби - проверяем подписку
+            if (isRoyalLobby) {
+              console.log('Royal lobby - checking subscription');
+              try {
+                const subscriptionResponse = await api.get('/users/my/subscription');
+                console.log('Subscription response:', subscriptionResponse.data);
+                
+                if (subscriptionResponse.data.status === 'ok') {
+                  const subData = subscriptionResponse.data.data;
+                  setUserSubscription(subData);
+                  
+                  // Проверяем наличие активной подписки
+                  if (!subData.has_subscription) {
+                    setError('Для доступа к Royal лобби требуется активная подписка.');
+                    return;
+                  }
+                  
+                  // Проверяем доступ к категориям лобби
+                  const lobbyCategories = lobbyData.categories || [];
+                  if (lobbyCategories.length > 0) {
+                    let allowedCategories = [];
+                    
+                    switch (subData.subscription_type?.toLowerCase()) {
+                      case 'economy':
+                        allowedCategories = ['A1', 'A', 'B1', 'B', 'BE'];
+                        break;
+                      case 'vip':
+                      case 'royal':
+                      case 'school':
+                        allowedCategories = null; // Полный доступ
+                        break;
+                      default:
+                        setError('Ваш тип подписки не поддерживается для доступа к этому лобби.');
+                        return;
+                    }
+                    
+                    // Проверяем доступ к категориям
+                    if (allowedCategories && !lobbyCategories.some(cat => allowedCategories.includes(cat))) {
+                      const allowedStr = allowedCategories.join(', ');
+                      const lobbyStr = lobbyCategories.join(', ');
+                      setSubscriptionError(
+                        `Ваша подписка "${subData.subscription_type}" имеет доступ только к категориям: ${allowedStr}, а в лобби есть категории: ${lobbyStr}`
+                      );
+                      return;
+                    }
+                  }
+                  
+                  // Если все проверки пройдены - присоединяемся
+                  await autoJoinLobby();
+                  return;
+                } else {
+                  setError('Для доступа к Royal лобби требуется активная подписка.');
+                  return;
+                }
+              } catch (subscriptionError) {
+                console.error('Error getting subscription:', subscriptionError);
+                setError('Для доступа к Royal лобби требуется активная подписка.');
                 return;
               }
+            }
+            
+            // Для других типов лобби - стандартная проверка подписки
+            console.log('Standard lobby - checking subscription');
+            try {
+              const subscriptionResponse = await api.get('/users/my/subscription');
+              console.log('Subscription response:', subscriptionResponse.data);
               
-              if (lobbyCategories.length > 0) {
-                let allowedCategories = [];
+              if (subscriptionResponse.data.status === 'ok') {
+                const subData = subscriptionResponse.data.data;
+                setUserSubscription(subData);
                 
-                switch (subscription.subscription_type?.toLowerCase()) {
-                  case 'economy':
-                    allowedCategories = ['A1', 'A', 'B1', 'B', 'BE'];
-                    break;
-                  case 'vip':
-                  case 'royal':
-                  case 'school':
-                    allowedCategories = null; // Полный доступ
-                    break;
-                  default:
-                    // Неизвестный тип подписки - нет доступа
-                    setError('Ваш тип подписки не поддерживается для доступа к этому лобби.');
-                    return;
+                // Проверяем наличие активной подписки
+                if (!subData.has_subscription) {
+                  setError('У вас нет активной подписки для доступа к этому лобби.');
+                  return;
                 }
                 
                 // Проверяем доступ к категориям
-                if (allowedCategories && !lobbyCategories.some(cat => allowedCategories.includes(cat))) {
-                  const allowedStr = allowedCategories.join(', ');
-                  const lobbyStr = lobbyCategories.join(', ');
-                  setSubscriptionError(
-                    `Ваша подписка "${subscription.subscription_type}" имеет доступ только к категориям: ${allowedStr}, а в лобби есть категории: ${lobbyStr}`
-                  );
-                  return;
+                const lobbyCategories = lobbyData.categories || [];
+                if (lobbyCategories.length > 0) {
+                  let allowedCategories = [];
+                  
+                  switch (subData.subscription_type?.toLowerCase()) {
+                    case 'economy':
+                      allowedCategories = ['A1', 'A', 'B1', 'B', 'BE'];
+                      break;
+                    case 'vip':
+                    case 'royal':
+                    case 'school':
+                      allowedCategories = null; // Полный доступ
+                      break;
+                    default:
+                      setError('Ваш тип подписки не поддерживается для доступа к этому лобби.');
+                      return;
+                  }
+                  
+                  // Проверяем доступ к категориям
+                  if (allowedCategories && !lobbyCategories.some(cat => allowedCategories.includes(cat))) {
+                    const allowedStr = allowedCategories.join(', ');
+                    const lobbyStr = lobbyCategories.join(', ');
+                    setSubscriptionError(
+                      `Ваша подписка "${subData.subscription_type}" имеет доступ только к категориям: ${allowedStr}, а в лобби есть категории: ${lobbyStr}`
+                    );
+                    return;
+                  }
                 }
+                
+                // Если все проверки пройдены - присоединяемся
+                await autoJoinLobby();
+                return;
+              } else {
+                setError('У вас нет активной подписки для доступа к этому лобби.');
+                return;
               }
-              
-              // If everything is OK, auto-join
-              await autoJoinLobby();
-              return;
-            } else {
-              // Нет подписки - для обычных лобби это ошибка
+            } catch (subscriptionError) {
+              console.error('Error getting subscription:', subscriptionError);
               setError('У вас нет активной подписки для доступа к этому лобби.');
               return;
             }
@@ -135,15 +213,18 @@ const JoinLobbyPage = () => {
           console.error('Error getting user info:', error);
           console.log('User not authenticated or token invalid');
           setIsAuthenticated(false);
+          setAuthStatus('unauthenticated');
           
-          // Обрабатываем незарегистрированных пользователей прямо здесь
-          console.log('User not authenticated, checking lobby host subscription type:', lobbyData.host_subscription_type);
-          // Check if lobby allows guest access (School subscription)
-          if (lobbyData.host_subscription_type?.toLowerCase() === 'school') {
-            console.log('School lobby detected, showing name input');
+          // Обрабатываем незарегистрированных пользователей
+          console.log('User not authenticated, checking lobby type');
+          
+          // Только School лобби позволяют гостевой доступ
+          if (isSchoolLobby) {
+            console.log('School lobby detected, showing guest access');
             setShowNameInput(true);
+            setAuthStatus('guest');
           } else {
-            console.log('Non-school lobby, showing registration error');
+            console.log('Non-school lobby, showing registration requirement');
             setError('Вы не зарегистрированы. Только лобби с подпиской School позволяют гостевой доступ.');
           }
         }
@@ -168,6 +249,7 @@ const JoinLobbyPage = () => {
   // Auto-join lobby for authenticated users
   const autoJoinLobby = async () => {
     try {
+      setJoining(true);
       const joinResponse = await api.post(`/multiplayer/lobbies/${lobbyId}/join`);
       
       if (joinResponse.data.status === 'ok') {
@@ -184,6 +266,8 @@ const JoinLobbyPage = () => {
     } catch (error) {
       console.error('Error auto-joining lobby:', error);
       setError(error.response?.data?.message || 'Не удалось присоединиться к лобби');
+    } finally {
+      setJoining(false);
     }
   };
 
@@ -242,13 +326,52 @@ const JoinLobbyPage = () => {
     }
   };
 
+  // Get subscription icon
+  const getSubscriptionIcon = (type) => {
+    switch (type?.toLowerCase()) {
+      case 'school':
+        return <FaGraduationCap className="subscription-icon school" />;
+      case 'royal':
+        return <FaCrown className="subscription-icon royal" />;
+      case 'vip':
+        return <FaCrown className="subscription-icon vip" />;
+      default:
+        return <FaUser className="subscription-icon" />;
+    }
+  };
+
+  // Get lobby type description
+  const getLobbyTypeDescription = () => {
+    const lobbyType = lobby?.host_subscription_type?.toLowerCase();
+    switch (lobbyType) {
+      case 'school':
+        return {
+          title: 'Школьное лобби',
+          description: 'Любой зарегистрированный пользователь может присоединиться. Гости могут войти, указав имя.',
+          icon: <FaGraduationCap className="lobby-type-icon school" />
+        };
+      case 'royal':
+        return {
+          title: 'Royal лобби',
+          description: 'Требуется регистрация и активная подписка, покрывающая категории лобби.',
+          icon: <FaCrown className="lobby-type-icon royal" />
+        };
+      default:
+        return {
+          title: 'Стандартное лобби',
+          description: 'Требуется регистрация и активная подписка.',
+          icon: <FaUser className="lobby-type-icon" />
+        };
+    }
+  };
+
   // Loading state
   if (loading) {
     return (
       <div className={`join-lobby-page ${isDark ? 'dark-theme' : ''}`}>
         <div className="loading-container">
           <div className="loading-spinner"></div>
-          <p>Загрузка...</p>
+          <p>Загрузка лобби...</p>
         </div>
       </div>
     );
@@ -259,7 +382,7 @@ const JoinLobbyPage = () => {
     return (
       <div className={`join-lobby-page ${isDark ? 'dark-theme' : ''}`}>
         <div className="error-container">
-          <FaExclamationTriangle />
+          <FaExclamationTriangle className="error-icon" />
           <h2>Недостаточно прав доступа</h2>
           <p>{subscriptionError}</p>
           <button className="back-btn" onClick={() => navigate('/dashboard')}>
@@ -276,7 +399,7 @@ const JoinLobbyPage = () => {
     return (
       <div className={`join-lobby-page ${isDark ? 'dark-theme' : ''}`}>
         <div className="error-container">
-          <FaExclamationTriangle />
+          <FaExclamationTriangle className="error-icon" />
           <h2>Требуется регистрация</h2>
           <p>{error}</p>
           <div className="auth-buttons">
@@ -294,71 +417,139 @@ const JoinLobbyPage = () => {
     );
   }
 
-  // Guest name input for School lobbies
-  if (showNameInput && !isAuthenticated) {
-    return (
-      <div className={`join-lobby-page ${isDark ? 'dark-theme' : ''}`}>
-        <div className="join-container">
-          <div className="join-header">
-            <div className="lobby-icon">
-              <FaGamepad />
-            </div>
-            <h1>Присоединиться к лобби</h1>
-            <p>Введите ваше имя для присоединения как гость</p>
-          </div>
+  const lobbyTypeInfo = getLobbyTypeDescription();
 
-          {/* Lobby Info */}
-          {lobby && (
-            <div className="lobby-info">
-              <div className="info-grid">
-                <div className="info-item">
-                  <span className="info-label">ID лобби</span>
-                  <span className="info-value">{lobbyId}</span>
-                </div>
-                
-                <div className="info-item">
-                  <span className="info-label">Категории</span>
-                  <span className="info-value">{lobby.categories?.join(', ') || 'N/A'}</span>
-                </div>
-                
-                <div className="info-item">
-                  <span className="info-label">Вопросов</span>
-                  <span className="info-value">{lobby.questions_count || 40}</span>
-                </div>
-                
-                <div className="info-item">
-                  <span className="info-label">Участники</span>
-                  <span className="info-value">
-                    {lobby.participants_count || 0}/{lobby.max_participants || 8}
-                  </span>
-                </div>
+  // Main join lobby interface
+  return (
+    <div className={`join-lobby-page ${isDark ? 'dark-theme' : ''}`}>
+      <div className="join-container">
+        {/* Header */}
+        <div className="join-header">
+          <div className="lobby-icon">
+            <FaGamepad />
+          </div>
+          <h1>Присоединиться к лобби</h1>
+          <p>ID: {lobbyId}</p>
+        </div>
+
+        {/* Lobby Type Info */}
+        <div className="lobby-type-card">
+          <div className="lobby-type-header">
+            {lobbyTypeInfo.icon}
+            <h3>{lobbyTypeInfo.title}</h3>
+          </div>
+          <p className="lobby-type-description">{lobbyTypeInfo.description}</p>
+        </div>
+
+        {/* Lobby Info Card */}
+        {lobby && (
+          <div className="lobby-info-card">
+            <div className="lobby-info-header">
+              <h3>Информация о лобби</h3>
+              <div className="host-info">
+                <span>Создатель: {lobby.host_name || 'Неизвестный'}</span>
+                {getSubscriptionIcon(lobby.host_subscription_type)}
+              </div>
+            </div>
+            
+            <div className="lobby-stats">
+              <div className="stat-item">
+                <span className="stat-label">Категории</span>
+                <span className="stat-value">{lobby.categories?.join(', ') || 'Все'}</span>
+              </div>
+              
+              <div className="stat-item">
+                <span className="stat-label">Вопросов</span>
+                <span className="stat-value">{lobby.questions_count || 40}</span>
+              </div>
+              
+              <div className="stat-item">
+                <span className="stat-label">Участники</span>
+                <span className="stat-value">
+                  {lobby.participants_count || 0}/{lobby.max_participants || 8}
+                </span>
+              </div>
+              
+              <div className="stat-item">
+                <span className="stat-label">Статус</span>
+                <span className={`stat-value status-${lobby.status}`}>
+                  {lobby.status === 'waiting' ? 'Ожидание' : 
+                   lobby.status === 'in_progress' ? 'В процессе' : 'Завершено'}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Authentication Status */}
+        <div className="auth-status-card">
+          {authStatus === 'checking' && (
+            <div className="status-checking">
+              <FaSpinner className="spinning" />
+              <span>Проверка доступа...</span>
+            </div>
+          )}
+          
+          {authStatus === 'authenticated' && (
+            <div className="status-authenticated">
+              <FaCheckCircle className="status-icon success" />
+              <div className="status-content">
+                <h4>Вы авторизованы</h4>
+                <p>{userInfo?.full_name || 'Пользователь'}</p>
+                {userSubscription && (
+                  <div className="subscription-info">
+                    <span>Подписка: {userSubscription.subscription_type}</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
-
-          {/* Error message */}
-          {error && (
-            <div className="error-message">
-              <FaExclamationTriangle />
-              <span>{error}</span>
+          
+          {authStatus === 'guest' && (
+            <div className="status-guest">
+              <FaUnlock className="status-icon guest" />
+              <div className="status-content">
+                <h4>Гостевой доступ</h4>
+                <p>Это лобби позволяет присоединиться как гость</p>
+              </div>
             </div>
           )}
+          
+          {authStatus === 'unauthenticated' && (
+            <div className="status-unauthenticated">
+              <FaLock className="status-icon error" />
+              <div className="status-content">
+                <h4>Требуется регистрация</h4>
+                <p>Для присоединения к этому лобби необходимо зарегистрироваться</p>
+              </div>
+            </div>
+          )}
+        </div>
 
-          {/* Name input */}
-          <div className="name-input-section">
-            <div className="name-input-header">
+        {/* Error message */}
+        {error && (
+          <div className="error-message">
+            <FaExclamationTriangle />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Guest name input for School lobbies */}
+        {showNameInput && authStatus === 'guest' && (
+          <div className="guest-input-section">
+            <div className="guest-input-header">
               <FaUser />
               <h3>Введите ваше имя</h3>
               <p>Вы можете присоединиться к этому лобби как гость</p>
             </div>
             
-            <div className="name-input-container">
+            <div className="guest-input-container">
               <input
                 type="text"
                 value={guestName}
                 onChange={(e) => setGuestName(e.target.value)}
                 placeholder="Ваше имя"
-                className="name-input"
+                className="guest-name-input"
                 maxLength={50}
                 onKeyPress={(e) => {
                   if (e.key === 'Enter' && guestName.trim()) {
@@ -368,11 +559,24 @@ const JoinLobbyPage = () => {
               />
             </div>
           </div>
+        )}
 
-          {/* Join Button */}
-          <div className="join-actions">
+        {/* Action Buttons */}
+        <div className="join-actions">
+          {authStatus === 'authenticated' && !joining && (
             <button
-              className={`join-btn ${joining ? 'loading' : ''}`}
+              className="join-btn primary"
+              onClick={autoJoinLobby}
+            >
+              <FaUsers />
+              Присоединиться к лобби
+              <FaArrowRight />
+            </button>
+          )}
+          
+          {authStatus === 'guest' && (
+            <button
+              className={`join-btn ${joining ? 'loading' : 'secondary'}`}
               onClick={handleJoinAsGuest}
               disabled={joining || !guestName.trim()}
             >
@@ -389,18 +593,36 @@ const JoinLobbyPage = () => {
                 </>
               )}
             </button>
-          </div>
+          )}
+          
+          {authStatus === 'unauthenticated' && (
+            <div className="auth-buttons">
+              <button className="register-btn" onClick={() => navigate('/register')}>
+                <FaUserPlus />
+                Зарегистрироваться
+              </button>
+              <button className="login-btn" onClick={() => navigate('/login')}>
+                <FaSignInAlt />
+                Войти
+              </button>
+            </div>
+          )}
+          
+          {joining && (
+            <div className="joining-status">
+              <FaSpinner className="spinning" />
+              <span>Присоединение к лобби...</span>
+            </div>
+          )}
         </div>
-      </div>
-    );
-  }
 
-  // This should not be reached if auto-join works correctly
-  return (
-    <div className={`join-lobby-page ${isDark ? 'dark-theme' : ''}`}>
-      <div className="loading-container">
-        <div className="loading-spinner"></div>
-        <p>Присоединение к лобби...</p>
+        {/* Back Button */}
+        <div className="back-section">
+          <button className="back-btn secondary" onClick={() => navigate('/dashboard')}>
+            <FaArrowLeft />
+            Обратно на дашборд
+          </button>
+        </div>
       </div>
     </div>
   );

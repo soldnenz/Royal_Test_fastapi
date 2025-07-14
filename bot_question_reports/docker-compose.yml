@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  question-reports-bot:
+    build: .
+    container_name: question-reports-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - MONGO_URI=mongodb://admin:rmh_1337_polnokrasoti@185.146.3.206:27017/admin?authSource=admin&replicaSet=rs0
+      - MONGO_DB_NAME=Royal_Test
+      - TELEGRAM_BOT_TOKEN=8184548760:AAFFbY5Xncx2y1GppUwkYSsLr2gZJfGtU6M
+      - TELEGRAM_CHAT_ID=-1002793640921
+      - TELEGRAM_WARNING_TOPIC=180
+      - POLLING_INTERVAL=60
+    volumes:
+      - ./logs:/app/logs
+      - ./.env:/app/.env
+    networks:
+      - bot-network
+
+networks:
+  bot-network:
+    driver: bridge 

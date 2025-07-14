@@ -31,7 +31,7 @@ async def join_lobby(lobby_id: str, request: Request = None, current_user: dict 
     logger.info(
         section=LogSection.LOBBY,
         subsection=LogSubsection.LOBBY.ACCESS,
-        message=f"Попытка присоединения к лобби: пользователь {user_id} к лобби {lobby_id}"
+        message=f"Попытка присоединения к лобби: пользователь {user_id} к лобби {lobby_id}, гость: {is_guest}"
     )
 
     try:
@@ -39,15 +39,31 @@ async def join_lobby(lobby_id: str, request: Request = None, current_user: dict 
         if not lobby:
             raise HTTPException(status_code=404, detail="Лобби не найдено")
 
+        logger.info(
+            section=LogSection.LOBBY,
+            subsection=LogSubsection.LOBBY.ACCESS,
+            message=f"Лобби найдено: {lobby_id}, тип подписки: {lobby.get('subscription_type')}, участники: {len(lobby.get('participants', []))}"
+        )
+
         # --- НОВЫЕ ПРОВЕРКИ ---
         # 1. Проверка на наличие активного теста у пользователя
         await check_active_session(db, user_id)
 
         # 2. Проверки для гостя
         if is_guest:
+            logger.info(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.ACCESS,
+                message=f"Проверка доступа для гостя: {user_id} к лобби {lobby_id}"
+            )
             validate_guest_join(lobby)
         # 3. Проверки для зарегистрированного пользователя
         else:
+            logger.info(
+                section=LogSection.LOBBY,
+                subsection=LogSubsection.LOBBY.ACCESS,
+                message=f"Проверка доступа для зарегистрированного пользователя: {user_id} к лобби {lobby_id}"
+            )
             await validate_user_subscription(db, user_id, lobby)
         # --- КОНЕЦ НОВЫХ ПРОВЕРОК ---
 

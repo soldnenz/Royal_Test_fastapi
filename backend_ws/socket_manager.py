@@ -46,14 +46,19 @@ class MultiplayerNamespace(socketio.AsyncNamespace):
         """Собирает ID всех онлайн-пользователей в комнате."""
         online_ids = []
         participants = list(sio.manager.get_participants(self.namespace, lobby_id))
+        print(f"[DEBUG] Getting online users for lobby {lobby_id}, participants count: {len(participants)}")
         for sid_tuple in participants:
             sid = sid_tuple[0]
             try:
                 session = await self.get_session(sid)
                 if session and session.get('user_id'):
-                    online_ids.append(session.get('user_id'))
-            except Exception:
+                    user_id = session.get('user_id')
+                    online_ids.append(user_id)
+                    print(f"[DEBUG] Found online user: {user_id} (SID: {sid})")
+            except Exception as e:
+                print(f"[DEBUG] Error getting session for SID {sid}: {e}")
                 continue
+        print(f"[DEBUG] Final online users for lobby {lobby_id}: {online_ids}")
         return online_ids
 
     async def _broadcast_online_status(self, lobby_id: str):
@@ -116,9 +121,19 @@ class MultiplayerNamespace(socketio.AsyncNamespace):
         print(f"[{sid}] User {user_id} disconnected from lobby {lobby_id}")
         
         if lobby_id:
-            # Уведомляем всех, что пользователь вышел и обновляем список онлайн
-            await self.emit('user_left', {'user_id': user_id}, room=lobby_id)
-            await self._broadcast_online_status(lobby_id)
+            # Уведомляем всех, КРОМЕ отключившегося пользователя, что пользователь вышел
+            await self.emit('user_left', {'user_id': user_id}, room=lobby_id, skip_sid=sid)
+            
+            # Получаем список онлайн пользователей и вручную исключаем отключившегося
+            online_users = await self._get_online_user_ids(lobby_id)
+            if user_id in online_users:
+                online_users.remove(user_id)
+                print(f"[DEBUG] Manually removed {user_id} from online users")
+            
+            # Отправляем обновленный список онлайн пользователей
+            await self.emit('online_status_update', {
+                'online_users': online_users
+            }, room=lobby_id)
         
     # --- Host Actions ---
 

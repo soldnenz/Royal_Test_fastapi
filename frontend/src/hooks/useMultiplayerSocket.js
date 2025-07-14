@@ -73,17 +73,43 @@ const useMultiplayerSocket = (
 
       socket.on('user_joined', (data) => {
         console.log('Event: user_joined', data);
+        const { user_id } = data;
+        // Немедленно добавляем пользователя в onlineUsers
+        if (user_id) {
+          console.log('Adding user to onlineUsers:', user_id);
+          setOnlineUsers(prev => {
+            if (!prev.includes(user_id)) {
+              const newOnlineUsers = [...prev, user_id];
+              console.log('Updated onlineUsers (joined):', newOnlineUsers);
+              return newOnlineUsers;
+            }
+            console.log('User already in onlineUsers:', user_id);
+            return prev;
+          });
+        }
         if (onUserEvent) onUserEvent('join');
       });
 
       socket.on('user_left', (data) => {
         console.log('Event: user_left', data);
+        const { user_id } = data;
+        // Немедленно убираем пользователя из onlineUsers
+        if (user_id) {
+          console.log('Removing user from onlineUsers:', user_id);
+          setOnlineUsers(prev => {
+            console.log('Previous onlineUsers:', prev);
+            const newOnlineUsers = prev.filter(id => id !== user_id);
+            console.log('Updated onlineUsers (left):', newOnlineUsers);
+            return newOnlineUsers;
+          });
+        }
         if (onUserEvent) onUserEvent('leave');
       });
 
       socket.on('online_status_update', (data) => {
         console.log('Event: online_status_update', data);
         if (data && Array.isArray(data.online_users)) {
+          console.log('Setting onlineUsers from server:', data.online_users);
           setOnlineUsers(data.online_users);
         }
       });
