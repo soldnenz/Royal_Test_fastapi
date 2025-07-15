@@ -1,49 +1,50 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from typing import Optional
-import logging
 from datetime import datetime
 
 from app.core.security import get_current_actor
 from app.db.database import get_database
 from app.core.redis_client import multiplayer_redis_client
 from app.core.response import success, error
-from app.logging import LogSection, LogSubsection
+from app.logging import get_structured_logger, LogSection, LogSubsection
 
 from .lobby_utils import get_lobby_from_db, get_user_id
 
-router = APIRouter(prefix="/multiplayer/lobbies", tags=["multiplayer"])
+router = APIRouter(prefix="/lobbies", tags=["multiplayer"])
 
-logger = logging.getLogger(__name__)
+logger = get_structured_logger("multiplayer.leave")
 
 @router.post("/{lobby_id}/leave", summary="Выйти из лобби")
 async def leave_lobby(
     lobby_id: str,
     request: Request = None,
-    current_user: dict = Depends(get_current_actor)
+    current_user: dict = Depends(get_current_actor),
+    db = Depends(get_database)
 ):
     """
     Позволяет пользователю выйти из лобби.
     Хост не может выйти из лобби (только закрыть его).
     """
     user_id = get_user_id(current_user)
-    
     logger.info(
         section=LogSection.LOBBY,
         subsection=LogSubsection.LOBBY.LEAVE,
-        message=f"Попытка выхода из лобби: пользователь {user_id} пытается выйти из лобби {lobby_id}"
+        message=f"Попытка выхода из лобби: пользователь {user_id} пытается выйти из лобби {lobby_id}",
+        user_id=user_id,
+        extra_data={"lobby_id": lobby_id}
     )
     
     try:
-        db = get_database()
-        
         # Получаем лобби
         lobby = await get_lobby_from_db(lobby_id)
         if not lobby:
             logger.warning(
                 section=LogSection.LOBBY,
                 subsection=LogSubsection.LOBBY.LEAVE,
-                message=f"Лобби не найдено: пользователь {user_id} пытается выйти из несуществующего лобби {lobby_id}"
+                message=f"Лобби не найдено: пользователь {user_id} пытается выйти из несуществующего лобби {lobby_id}",
+                user_id=user_id,
+                extra_data={"lobby_id": lobby_id}
             )
             raise HTTPException(status_code=404, detail="Лобби не найдено")
         
@@ -53,7 +54,9 @@ async def leave_lobby(
             logger.warning(
                 section=LogSection.LOBBY,
                 subsection=LogSubsection.LOBBY.LEAVE,
-                message=f"Попытка выхода не-участника: пользователь {user_id} пытается выйти из лобби {lobby_id}"
+                message=f"Попытка выхода не-участника: пользователь {user_id} пытается выйти из лобби {lobby_id}",
+                user_id=user_id,
+                extra_data={"lobby_id": lobby_id, "participants": participants}
             )
             raise HTTPException(status_code=403, detail="Вы не являетесь участником этого лобби")
         
@@ -63,7 +66,9 @@ async def leave_lobby(
             logger.warning(
                 section=LogSection.LOBBY,
                 subsection=LogSubsection.LOBBY.LEAVE,
-                message=f"Попытка выхода хоста: пользователь {user_id} (хост) пытается выйти из лобби {lobby_id}"
+                message=f"Попытка выхода хоста: пользователь {user_id} (хост) пытается выйти из лобби {lobby_id}",
+                user_id=user_id,
+                extra_data={"lobby_id": lobby_id, "host_id": host_id}
             )
             raise HTTPException(status_code=403, detail="Хост не может выйти из лобби. Используйте 'Закрыть лобби'")
         
@@ -72,7 +77,9 @@ async def leave_lobby(
             logger.warning(
                 section=LogSection.LOBBY,
                 subsection=LogSubsection.LOBBY.LEAVE,
-                message=f"Попытка выхода из завершенного лобби: пользователь {user_id} пытается выйти из лобби {lobby_id}"
+                message=f"Попытка выхода из завершенного лобби: пользователь {user_id} пытается выйти из лобби {lobby_id}",
+                user_id=user_id,
+                extra_data={"lobby_id": lobby_id, "status": lobby["status"]}
             )
             raise HTTPException(status_code=400, detail="Лобби уже завершено")
         
@@ -115,20 +122,26 @@ async def leave_lobby(
                 logger.info(
                     section=LogSection.LOBBY,
                     subsection=LogSubsection.LOBBY.LEAVE,
-                    message=f"Гость {user_id} удален из коллекции гостей"
+                    message=f"Гость {user_id} удален из коллекции гостей",
+                    user_id=user_id,
+                    extra_data={"lobby_id": lobby_id, "is_guest": True}
                 )
         except Exception as e:
             logger.error(
                 section=LogSection.LOBBY,
                 subsection=LogSubsection.LOBBY.LEAVE,
-                message=f"Ошибка при удалении токена из Redis: {str(e)}"
+                message=f"Ошибка при удалении токена из Redis: {str(e)}",
+                user_id=user_id,
+                extra_data={"lobby_id": lobby_id, "error": str(e)}
             )
             # Не прерываем выполнение, так как основная операция выполнена успешно
         
         logger.info(
             section=LogSection.LOBBY,
             subsection=LogSubsection.LOBBY.LEAVE,
-            message=f"Пользователь {user_id} успешно вышел из лобби {lobby_id}. Участников осталось: {len(updated_participants)}"
+            message=f"Пользователь {user_id} успешно вышел из лобби {lobby_id}. Участников осталось: {len(updated_participants)}",
+            user_id=user_id,
+            extra_data={"lobby_id": lobby_id, "remaining_participants": len(updated_participants)}
         )
         
         return success(data={
@@ -144,6 +157,8 @@ async def leave_lobby(
         logger.error(
             section=LogSection.LOBBY,
             subsection=LogSubsection.LOBBY.ERROR,
-            message=f"Ошибка при выходе из лобби: лобби {lobby_id}, пользователь {user_id}, ошибка {str(e)}"
+            message=f"Ошибка при выходе из лобби: лобби {lobby_id}, пользователь {user_id}, ошибка {str(e)}",
+            user_id=user_id,
+            extra_data={"lobby_id": lobby_id, "error": str(e)}
         )
         raise HTTPException(status_code=500, detail="Ошибка при выходе из лобби") 

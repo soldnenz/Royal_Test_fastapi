@@ -14,10 +14,10 @@ api.interceptors.request.use(
   config => {
     // Log requests for debugging
     console.log(`Making ${config.method.toUpperCase()} request to ${config.url}`);
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
-    }
+    
+    // Токен передается через cookie автоматически для всех пользователей (включая гостей)
+    // Не нужно добавлять токен в заголовок Authorization
+    
     return config;
   },
   error => {

@@ -959,27 +959,35 @@ const MultiplayerTestPage = () => {
     }
     
     try {
+      // 1. Сначала отправляем HTTP запрос для удаления из базы данных
       const response = await api.post(`/multiplayer/lobbies/${lobbyId}/leave`);
       
       if (response.data.status === 'ok') {
-        // Отправляем событие в сокет о выходе
+        // 2. При успешном удалении из БД отправляем событие в сокет для уведомления других участников
         sendSocketEvent('leave_lobby', { 
           lobby_id: lobbyId, 
           user_id: currentUserId 
         });
         
-        // Отключаем сокет
+        // 3. Показываем уведомление об успешном выходе
+        notify.success('Вы вышли из лобби', {
+          duration: 2000
+        });
+        
+        // 4. Отключаем сокет
         disconnectSocket();
         
-        // Очищаем localStorage
+        // 5. Очищаем localStorage
         localStorage.removeItem('token');
         localStorage.removeItem('isGuest');
         localStorage.removeItem('ws_token');
         delete api.defaults.headers.common['Authorization'];
         
-        // Перенаправляем пользователя
-        navigate('/dashboard', { replace: true });
-        } else {
+        // 6. Перенаправляем пользователя
+        setTimeout(() => {
+          navigate('/dashboard', { replace: true });
+        }, 1000);
+      } else {
         setError(response.data.message || 'Не удалось выйти из лобби');
       }
     } catch (error) {
@@ -995,26 +1003,34 @@ const MultiplayerTestPage = () => {
     }
     
     try {
+      // 1. Сначала отправляем HTTP запрос для удаления из базы данных
       const response = await api.post(`/multiplayer/lobbies/${lobbyId}/leave`);
       
       if (response.data.status === 'ok') {
-        // Отправляем событие в сокет о выходе
+        // 2. При успешном удалении из БД отправляем событие в сокет для уведомления других участников
         sendSocketEvent('leave_lobby', { 
           lobby_id: lobbyId, 
           user_id: currentUserId 
         });
         
-        // Отключаем сокет
+        // 3. Показываем уведомление об успешном выходе
+        notify.success('Вы вышли из лобби', {
+          duration: 2000
+        });
+        
+        // 4. Отключаем сокет
         disconnectSocket();
         
-        // Очищаем localStorage
+        // 5. Очищаем localStorage
         localStorage.removeItem('token');
         localStorage.removeItem('isGuest');
         localStorage.removeItem('ws_token');
         delete api.defaults.headers.common['Authorization'];
         
-        // Перенаправляем гостя на главную
-        navigate('/', { replace: true });
+        // 6. Перенаправляем гостя на главную
+        setTimeout(() => {
+          navigate('/', { replace: true });
+        }, 1000);
       } else {
         setError(response.data.message || 'Не удалось выйти из лобби');
       }
