@@ -20,7 +20,20 @@ const useMultiplayerSocket = (
 
   const connect = useCallback(() => {
     console.log('Attempting to connect to WebSocket, lobbyId:', lobbyId, 'already connected:', socketRef.current?.connected, 'stack trace:', new Error().stack);
-    if (!lobbyId || socketRef.current?.connected) return;
+    if (!lobbyId) return;
+    
+    // Проверяем, есть ли уже активное соединение
+    if (socketRef.current?.connected) {
+      console.log('WebSocket already connected, skipping connection attempt');
+      return;
+    }
+    
+    // Если есть старое соединение, которое не подключено, очищаем его
+    if (socketRef.current && !socketRef.current.connected) {
+      console.log('Cleaning up old disconnected socket');
+      socketRef.current.removeAllListeners();
+      socketRef.current = null;
+    }
 
     const wsToken = localStorage.getItem('ws_token');
     if (!wsToken) {
@@ -33,7 +46,16 @@ const useMultiplayerSocket = (
       // Подключаемся к неймспейсу /ws
       const socket = io(`${window.location.origin}/ws`, {
         path: '/socket.io/',
-        auth: { token: wsToken }
+        auth: { token: wsToken },
+        // Настройки для уменьшения количества переподключений
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
+        // Увеличиваем интервалы для стабильности
+        pingTimeout: 60000,
+        pingInterval: 25000
       });
 
       socketRef.current = socket;
@@ -48,6 +70,15 @@ const useMultiplayerSocket = (
         console.log('Socket.IO disconnected:', reason, 'lobbyId:', lobbyId);
         setIsConnected(false);
         setOnlineUsers([]);
+        
+        // Не пытаемся переподключиться автоматически для определенных причин
+        if (reason === 'io server disconnect' || reason === 'io client disconnect') {
+          console.log('Disconnect was intentional, not attempting to reconnect');
+          return;
+        }
+        
+        // Для других причин (сетевые проблемы) socket.io автоматически попытается переподключиться
+        console.log('Disconnect was unintentional, socket.io will attempt to reconnect');
       });
       
       socket.on('connect_error', (error) => {
@@ -193,7 +224,7 @@ const useMultiplayerSocket = (
       console.log('useMultiplayerSocket cleanup, disconnecting...');
       disconnect();
     };
-  }, [lobbyId, connect, disconnect]);
+  }, [lobbyId]); // Убираем connect и disconnect из зависимостей
 
   return {
     isConnected,

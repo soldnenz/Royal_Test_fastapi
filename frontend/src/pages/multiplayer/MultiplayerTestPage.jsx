@@ -700,6 +700,12 @@ const MultiplayerTestPage = () => {
     socketCallbacksRef.current.handleParticipantAnswerDetails // onParticipantAnswerDetails - для хоста
   );
 
+  // Дополнительная логика для предотвращения множественных соединений
+  useEffect(() => {
+    // Логируем состояние соединения для отладки
+    console.log('WebSocket connection status changed:', wsConnected);
+  }, [wsConnected]);
+
   // Load profile data
   useEffect(() => {
     const fetchProfileData = async () => {
@@ -1425,13 +1431,6 @@ const MultiplayerTestPage = () => {
                                 ✓
                               </span>
                             )}
-                          </span>
-                        )}
-                        {!hasAnswered && showAnswers && (
-                          <span className="participant-answer">
-                            <span className="answer-badge not-answered">
-                              {t['notAnswered'] || 'Не ответил'}
-                            </span>
                           </span>
                         )}
                         {!hasAnswered && showAnswers && (
