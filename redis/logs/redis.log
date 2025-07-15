@@ -960,3 +960,8 @@
 19904:C 15 Jul 2025 05:02:51.082 * DB saved on disk
 19904:C 15 Jul 2025 05:02:51.083 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
 1:M 15 Jul 2025 05:02:51.177 * Background saving terminated with success
+1:M 15 Jul 2025 05:07:52.072 * 10 changes in 300 seconds. Saving...
+1:M 15 Jul 2025 05:07:52.074 * Background saving started by pid 19965
+19965:C 15 Jul 2025 05:07:52.081 * DB saved on disk
+19965:C 15 Jul 2025 05:07:52.082 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+1:M 15 Jul 2025 05:07:52.176 * Background saving terminated with success

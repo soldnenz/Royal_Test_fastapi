@@ -1024,6 +1024,58 @@ const MultiplayerTestPage = () => {
     }
   };
 
+  // Kick participant function
+  const handleKickParticipant = async (userId) => {
+    console.log('handleKickParticipant called with userId:', userId);
+    console.log('Current lobby state:', lobbyInfo);
+    console.log('Is host?', isHost);
+
+    if (!isHost) {
+        console.log('Cannot kick - user is not host');
+        return;
+    }
+
+    try {
+        if (!window.confirm(t['confirmKickUser'] || 'Точно кикнуть этого пользователя?')) {
+            console.log('Kick cancelled by user');
+            return;
+        }
+
+        console.log('Sending kick request...');
+        
+        // 1. Сначала отправляем HTTP запрос
+        const response = await api.post(`/multiplayer/lobbies/${lobbyId}/kick`, {
+            target_user_id: userId
+        });
+        
+        if (response.data.status === 'ok') {
+            // 2. При успешном кике отправляем событие в сокет для уведомления
+            sendSocketEvent('kick_user', { 
+                lobby_id: lobbyId, 
+                target_user_id: userId 
+            });
+            console.log('Kick successful');
+            notify.success('Пользователь исключен.', {
+              duration: 2000
+            });
+        } else {
+            console.error('Kick failed:', response.data.message);
+            // Показываем ошибку через систему уведомлений
+            notify.error(response.data.message || t['failedToKickUser'] || 'Failed to kick user', {
+              important: true,
+              duration: 5000
+            });
+        }
+    } catch (error) {
+        console.error('Kick error:', error);
+        // Показываем ошибку через систему уведомлений
+        notify.error(error.response?.data?.message || t['failedToKickUser'] || 'Failed to kick user', {
+          important: true,
+          duration: 5000
+        });
+    }
+  };
+
   // Fetch current question when component mounts or question index changes
   useEffect(() => {
     if (lobbyInfo && lobbyId && lobbyInfo.status !== 'finished') {
@@ -1449,7 +1501,8 @@ const MultiplayerTestPage = () => {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          // Handle kick participant
+                          console.log('Kick button clicked for participant:', participant);
+                          handleKickParticipant(participant.user_id);
                         }}
                         title={t['kickUser'] || 'Kick user'}
                       >
