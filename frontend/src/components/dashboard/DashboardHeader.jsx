@@ -5,8 +5,9 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { translations } from '../../translations/translations';
 
 const DashboardHeader = ({ 
-  profileData,
-  isGuest = false,
+  profileData, 
+  toggleSidebar, 
+  isSidebarOpen, 
   onToggleTheme, 
   onChangeLanguage,
   currentTheme,
@@ -96,14 +97,19 @@ const DashboardHeader = ({
 
   return (
     <header className="z-30 flex items-center justify-between h-16 px-4 md:px-6 bg-white dark:bg-gray-800 shadow-sm">
-      {/* Left: Logo */}
+      {/* Left: Mobile menu toggle */}
       <div className="flex items-center">
-        <Link to="/" className="flex items-center space-x-2">
-          <span className="text-2xl font-bold">
-            <span className="bg-gradient-to-r from-primary-500 to-primary-600 bg-clip-text text-transparent drop-shadow-sm">Royal</span>
-            <span className="text-gray-900 dark:text-white">One</span>
-          </span>
-        </Link>
+        <button
+          onClick={toggleSidebar}
+          className="p-2 mr-3 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 flex items-center"
+          aria-label={isSidebarOpen ? t.closeSidebar : t.navigation}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+          <span className="ml-2 text-sm">{isSidebarOpen ? t.closeSidebar : t.navigation}</span>
+        </button>
+        
       </div>
       
       {/* Right: User info and settings */}
@@ -182,89 +188,73 @@ const DashboardHeader = ({
           )}
         </div>
         
-        {profileData ? (
-          <div className="relative" ref={profileRef}>
-            <button
-              onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="flex items-center space-x-3 focus:outline-none focus:ring-2 focus:ring-primary-500 rounded-lg p-1"
-            >
-              <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary-500 flex items-center justify-center text-white">
-                {profileData?.full_name ? profileData.full_name.charAt(0).toUpperCase() : 'U'}
+        {/* Profile Dropdown */}
+        <div className="relative" ref={profileRef}>
+          <button
+            onClick={() => setIsProfileOpen(!isProfileOpen)}
+            className="flex items-center space-x-3 focus:outline-none focus:ring-2 focus:ring-primary-500 rounded-lg p-1"
+          >
+            <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary-500 flex items-center justify-center text-white">
+              {profileData?.full_name ? profileData.full_name.charAt(0).toUpperCase() : 'U'}
+            </div>
+            <div className="hidden md:block">
+              <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {profileData?.full_name}
               </div>
-              <div className="hidden md:block">
-                <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {profileData?.role === 'admin' ? t.adminRole : (profileData?.role === 'moder' ? t.moderRole : t.userRole)}
+              </div>
+            </div>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${isProfileOpen ? 'transform rotate-180' : ''}`}
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fillRule="evenodd"
+                d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+          
+          {isProfileOpen && (
+            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700">
+              <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-2">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {profileData?.full_name}
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  {profileData?.role === 'admin' ? t.adminRole : (profileData?.role === 'moder' ? t.moderRole : t.userRole)}
-                </div>
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                  {profileData?.email}
+                </p>
               </div>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${isProfileOpen ? 'transform rotate-180' : ''}`}
-                viewBox="0 0 20 20"
-                fill="currentColor"
+              
+              <Link
+                to="/dashboard/profile"
+                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                onClick={() => setIsProfileOpen(false)}
               >
-                <path
-                  fillRule="evenodd"
-                  d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
-            
-            {isProfileOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700">
-                <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-2">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {profileData?.full_name}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                    {profileData?.email}
-                  </p>
-                </div>
-                
-                <Link
-                  to="/dashboard/profile"
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-                  onClick={() => setIsProfileOpen(false)}
-                >
-                  {t.profile}
-                </Link>
-                
-                <Link
-                  to="/dashboard"
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-                  onClick={() => setIsProfileOpen(false)}
-                >
-                  {t.dashboard}
-                </Link>
-                
-                <button
-                  onClick={handleLogout}
-                  className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/50"
-                >
-                  {t.logout}
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="flex items-center space-x-3">
-            <Link
-              to="/login"
-              className="px-4 py-2 bg-gray-100 dark:bg-dark-700 rounded-lg shadow-sm text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-dark-600 transition-colors"
-            >
-              {t.login}
-            </Link>
-            <Link
-              to="/registration"
-              className="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-lg shadow-sm hover:shadow-md transform hover:-translate-y-px transition-all duration-200"
-            >
-              {t.register}
-            </Link>
-          </div>
-        )}
+                {t.profile}
+              </Link>
+              
+              <Link
+                to="/dashboard/settings"
+                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                onClick={() => setIsProfileOpen(false)}
+              >
+                {t.settings}
+              </Link>
+              
+              <button
+                onClick={handleLogout}
+                className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:text-red-400 dark:hover:bg-gray-700"
+              >
+                {t.logout}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

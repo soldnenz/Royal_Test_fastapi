@@ -4,3 +4,5 @@
 2025-07-15 01:18:44.771935+00:00 [warning] <0.13597.0> client unexpectedly closed TCP connection
 2025-07-15 01:41:28.198201+00:00 [warning] <0.13568.0> closing AMQP connection <0.13568.0> (172.20.0.1:56038 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
 2025-07-15 01:41:28.198201+00:00 [warning] <0.13568.0> client unexpectedly closed TCP connection
+2025-07-15 02:52:20.287623+00:00 [warning] <0.14417.0> closing AMQP connection <0.14417.0> (172.20.0.1:51454 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
+2025-07-15 02:52:20.287623+00:00 [warning] <0.14417.0> client unexpectedly closed TCP connection

@@ -199,16 +199,25 @@ class MultiplayerNamespace(socketio.AsyncNamespace):
                 print(f"[{sid}] Kick permission denied: User {host_id} is not host of lobby {lobby_id} (host: {lobby.get('host_id')})")
                 return await self.emit('error', {'message': 'Permission denied: Only host can kick users'}, to=sid)
 
+            # Проверяем, что пользователь находится в комнате (онлайн)
             target_sid = await self._get_user_sid(lobby_id, target_user_id)
             if not target_sid:
-                print(f"[{sid}] Kick failed: Target user {target_user_id} not found in lobby {lobby_id}")
-                return await self.emit('error', {'message': 'User not found in lobby'}, to=sid)
+                print(f"[{sid}] Kick failed: Target user {target_user_id} not found in lobby {lobby_id} (user may have already left)")
+                # Не возвращаем ошибку, так как пользователь мог уже выйти
+                # Просто уведомляем хоста, что кик не нужен
+                return await self.emit('kick_success', {'message': 'User already left the lobby'}, to=sid)
             
             print(f"[{sid}] Host {host_id} successfully kicking {target_user_id} (SID: {target_sid}) from lobby {lobby_id}")
             
             # Отправляем кикнутому игроку персональное событие и принудительно отключаем его
             await self.emit('kicked', {'reason': 'You have been kicked by the host.'}, to=target_sid)
             await self.disconnect(target_sid)
+            
+            # Уведомляем всех остальных участников о кике для обновления списка
+            await self.emit('participant_kicked', {
+                'user_id': target_user_id,
+                'kicked_by': host_id
+            }, room=lobby_id, skip_sid=target_sid)
 
         except Exception as e:
             print(f"Error during kick_user: {e}")

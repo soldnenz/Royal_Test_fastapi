@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
-const useMultiplayerSocket = (
+const useMultiplayerSocket = ({
   lobbyId, 
   onUserEvent, 
-  onError, 
+  onSocketError: onError, 
   onKicked, 
   onLobbyClosed, 
   onLobbyStarted,
@@ -12,8 +12,9 @@ const useMultiplayerSocket = (
   onCorrectAnswerShown,
   onNextQuestion,
   onTestFinished,
-  onParticipantAnswerDetails
-) => {
+  onParticipantAnswerDetails,
+  onKickSuccess
+}) => {
   const [isConnected, setIsConnected] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const socketRef = useRef(null);
@@ -149,6 +150,17 @@ const useMultiplayerSocket = (
         console.log('Event: kicked', data);
         if (onKicked) onKicked(data.reason || 'Вы были исключены хостом.');
         disconnect();
+      });
+
+      socket.on('kick_success', (data) => {
+        console.log('Event: kick_success', data);
+        if (onKickSuccess) onKickSuccess(data.message || 'Пользователь уже вышел из лобби');
+      });
+
+      socket.on('participant_kicked', (data) => {
+        console.log('Event: participant_kicked', data);
+        // Обновляем список участников при кике
+        if (onUserEvent) onUserEvent('kick');
       });
 
       socket.on('lobby_closed', (data) => {

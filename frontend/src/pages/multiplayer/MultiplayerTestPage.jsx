@@ -452,6 +452,7 @@ const MultiplayerTestPage = () => {
   const socketCallbacksRef = useRef({
     handleUserEvent: (event) => {
       console.log(`Socket event received: ${event}, fetching participants...`);
+      // Обновляем список участников при любом событии (join, leave, kick)
       fetchParticipants();
     },
     handleSocketError: (errorMessage) => {
@@ -469,6 +470,12 @@ const MultiplayerTestPage = () => {
         message: reason,
         buttonText: 'Вернуться на главную',
         redirectPath: isGuest ? '/' : '/dashboard'
+      });
+    },
+    handleKickSuccess: (message) => {
+      // Показываем уведомление хосту о том, что пользователь уже вышел
+      notify.info(message || 'Пользователь уже вышел из лобби', {
+        duration: 3000
       });
     },
     handleLobbyClosed: (reason) => {
@@ -561,6 +568,7 @@ const MultiplayerTestPage = () => {
   useEffect(() => {
     socketCallbacksRef.current.handleUserEvent = (event) => {
       console.log(`Socket event received: ${event}, fetching participants...`);
+      // Обновляем список участников при любом событии (join, leave, kick)
       fetchParticipants();
     };
   }, []); // Убираем fetchParticipants из зависимостей
@@ -686,19 +694,19 @@ const MultiplayerTestPage = () => {
     onlineUsers, 
     sendEvent: sendSocketEvent,
     disconnect: disconnectSocket 
-  } = useMultiplayerSocket(
-    lobbyId, 
-    socketCallbacksRef.current.handleUserEvent, 
-    socketCallbacksRef.current.handleSocketError,
-    socketCallbacksRef.current.handleKicked,
-    socketCallbacksRef.current.handleLobbyClosed,
-    null, // onLobbyStarted - не нужен для тестовой страницы
-    socketCallbacksRef.current.handleParticipantAnswered,
-    socketCallbacksRef.current.handleCorrectAnswerShown,
-    socketCallbacksRef.current.handleNextQuestionEvent,
-    socketCallbacksRef.current.handleTestFinished, // onTestFinished - для завершения теста
-    socketCallbacksRef.current.handleParticipantAnswerDetails // onParticipantAnswerDetails - для хоста
-  );
+  } = useMultiplayerSocket({
+    lobbyId,
+    onUserEvent: socketCallbacksRef.current.handleUserEvent,
+    onSocketError: socketCallbacksRef.current.handleSocketError,
+    onKicked: socketCallbacksRef.current.handleKicked,
+    onLobbyClosed: socketCallbacksRef.current.handleLobbyClosed,
+    onParticipantAnswered: socketCallbacksRef.current.handleParticipantAnswered,
+    onCorrectAnswerShown: socketCallbacksRef.current.handleCorrectAnswerShown,
+    onNextQuestion: socketCallbacksRef.current.handleNextQuestionEvent,
+    onTestFinished: socketCallbacksRef.current.handleTestFinished,
+    onParticipantAnswerDetails: socketCallbacksRef.current.handleParticipantAnswerDetails,
+    onKickSuccess: socketCallbacksRef.current.handleKickSuccess
+  });
 
   // Дополнительная логика для предотвращения множественных соединений
   useEffect(() => {

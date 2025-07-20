@@ -88,9 +88,10 @@ const LobbyWaitingPage = () => {
     }
   }, [lobbyId, t]);
 
-  // 2. Колбэк для сокета: при входе/выходе пользователя, перезапрашиваем список
+  // 2. Колбэк для сокета: при входе/выходе/кике пользователя, перезапрашиваем список
   const handleUserEvent = useCallback((event) => {
     console.log(`Socket event received: ${event}, fetching participants...`);
+    // Обновляем список участников при любом событии (join, leave, kick)
     fetchParticipants();
   }, [fetchParticipants]);
   
@@ -111,6 +112,13 @@ const LobbyWaitingPage = () => {
       redirectPath: isGuest ? '/' : '/dashboard'
     });
   }, [isGuest]);
+
+  const handleKickSuccess = useCallback((message) => {
+    // Показываем уведомление хосту о том, что пользователь уже вышел
+    notify.info(message || 'Пользователь уже вышел из лобби', {
+      duration: 3000
+    });
+  }, []);
 
   const handleLobbyClosed = useCallback((reason) => {
     setModalMessage({
@@ -133,18 +141,15 @@ const LobbyWaitingPage = () => {
     onlineUsers, 
     sendEvent: sendSocketEvent, // <-- Получаем новую функцию
     disconnect: disconnectSocket 
-  } = useMultiplayerSocket(
-    lobbyId, 
-    handleUserEvent, 
-    handleSocketError,
-    handleKicked,
-    handleLobbyClosed,
-    handleLobbyStarted,
-    null, // onParticipantAnswered
-    null, // onCorrectAnswerShown
-    null, // onNextQuestion
-    null  // onLeaveLobby
-  );
+  } = useMultiplayerSocket({
+    lobbyId,
+    onUserEvent: handleUserEvent,
+    onSocketError: handleSocketError,
+    onKicked: handleKicked,
+    onLobbyClosed: handleLobbyClosed,
+    onLobbyStarted: handleLobbyStarted,
+    onKickSuccess: handleKickSuccess
+  });
 
   // Отладочный лог для onlineUsers
   useEffect(() => {
