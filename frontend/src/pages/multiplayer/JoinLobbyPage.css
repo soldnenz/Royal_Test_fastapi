@@ -112,12 +112,12 @@
 }
 
 .register-btn {
-  background: linear-gradient(135deg, #10b981, #059669);
+  background: linear-gradient(135deg, #D4AF37, #B89128);
   color: white;
 }
 
 .register-btn:hover {
-  background: linear-gradient(135deg, #059669, #047857);
+  background: linear-gradient(135deg, #B89128, #A67C1E);
   transform: translateY(-1px);
 }
 

@@ -53,7 +53,7 @@ html, body, #root {
 }
 
 .Toastify__toast--success {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  background: linear-gradient(135deg, #D4AF37 0%, #B89128 100%) !important;
   color: white !important;
 }
 

@@ -398,6 +398,30 @@ const TestModal = ({ isOpen, onClose, category, subscription, translations: t, i
               </label>
             </div>
 
+            {/* Action buttons moved above PDD sections */}
+            <div className="test-modal-actions">
+              <button className="cancel-button" onClick={onClose} disabled={loading}>
+                {t['cancel'] || 'Cancel'}
+              </button>
+              
+              {activeLobby && activeLobby.has_active_lobby ? (
+                <button 
+                  className="start-button continue-button" 
+                  onClick={continueActiveTest}
+                >
+                  {t['test.continueTest'] || 'Continue Test'}
+                </button>
+              ) : (
+                <button 
+                  className={`start-button ${loading ? 'loading' : ''}`} 
+                  onClick={handleStartTest}
+                  disabled={loading || checkingActiveLobby}
+                >
+                  {loading ? <div className="button-spinner"></div> : t['test.startTest'] || 'Start Test'}
+                </button>
+              )}
+            </div>
+
             {(subscription && ['vip', 'royal', 'school'].includes(subscription.subscription_type?.toLowerCase())) && (
               <div className="sections-selection">
                 <div className="sections-header">
@@ -440,29 +464,6 @@ const TestModal = ({ isOpen, onClose, category, subscription, translations: t, i
               </div>
             )}
           </div>
-        </div>
-
-        <div className="test-modal-footer">
-          <button className="cancel-button" onClick={onClose} disabled={loading}>
-            {t['cancel'] || 'Cancel'}
-          </button>
-          
-          {activeLobby && activeLobby.has_active_lobby ? (
-            <button 
-              className="start-button continue-button" 
-              onClick={continueActiveTest}
-            >
-              {t['test.continueTest'] || 'Continue Test'}
-            </button>
-          ) : (
-            <button 
-              className={`start-button ${loading ? 'loading' : ''}`} 
-              onClick={handleStartTest}
-              disabled={loading || checkingActiveLobby}
-            >
-              {loading ? <div className="button-spinner"></div> : t['test.startTest'] || 'Start Test'}
-            </button>
-          )}
         </div>
       </div>
     </div>

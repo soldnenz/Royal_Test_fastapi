@@ -260,7 +260,7 @@ body {
     #d4af37 0%, 
     #d4af37 40%, 
     #e6c754 60%, 
-    #10b981 100%) !important;
+    #D4AF37 100%) !important;
   border-radius: var(--radius-full);
   transition: width 0.3s ease;
   min-width: 8px !important;

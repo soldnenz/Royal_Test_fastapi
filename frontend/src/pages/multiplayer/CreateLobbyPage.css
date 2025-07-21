@@ -368,7 +368,7 @@
 }
 
 .category-icon.color-emerald {
-  background: linear-gradient(135deg, #10b981, #059669);
+  background: linear-gradient(135deg, #D4AF37, #B89128);
   color: white;
 }
 
@@ -419,7 +419,7 @@
   left: 0.75rem;
   width: 1.5rem;
   height: 1.5rem;
-  background: #10b981;
+  background: #D4AF37;
   color: white;
   border-radius: 50%;
   display: flex;

@@ -8,7 +8,7 @@
   --primary-dark: #1D4ED8;
   --secondary: #64748b;
   --accent: #d4af37;
-  --success: #10b981;
+  --success: #D4AF37;
   --warning: #f59e0b;
   --error: #ef4444;
   
@@ -165,7 +165,7 @@ body {
 
 .status-indicator.online {
   color: var(--success);
-  background: rgba(16, 185, 129, 0.1);
+  background: rgba(212, 175, 55, 0.1);
   border-color: var(--success);
 }
 
