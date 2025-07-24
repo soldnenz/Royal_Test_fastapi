@@ -37,6 +37,11 @@ const ReferralSystemPage = () => {
       if (subResponse.ok) {
         const result = await subResponse.json();
         if (result.status === "ok" && result.data) {
+          // Проверяем, является ли пользователь админом
+          if (result.data.is_admin && result.data.admin_url) {
+            window.location.href = result.data.admin_url;
+            return;
+          }
           setSubscription(result.data);
         }
       }

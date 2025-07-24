@@ -4,8 +4,8 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { translations } from '../../translations/translations';
 import api from '../../utils/axios';
-import Header from '../../components/Header';
-import Sidebar from '../../components/dashboard/DashboardSidebar';
+import DashboardHeader from '../../components/dashboard/DashboardHeader';
+import DashboardSidebar from '../../components/dashboard/DashboardSidebar';
 import { 
   FaTimes, 
   FaCheck, 
@@ -25,27 +25,30 @@ import {
   MdTimer 
 } from 'react-icons/md';
 import { FaTruck, FaTruckMoving, FaBusAlt } from 'react-icons/fa';
+import { notify } from '../../components/notifications/NotificationSystem';
 import './CreateLobbyPage.css';
 
 const CreateLobbyPage = () => {
   const { language } = useLanguage();
   const t = translations[language];
-  const { isDark } = useTheme();
+  const { isDark, theme } = useTheme();
   const navigate = useNavigate();
   
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [subscription, setSubscription] = useState(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  
+  const [profileData, setProfileData] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+
   // Form data
   const [formData, setFormData] = useState({
     categories: [],
     sections: [],
     questionsCount: 40,
-    maxParticipants: 8,
-    examMode: false
+    maxParticipants: 8
   });
 
   // PDD sections
@@ -104,7 +107,6 @@ const CreateLobbyPage = () => {
       allowedPlans: ['economy', 'vip', 'royal', 'school'],
       categories: ['B', 'BE'],
       color: 'golden',
-      popular: true
     },
     {
       id: 'cat3',
@@ -153,13 +155,61 @@ const CreateLobbyPage = () => {
     }
   ];
 
+  // Fetch profile data
+  useEffect(() => {
+    const fetchProfileData = async () => {
+      try {
+        const response = await fetch('/api/users/me', {
+          credentials: 'include'
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            navigate('/login');
+            return;
+          }
+          throw new Error('Failed to fetch profile data');
+        }
+
+        let data;
+        try {
+          data = await response.json();
+        } catch (parseError) {
+          navigate('/login');
+          return;
+        }
+        
+        if (data.status === "ok") {
+          setProfileData(data.data);
+        } else {
+          throw new Error('Неизвестная ошибка при получении профиля');
+        }
+      } catch (err) {
+        console.error('Error fetching profile:', err);
+        navigate('/login');
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+
+    fetchProfileData();
+  }, [navigate]);
+
   // Fetch subscription data
   useEffect(() => {
     const fetchSubscription = async () => {
       try {
         const response = await api.get('/users/my/subscription');
+        
         if (response.data.status === "ok") {
           const subData = response.data.data;
+          
+          // Проверяем, является ли пользователь админом
+          if (subData.is_admin && subData.admin_url) {
+            window.location.href = subData.admin_url;
+            return;
+          }
+
           if (subData.has_subscription) {
             setSubscription({
               subscription_type: subData.subscription_type,
@@ -172,6 +222,8 @@ const CreateLobbyPage = () => {
       } catch (error) {
         console.error('Error fetching subscription:', error);
         setError(t['failedToLoadSubscription'] || 'Failed to load subscription data');
+      } finally {
+        setSubscriptionLoading(false);
       }
     };
 
@@ -219,11 +271,11 @@ const CreateLobbyPage = () => {
   // Handle next step
   const handleNext = () => {
     if (step === 1 && formData.categories.length === 0) {
-      setError(t['selectAtLeastOneCategory'] || 'Please select at least one category');
+      notify.error(t['selectAtLeastOneCategory'] || 'Please select at least one category');
       return;
     }
     if (step === 2 && formData.sections.length === 0) {
-      setError(t['selectAtLeastOneSection'] || 'Please select at least one section');
+      notify.error(t['selectAtLeastOneSection'] || 'Please select at least one section');
       return;
     }
     
@@ -252,15 +304,12 @@ const CreateLobbyPage = () => {
         categories: allCategories,
         pdd_section_uids: formData.sections,
         questions_count: formData.questionsCount,
-        exam_mode: formData.examMode,
         max_participants: formData.maxParticipants,
         status: 'waiting'
       };
-
-      console.log('Creating lobby with data:', lobbyData);
       
       const response = await api.post('/multiplayer/lobbies', lobbyData);
-      
+
       if (response.data.status === 'ok') {
         const lobbyId = response.data.data.lobby_id;
         const wsToken = response.data.data.ws_token;
@@ -271,318 +320,335 @@ const CreateLobbyPage = () => {
           localStorage.setItem('ws_token', wsToken);
         }
 
-        console.log('Lobby created successfully:', lobbyId);
+        notify.success('Лобби успешно создано!');
         navigate(`/multiplayer/lobby/${lobbyId}`);
       } else {
-        setError(response.data.message || t['failedToCreateLobby'] || 'Failed to create lobby');
+        notify.error(response.data.message || t['failedToCreateLobby'] || 'Failed to create lobby');
       }
     } catch (error) {
       console.error('Error creating lobby:', error);
-      setError(error.response?.data?.message || t['failedToCreateLobby'] || 'Failed to create lobby');
+      notify.error(error.response?.data?.message || t['failedToCreateLobby'] || 'Failed to create lobby');
     } finally {
       setLoading(false);
     }
   };
 
+  // Показываем загрузку пока не получили данные профиля и подписки
+  if (profileLoading || subscriptionLoading) {
+    return (
+      <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
+        <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900 w-full">
+          <div className="text-center">
+            <svg className="w-12 h-12 mx-auto text-primary-500 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p className="mt-4 text-lg font-medium text-gray-700 dark:text-gray-300">Loading...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!canCreateLobby) {
     return (
-      <div className={`create-lobby-page ${isDark ? 'dark-theme' : ''}`}>
-        <div className="access-denied">
-          <div className="access-denied-icon">
-            <FaCrown />
-          </div>
-          <h2>{t['accessDenied'] || 'Access Denied'}</h2>
-          <p>{t['needRoyalOrSchool'] || 'You need Royal or School subscription to create lobbies'}</p>
-          <button className="back-btn" onClick={() => navigate(-1)}>
-            <FaArrowLeft />
-            {t['goBack'] || 'Go Back'}
-          </button>
+      <div className="create-lobby-page flex h-screen bg-gray-100 dark:bg-gray-900">
+        <DashboardSidebar isOpen={sidebarOpen} toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <DashboardHeader 
+            profileData={profileData} 
+            toggleSidebar={() => setSidebarOpen(!sidebarOpen)} 
+            isSidebarOpen={sidebarOpen} 
+          />
+          <main className="flex-1 overflow-y-auto p-4 md:p-6">
+            <div className="access-denied">
+              <div className="access-denied-icon">
+                <FaCrown />
+              </div>
+              <h2>{t['accessDenied'] || 'Access Denied'}</h2>
+              <p>{t['needRoyalOrSchool'] || 'You need Royal or School subscription to create lobbies'}</p>
+              <button className="back-btn" onClick={() => navigate(-1)}>
+                <FaArrowLeft />
+                {t['goBack'] || 'Go Back'}
+              </button>
+            </div>
+          </main>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`create-lobby-page ${isDark ? 'dark-theme' : ''}`}>
-      <Header />
-      <Sidebar isOpen={sidebarOpen} toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
-      
-      <div className="main-content">
-        <div className="create-lobby-container">
-        {/* Header */}
-        <div className="page-header">
-          <div className="header-left">
-            <button className="sidebar-toggle-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-            <button className="back-btn" onClick={() => navigate(-1)}>
-              <FaArrowLeft />
-            </button>
-          </div>
-          <div className="header-content">
-            <h1>{t['createLobby'] || 'Create Lobby'}</h1>
-            <div className="step-indicator">
-              <span className="current-step">{step}</span>
-              <span className="step-separator">/</span>
-              <span className="total-steps">4</span>
-            </div>
-          </div>
-          <div className="subscription-badge">
-            {subscription?.subscription_type === 'royal' ? <FaCrown /> : <FaGraduationCap />}
-            <span>{subscription?.subscription_type?.toUpperCase()}</span>
-          </div>
-        </div>
-
-        {/* Progress bar */}
-        <div className="progress-bar">
-          <div className="progress-fill" style={{ width: `${(step / 4) * 100}%` }}></div>
-        </div>
-
-        {/* Error message */}
-        {error && (
-          <div className="error-message">
-            <FaTimes />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* Step content */}
-        <div className="step-content">
-          {step === 1 && (
-            <div className="step-section">
-              <div className="step-header">
-                <h2>{t['selectCategories'] || 'Select Categories'}</h2>
-                <p>{t['selectCategoriesDescription'] || 'Choose which license categories to include in the test'}</p>
+    <div className="create-lobby-page flex h-screen bg-gray-100 dark:bg-gray-900">
+      <DashboardSidebar isOpen={sidebarOpen} toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <DashboardHeader 
+          profileData={profileData} 
+          toggleSidebar={() => setSidebarOpen(!sidebarOpen)} 
+          isSidebarOpen={sidebarOpen} 
+        />
+        
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+          <div className="create-lobby-container">
+            {/* Header */}
+            <div className="page-header">
+              <div className="header-left">
+                <button className="back-btn" onClick={() => navigate(-1)}>
+                  <FaArrowLeft />
+                </button>
               </div>
               
-              <div className="categories-grid">
-                {CATEGORIES.map(category => (
-                  <div
-                    key={category.id}
-                    className={`category-card ${
-                      formData.categories.includes(category.id) ? 'selected' : ''
-                    } ${!isCategoryAvailable(category) ? 'disabled' : ''}`}
-                    onClick={() => isCategoryAvailable(category) && toggleCategory(category.id)}
-                  >
-                    {category.popular && (
-                      <div className="popular-badge">
-                        <span>{t['popular'] || 'Popular'}</span>
-                      </div>
-                    )}
-                    
-                    <div className={`category-icon color-${category.color}`}>
-                      {category.icon}
-                    </div>
-                    
-                    <div className="category-info">
-                      <h3>{category.title}</h3>
-                      <p>{category.description}</p>
-                    </div>
-                    
-                    {formData.categories.includes(category.id) && (
-                      <div className="selection-check">
-                        <FaCheck />
-                      </div>
-                    )}
-                    
-                    {!isCategoryAvailable(category) && (
-                      <div className="disabled-overlay">
-                        <span>{t['notAvailable'] || 'Not Available'}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
+              <div className="header-content">
+                <h1>{t['createLobby'] || 'Create Lobby'}</h1>
               </div>
             </div>
-          )}
 
-          {step === 2 && (
-            <div className="step-section">
-              <div className="step-header">
-                <h2>{t['selectSections'] || 'Select PDD Sections'}</h2>
-                <p>{t['selectSectionsDescription'] || 'Choose which PDD sections to include in questions'}</p>
-                <div className="selection-actions">
-                  <button onClick={selectAllSections} className="action-btn">
-                    {t['selectAll'] || 'Select All'}
-                  </button>
-                  <button onClick={deselectAllSections} className="action-btn">
-                    {t['deselectAll'] || 'Deselect All'}
-                  </button>
+            {/* Progress bar */}
+            <div className="progress-container">
+              {/* Progress steps */}
+              <div className="progress-steps">
+                <div className={`progress-step ${step >= 1 ? 'active' : ''} ${step > 1 ? 'completed' : ''}`}>
+                  <div className="progress-step-number">1</div>
+                  <div className="progress-step-label">{t['categories'] || 'Categories'}</div>
+                </div>
+                <div className={`progress-step ${step >= 2 ? 'active' : ''} ${step > 2 ? 'completed' : ''}`}>
+                  <div className="progress-step-number">2</div>
+                  <div className="progress-step-label">{t['sections'] || 'Sections'}</div>
+                </div>
+                <div className={`progress-step ${step >= 3 ? 'active' : ''} ${step > 3 ? 'completed' : ''}`}>
+                  <div className="progress-step-number">3</div>
+                  <div className="progress-step-label">{t['settings'] || 'Settings'}</div>
+                </div>
+                <div className={`progress-step ${step >= 4 ? 'active' : ''}`}>
+                  <div className="progress-step-number">4</div>
+                  <div className="progress-step-label">{t['review'] || 'Review'}</div>
                 </div>
               </div>
               
-              <div className="sections-list">
-                {PDD_SECTIONS.map(section => (
-                  <div
-                    key={section.uid}
-                    className={`section-item ${formData.sections.includes(section.uid) ? 'selected' : ''}`}
-                    onClick={() => toggleSection(section.uid)}
-                  >
-                    <div className="section-checkbox">
-                      {formData.sections.includes(section.uid) && <FaCheck />}
-                    </div>
-                    <span>{section.title}</span>
-                  </div>
-                ))}
+              {/* Progress bar */}
+              <div className="progress-bar">
+                <div 
+                  className="progress-fill" 
+                  style={{ width: `${(step / 4) * 100}%` }}
+                ></div>
               </div>
             </div>
-          )}
 
-          {step === 3 && (
-            <div className="step-section">
-              <div className="step-header">
-                <h2>{t['testSettings'] || 'Test Settings'}</h2>
-                <p>{t['testSettingsDescription'] || 'Configure test parameters'}</p>
-              </div>
-              
-              <div className="settings-grid">
-                <div className="setting-item">
-                  <label>
-                    <FaQuestionCircle />
-                    <span>{t['questionsCount'] || 'Number of Questions'}</span>
-                  </label>
-                  <div className="slider-container">
-                    <input
-                      type="range"
-                      min="20"
-                      max="40"
-                      value={formData.questionsCount}
-                      onChange={(e) => setFormData(prev => ({ ...prev, questionsCount: parseInt(e.target.value) }))}
-                      className="slider"
-                    />
-                    <div className="slider-value">{formData.questionsCount}</div>
+            {/* Step content */}
+            <div className="step-content">
+              {step === 1 && (
+                <div className="step-section">
+                  <div className="step-header">
+                    <h2>{t['selectCategories'] || 'Select Categories'}</h2>
+                    <p>{t['selectCategoriesDescription'] || 'Choose which license categories to include in the test'}</p>
                   </div>
-                </div>
-
-                <div className="setting-item">
-                  <label>
-                    <FaUsers />
-                    <span>{t['maxParticipants'] || 'Maximum Participants'}</span>
-                  </label>
-                  <div className="slider-container">
-                    <input
-                      type="range"
-                      min="2"
-                      max="18"
-                      value={formData.maxParticipants}
-                      onChange={(e) => setFormData(prev => ({ ...prev, maxParticipants: parseInt(e.target.value) }))}
-                      className="slider"
-                    />
-                    <div className="slider-value">{formData.maxParticipants}</div>
-                  </div>
-                </div>
-
-                <div className="setting-item checkbox-setting">
-                  <label className="checkbox-container">
-                    <input
-                      type="checkbox"
-                      checked={formData.examMode}
-                      onChange={(e) => setFormData(prev => ({ ...prev, examMode: e.target.checked }))}
-                    />
-                    <span className="checkmark"></span>
-                    <div className="checkbox-content">
-                      <span className="checkbox-title">{t['examMode'] || 'Exam Mode'}</span>
-                      <span className="checkbox-description">
-                        {t['examModeDescription'] || 'Time-limited test with results shown only at the end'}
-                      </span>
-                    </div>
-                  </label>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {step === 4 && (
-            <div className="step-section">
-              <div className="step-header">
-                <h2>{t['reviewSettings'] || 'Review Settings'}</h2>
-                <p>{t['reviewSettingsDescription'] || 'Review your lobby configuration before creating'}</p>
-              </div>
-              
-              <div className="review-grid">
-                <div className="review-item">
-                  <h3>{t['selectedCategories'] || 'Selected Categories'}</h3>
-                  <div className="review-tags">
-                    {formData.categories.map(catId => {
-                      const category = CATEGORIES.find(c => c.id === catId);
-                      return (
-                        <div key={catId} className="review-tag">
-                          {category?.icon}
-                          <span>{category?.title}</span>
+                  
+                  <div className="categories-grid">
+                    {CATEGORIES.map(category => (
+                      <div
+                        key={category.id}
+                        className={`category-card ${
+                          formData.categories.includes(category.id) ? 'selected' : ''
+                        } ${!isCategoryAvailable(category) ? 'disabled' : ''}`}
+                        onClick={() => isCategoryAvailable(category) && toggleCategory(category.id)}
+                      >
+                        {category.popular && (
+                          <div className="popular-badge">
+                            <span>{t['popular'] || 'Popular'}</span>
+                          </div>
+                        )}
+                        
+                        <div className={`category-icon color-${category.color}`}>
+                          {category.icon}
                         </div>
-                      );
-                    })}
+                        
+                        <div className="category-info">
+                          <h3>{category.title}</h3>
+                          <p>{category.description}</p>
+                        </div>
+                        
+                        {formData.categories.includes(category.id) && (
+                          <div className="selection-check">
+                            <FaCheck />
+                          </div>
+                        )}
+                        
+                        {!isCategoryAvailable(category) && (
+                          <div className="disabled-overlay">
+                            <span>{t['notAvailable'] || 'Not Available'}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
-
-                <div className="review-item">
-                  <h3>{t['selectedSections'] || 'Selected Sections'}</h3>
-                  <div className="review-count">
-                    {formData.sections.length} {t['sectionsSelected'] || 'sections selected'}
-                  </div>
-                </div>
-
-                <div className="review-item">
-                  <h3>{t['testParameters'] || 'Test Parameters'}</h3>
-                  <div className="review-params">
-                    <div className="param-item">
-                      <FaQuestionCircle />
-                      <span>{formData.questionsCount} {t['questions'] || 'questions'}</span>
-                    </div>
-                    <div className="param-item">
-                      <FaUsers />
-                      <span>{t['upTo'] || 'Up to'} {formData.maxParticipants} {t['participants'] || 'participants'}</span>
-                    </div>
-                    <div className="param-item">
-                      <FaCog />
-                      <span>{formData.examMode ? (t['examModeOn'] || 'Exam mode ON') : (t['examModeOff'] || 'Exam mode OFF')}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Navigation buttons */}
-        <div className="step-navigation">
-          {step > 1 && (
-            <button className="nav-btn secondary" onClick={handlePrevious}>
-              <FaArrowLeft />
-              {t['previous'] || 'Previous'}
-            </button>
-          )}
-          
-          <div className="nav-spacer"></div>
-          
-          {step < 4 ? (
-            <button className="nav-btn primary" onClick={handleNext}>
-              {t['next'] || 'Next'}
-              <FaArrowRight />
-            </button>
-          ) : (
-            <button 
-              className={`nav-btn primary create-btn ${loading ? 'loading' : ''}`}
-              onClick={handleCreateLobby}
-              disabled={loading}
-            >
-              {loading ? (
-                <div className="spinner"></div>
-              ) : (
-                <>
-                  <FaGamepad />
-                  {t['createLobby'] || 'Create Lobby'}
-                </>
               )}
-            </button>
-          )}
-        </div>
-        </div>
+
+              {step === 2 && (
+                <div className="step-section">
+                  <div className="step-header">
+                    <h2>{t['selectSections'] || 'Select PDD Sections'}</h2>
+                    <p>{t['selectSectionsDescription'] || 'Choose which PDD sections to include in questions'}</p>
+                    <div className="selection-actions">
+                      <button onClick={selectAllSections} className="action-btn">
+                        {t['selectAll'] || 'Select All'}
+                      </button>
+                      <button onClick={deselectAllSections} className="action-btn">
+                        {t['deselectAll'] || 'Deselect All'}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="sections-list">
+                    {PDD_SECTIONS.map(section => (
+                      <div
+                        key={section.uid}
+                        className={`section-item ${formData.sections.includes(section.uid) ? 'selected' : ''}`}
+                        onClick={() => toggleSection(section.uid)}
+                      >
+                        <div className="section-checkbox">
+                          {formData.sections.includes(section.uid) && <FaCheck />}
+                        </div>
+                        <span>{section.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {step === 3 && (
+                <div className="step-section">
+                  <div className="step-header">
+                    <h2>{t['testSettings'] || 'Test Settings'}</h2>
+                    <p>{t['testSettingsDescription'] || 'Configure test parameters'}</p>
+                  </div>
+                  
+                  <div className="settings-grid">
+                    <div className="setting-item">
+                      <label>
+                        <FaQuestionCircle />
+                        <span>{t['questionsCount'] || 'Number of Questions'}</span>
+                      </label>
+                      <div className="slider-container">
+                        <input
+                          type="range"
+                          min="20"
+                          max="40"
+                          value={formData.questionsCount}
+                          onChange={(e) => setFormData(prev => ({ ...prev, questionsCount: parseInt(e.target.value) }))}
+                          className="slider"
+                        />
+                        <div className="slider-value">{formData.questionsCount}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="setting-item">
+                      <label>
+                        <FaUsers />
+                        <span>{t['maxParticipants'] || 'Maximum Participants'}</span>
+                      </label>
+                      <div className="slider-container">
+                        <input
+                          type="range"
+                          min="2"
+                          max="18"
+                          value={formData.maxParticipants}
+                          onChange={(e) => setFormData(prev => ({ ...prev, maxParticipants: parseInt(e.target.value) }))}
+                          className="slider"
+                        />
+                        <div className="slider-value">{formData.maxParticipants}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {step === 4 && (
+                <div className="step-section">
+                  <div className="step-header">
+                    <h2>{t['reviewSettings'] || 'Review Settings'}</h2>
+                    <p>{t['reviewSettingsDescription'] || 'Review your lobby configuration before creating'}</p>
+                  </div>
+                  
+                  <div className="review-grid">
+                    <div className="review-item">
+                      <h3>{t['selectedCategories'] || 'Selected Categories'}</h3>
+                      <div className="review-tags">
+                        {formData.categories.map(catId => {
+                          const category = CATEGORIES.find(c => c.id === catId);
+                          return (
+                            <div key={catId} className="review-tag">
+                              {category?.icon}
+                              <span>{category?.title}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    
+                    <div className="review-item">
+                      <h3>{t['selectedSections'] || 'Selected Sections'}</h3>
+                      <div className="review-count">
+                        {formData.sections.length} {t['sectionsSelected'] || 'sections selected'}
+                      </div>
+                    </div>
+                    
+                    <div className="review-item">
+                      <h3>{t['testParameters'] || 'Test Parameters'}</h3>
+                      <div className="review-params">
+                        <div className="param-item">
+                          <FaQuestionCircle />
+                          <span>{formData.questionsCount} {t['questions'] || 'questions'}</span>
+                        </div>
+                        <div className="param-item">
+                          <FaUsers />
+                          <span>{t['upTo'] || 'Up to'} {formData.maxParticipants} {t['participants'] || 'participants'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Navigation buttons */}
+            <div className="step-navigation">
+              {step > 1 && (
+                <button className="nav-btn secondary" onClick={handlePrevious}>
+                  <FaArrowLeft />
+                  {t['previous'] || 'Previous'}
+                </button>
+              )}
+              
+              <div className="nav-spacer"></div>
+              
+              {step < 4 ? (
+                <button className="nav-btn primary" onClick={handleNext}>
+                  {t['next'] || 'Next'}
+                  <FaArrowRight />
+                </button>
+              ) : (
+                <button 
+                  className={`nav-btn primary create-btn ${loading ? 'loading' : ''}`}
+                  onClick={handleCreateLobby}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <div className="spinner"></div>
+                  ) : (
+                    <>
+                      <FaGamepad />
+                      {t['createLobby'] || 'Create Lobby'}
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );
 };
 
-export default CreateLobbyPage; 
+export default CreateLobbyPage;

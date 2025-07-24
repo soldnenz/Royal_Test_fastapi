@@ -616,22 +616,6 @@ const LobbyWaitingPage = () => {
             <div className="header-content">
               <h1>{t['lobby'] || 'Лобби'}</h1>
             </div>
-            <div className="connection-status">
-              {wsConnected ? (
-                <div className="status-indicator online">
-                  <FaWifi />
-                  <span>{t['connected'] || 'Connected'}</span>
-                </div>
-              ) : (
-                <div className="status-indicator offline">
-                  <FaExclamationTriangle />
-                  <span>
-                    {t['connecting'] || 'Connecting...'}
-                  </span>
-                  {/* Убираем кнопку реконнекта, т.к. он автоматический */}
-                </div>
-              )}
-            </div>
           </div>
 
         {/* Error message */}
@@ -670,6 +654,35 @@ const LobbyWaitingPage = () => {
         )}
 
         <div className="lobby-content">
+          {/* Connection Status Card */}
+          <div className="connection-status-card">
+            <h2>{t['connectionStatus'] || 'Connection Status'}</h2>
+            <div className="connection-status">
+              {wsConnected ? (
+                <div className="status-indicator online">
+                  <FaWifi />
+                  <span>{t['connected'] || 'Connected'}</span>
+                </div>
+              ) : (
+                <div className="status-indicator offline">
+                  <FaExclamationTriangle />
+                  <span>
+                    {t['connecting'] || 'Connecting...'}
+                  </span>
+                  {/* Убираем кнопку реконнекта, т.к. он автоматический */}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Lobby ID Card */}
+          <div className="lobby-id-card">
+            <h2>{t['lobbyId'] || 'Lobby ID'}</h2>
+            <div className="lobby-id-container">
+              <span className="lobby-id-label">ID:</span>
+              <span className="lobby-id-value">{lobbyId}</span>
+            </div>
+          </div>
           {/* Lobby Settings */}
           <div className="lobby-settings">
             <h2>{t['lobbySettings'] || 'Lobby Settings'}</h2>
@@ -719,20 +732,14 @@ const LobbyWaitingPage = () => {
             </div>
 
             {/* Time remaining */}
-            <div className="time-remaining">
+            <div className="lobby-timer-remaining">
               <FaClock />
               <span>{t['lobbyExpiresIn'] || 'Lobby expires in'}: </span>
-              <span className="time-value">{formatTime(timeLeft)}</span>
+              <span className="lobby-timer-value">{formatTime(timeLeft)}</span>
             </div>
           </div>
 
-          {/* Lobby ID */}
-          <div className="lobby-id-section">
-            <div className="lobby-id-container">
-              <span className="lobby-id-label">ID:</span>
-              <span className="lobby-id-value">{lobbyId}</span>
-            </div>
-          </div>
+
 
           {/* QR Code and Join Link */}
           <div className="join-section">
@@ -842,6 +849,14 @@ const LobbyWaitingPage = () => {
           {lobby?.is_host ? (
             <div className="lobby-actions host-actions">
               <button 
+                className="action-btn close-btn"
+                onClick={handleCloseLobby}
+                disabled={loading || !wsConnected} // Блокируем кнопку закрытия если нет связи
+              >
+                <FaTimes />
+                <span>{t['closeLobby'] || 'Закрыть лобби'}</span>
+              </button>
+              <button 
                 className="action-btn start-btn"
                 onClick={handleStartTest}
                 disabled={loading || participants.length < 2 || !wsConnected}
@@ -849,14 +864,6 @@ const LobbyWaitingPage = () => {
                 <FaPlay />
                 <span>{t['startTest'] || 'Начать тест'}</span>
                 {loading && <div className="spinner"></div>}
-              </button>
-              <button 
-                className="action-btn close-btn"
-                onClick={handleCloseLobby}
-                disabled={loading || !wsConnected} // Блокируем кнопку закрытия если нет связи
-              >
-                <FaTimes />
-                <span>{t['closeLobby'] || 'Закрыть лобби'}</span>
               </button>
             </div>
           ) : (

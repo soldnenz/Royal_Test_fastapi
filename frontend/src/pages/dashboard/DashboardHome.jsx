@@ -116,6 +116,11 @@ const DashboardHome = () => {
         }
         
         if (data.status === 'ok') {
+          // Проверяем, является ли пользователь админом
+          if (data.data.is_admin && data.data.admin_url) {
+            window.location.href = data.data.admin_url;
+            return;
+          }
           setSubscription(data.data);
         } else {
           throw new Error();

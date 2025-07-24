@@ -7,6 +7,7 @@ import json
 import math
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Body, BackgroundTasks
+from fastapi.responses import RedirectResponse
 from bson import ObjectId
 from fastapi.security import HTTPBearer
 from app.db.database import db
@@ -204,15 +205,19 @@ async def get_my_subscription_info(
         message=f"Запрос информации о подписке пользователем {current_user.get('id')} с ролью {current_user.get('role')}"
     )
     
-    if current_user["role"] != "user":
-        logger.warning(
-            section=LogSection.SECURITY,
-            subsection=LogSubsection.SECURITY.ACCESS_DENIED,
-            message=f"Попытка доступа к информации о подписке пользователем {current_user.get('id')} с ролью {current_user.get('role')}"
+    # Если пользователь админ или модератор, возвращаем специальный ответ для редиректа
+    if current_user["role"] in {"admin", "moderator"}:
+        logger.info(
+            section=LogSection.USER,
+            subsection=LogSubsection.USER.PROFILE,
+            message=f"Админ {current_user.get('id')} запросил информацию о подписке - возвращаем админ URL"
         )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={"message": "Только для пользователей", "path": "/my/subscription"}
+        return success(
+            data={
+                "is_admin": True,
+                "admin_url": "/UDKeZNwbGVdH2iXEjkUFCkAuQb4Z1bbz/"
+            },
+            message="Админ-панель"
         )
 
     user_id = current_user["id"]

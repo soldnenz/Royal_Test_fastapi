@@ -49,6 +49,13 @@ const SubscriptionPage = () => {
         // Handle new API response format with `data` property
         if (data.data && data.status === "ok") {
           const subData = data.data;
+          
+          // Проверяем, является ли пользователь админом
+          if (subData.is_admin && subData.admin_url) {
+            window.location.href = subData.admin_url;
+            return;
+          }
+          
           if (subData.has_subscription) {
             setSubscription({
               subscription_type: subData.subscription_type,

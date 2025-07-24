@@ -98,6 +98,13 @@ const JoinLobbyPage = () => {
                 
                 if (subscriptionResponse.data.status === 'ok') {
                   const subData = subscriptionResponse.data.data;
+                  
+                  // Проверяем, является ли пользователь админом
+                  if (subData.is_admin && subData.admin_url) {
+                    window.location.href = subData.admin_url;
+                    return;
+                  }
+                  
                   setUserSubscription(subData);
                   
                   // Проверяем наличие активной подписки
@@ -158,6 +165,13 @@ const JoinLobbyPage = () => {
               
               if (subscriptionResponse.data.status === 'ok') {
                 const subData = subscriptionResponse.data.data;
+                
+                // Проверяем, является ли пользователь админом
+                if (subData.is_admin && subData.admin_url) {
+                  window.location.href = subData.admin_url;
+                  return;
+                }
+                
                 setUserSubscription(subData);
                 
                 // Проверяем наличие активной подписки
