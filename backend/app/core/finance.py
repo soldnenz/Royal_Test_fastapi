@@ -15,17 +15,22 @@ db = client[settings.MONGO_DB_NAME]
 transactions_collection = db['transactions']
 
 
-async def log_transaction(data, session=None):
+async def log_transaction(data, session=None, db_instance=None):
     """
     Логирует транзакцию в MongoDB.
     :param data: Словарь с данными о транзакции
     :param session: Опциональная сессия MongoDB для транзакций
+    :param db_instance: Экземпляр базы данных (если не передан, используется глобальный)
     """
     try:
+        # Используем переданный экземпляр БД или глобальный
+        db_to_use = db_instance if db_instance is not None else db
+        transactions_coll = db_to_use['transactions']
+        
         if session:
-            await transactions_collection.insert_one(data, session=session)
+            await transactions_coll.insert_one(data, session=session)
         else:
-            await transactions_collection.insert_one(data)
+            await transactions_coll.insert_one(data)
         logger.info(
             section=LogSection.PAYMENT,
             subsection=LogSubsection.PAYMENT.TRANSACTION,
@@ -39,13 +44,16 @@ async def log_transaction(data, session=None):
         )
 
 
-async def process_referral(user_id, amount, description):
-    user = await db.users.find_one({"_id": ObjectId(user_id)})
-    if not user or not user.get("referred_by") or user.get("referred_use"):
+async def process_referral(user_id, amount, description, db_instance=None):
+    # Используем переданный экземпляр БД или глобальный
+    db_to_use = db_instance if db_instance is not None else db
+    
+    user = await db_to_use.users.find_one({"_id": ObjectId(user_id)})
+    if user is None or not user.get("referred_by") or user.get("referred_use"):
         return
 
-    referral = await db.referrals.find_one({"code": user["referred_by"], "active": True})
-    if not referral:
+    referral = await db_to_use.referrals.find_one({"code": user["referred_by"], "active": True})
+    if referral is None:
         logger.error(
             section=LogSection.PAYMENT,
             subsection=LogSubsection.PAYMENT.REFERRAL,
@@ -56,16 +64,16 @@ async def process_referral(user_id, amount, description):
     referral_amount = round(amount * (referral["rate"]["value"] / 100), 2)
     now = datetime.utcnow()
 
-    async with await db.client.start_session() as session:
+    async with await db_to_use.client.start_session() as session:
         async with session.start_transaction():
             # Начисляем бонус
-            await db.users.update_one(
+            await db_to_use.users.update_one(
                 {"_id": ObjectId(referral["owner_user_id"])},
                 {"$inc": {"money": referral_amount}},
                 session=session
             )
             # Логируем транзакцию
-            await db.transactions.insert_one({
+            await db_to_use.transactions.insert_one({
                 "user_id":          ObjectId(referral["owner_user_id"]),
                 "amount":           referral_amount,
                 "type":             "referral",
@@ -74,7 +82,7 @@ async def process_referral(user_id, amount, description):
                 "created_at":       now
             }, session=session)
             # Помечаем, что пользователь уже «отработал» рефералку
-            await db.users.update_one(
+            await db_to_use.users.update_one(
                 {"_id": ObjectId(user_id)},
                 {"$set": {"referred_use": True}},
                 session=session
@@ -87,20 +95,24 @@ async def process_referral(user_id, amount, description):
     )
 
 
-async def update_user_balance(user_id, amount, description):
+async def update_user_balance(user_id, amount, description, db_instance=None):
     """
     Обновляет баланс пользователя и сохраняет описание транзакции.
     :param user_id: ID пользователя
     :param amount: Сумма для обновления
     :param description: Описание транзакции
+    :param db_instance: Экземпляр базы данных (если не передан, используется глобальный)
     """
     try:
         amount = round(amount, 2)
         
+        # Используем переданный экземпляр БД или глобальный
+        db_to_use = db_instance if db_instance is not None else db
+        
         # Выполняем всё в Mongo-транзакции
-        async with await db.client.start_session() as session:
+        async with await db_to_use.client.start_session() as session:
             async with session.start_transaction():
-                result = await db.users.update_one(
+                result = await db_to_use.users.update_one(
                     {"_id": ObjectId(user_id)},
                     {"$inc": {"money": amount}},
                     session=session
@@ -113,7 +125,7 @@ async def update_user_balance(user_id, amount, description):
                         "type": "balance_update",
                         "description": description,
                         "created_at": datetime.utcnow()
-                    }, session=session)
+                    }, session=session, db_instance=db_to_use)
                     
                     logger.info(
                         section=LogSection.PAYMENT,
@@ -136,15 +148,19 @@ async def update_user_balance(user_id, amount, description):
         )
 
 
-async def get_user_balance(user_id):
+async def get_user_balance(user_id, db_instance=None):
     """
     Возвращает текущий баланс пользователя.
     :param user_id: ID пользователя
+    :param db_instance: Экземпляр базы данных (если не передан, используется глобальный)
     :return: Баланс пользователя
     """
     try:
-        user = await db.users.find_one({"_id": ObjectId(user_id)})
-        if not user:
+        # Используем переданный экземпляр БД или глобальный
+        db_to_use = db_instance if db_instance is not None else db
+        
+        user = await db_to_use.users.find_one({"_id": ObjectId(user_id)})
+        if user is None:
             logger.error(
                 section=LogSection.USER,
                 subsection=LogSubsection.USER.PROFILE,
@@ -167,22 +183,53 @@ async def get_user_balance(user_id):
         return None
 
 
-async def credit_user_balance(user_id, amount, description, admin_id=None):
+async def credit_user_balance(user_id, amount, description, admin_id=None, db_instance=None):
     """
     Начисляет средства на баланс пользователя и сохраняет описание транзакции.
     :param user_id: ID пользователя
     :param amount: Сумма для начисления
     :param description: Описание транзакции
     :param admin_id: ID администратора, выполняющего транзакцию
+    :param db_instance: Экземпляр базы данных (если не передан, используется глобальный)
     :return: Статус транзакции
     """
     try:
         amount = round(amount, 2)
         
-        # Выполняем всё в Mongo-транзакции
-        async with await db.client.start_session() as session:
+        # Используем переданный экземпляр БД или глобальный
+        db_to_use = db_instance if db_instance is not None else db
+        
+        # Проверяем существование пользователя ДО транзакции
+        user = await db_to_use.users.find_one({"_id": ObjectId(user_id)})
+        if user is None:
+            logger.error(
+                section=LogSection.USER,
+                subsection=LogSubsection.USER.PROFILE,
+                message=f"Пользователь с ID {user_id} не найден при попытке пополнения {amount} тг"
+            )
+            return {"status": "error", "details": "Пользователь не найден"}
+        
+        # Выполняем всё в Mongo-транзакции для атомарности
+        async with await db_to_use.client.start_session() as session:
             async with session.start_transaction():
-                result = await db.users.update_one(
+                # Получаем актуальный баланс внутри транзакции
+                current_user = await db_to_use.users.find_one(
+                    {"_id": ObjectId(user_id)}, 
+                    session=session
+                )
+                
+                if current_user is None:
+                    logger.error(
+                        section=LogSection.USER,
+                        subsection=LogSubsection.USER.PROFILE,
+                        message=f"Пользователь {user_id} не найден внутри транзакции при пополнении {amount} тг"
+                    )
+                    raise Exception("Пользователь не найден")
+                
+                current_balance = current_user.get("money", 0.0)
+                
+                # Выполняем пополнение с проверкой результата
+                result = await db_to_use.users.update_one(
                     {"_id": ObjectId(user_id)},
                     {"$inc": {"money": amount}},
                     session=session
@@ -194,16 +241,18 @@ async def credit_user_balance(user_id, amount, description, admin_id=None):
                         "amount": amount,
                         "type": "credit",
                         "description": description,
-                        "created_at": datetime.utcnow()
+                        "created_at": datetime.utcnow(),
+                        "balance_before": current_balance,
+                        "balance_after": current_balance + amount
                     }
                     if admin_id:
                         txn["admin_id"] = admin_id
-                    await log_transaction(txn, session=session)
+                    await log_transaction(txn, session=session, db_instance=db_to_use)
                     
                     logger.info(
                         section=LogSection.PAYMENT,
                         subsection=LogSubsection.PAYMENT.CREDIT,
-                        message=f"Пополнение баланса: пользователю {user_id} начислено {amount} тг{f' администратором {admin_id}' if admin_id else ''} - {description}"
+                        message=f"Пополнение баланса: пользователю {user_id} начислено {amount} тг{f' администратором {admin_id}' if admin_id else ''} - {description}, баланс: {current_balance} → {current_balance + amount}"
                     )
                     return {"status": "ok", "details": "Транзакция успешна"}
                 else:
@@ -212,7 +261,7 @@ async def credit_user_balance(user_id, amount, description, admin_id=None):
                         subsection=LogSubsection.PAYMENT.CREDIT,
                         message=f"НЕ УДАЛОСЬ пополнить баланс пользователя {user_id} на {amount} тг"
                     )
-                    raise Exception("Не удалось обновить баланс пользователя.")
+                    raise Exception("Не удалось обновить баланс пользователя")
                     
     except Exception as e:
         logger.error(
@@ -223,19 +272,25 @@ async def credit_user_balance(user_id, amount, description, admin_id=None):
         return {"status": "error", "details": f"Ошибка сервера: {str(e)}"}
 
 
-async def debit_user_balance(user_id, amount, description, admin_id=None):
+async def debit_user_balance(user_id, amount, description, admin_id=None, db_instance=None):
     """
     Списывает средства с баланса пользователя и сохраняет описание транзакции.
     :param user_id: ID пользователя
     :param amount: Сумма для списания
     :param description: Описание транзакции
     :param admin_id: ID администратора, выполняющего транзакцию
+    :param db_instance: Экземпляр базы данных (если не передан, используется глобальный)
     :return: Статус транзакции
     """
     try:
         amount = round(amount, 2)
-        user = await db.users.find_one({"_id": ObjectId(user_id)})
-        if not user:
+        
+        # Используем переданный экземпляр БД или глобальный
+        db_to_use = db_instance if db_instance is not None else db
+        
+        # Проверяем существование пользователя ДО транзакции
+        user = await db_to_use.users.find_one({"_id": ObjectId(user_id)})
+        if user is None:
             logger.error(
                 section=LogSection.USER,
                 subsection=LogSubsection.USER.PROFILE,
@@ -243,20 +298,37 @@ async def debit_user_balance(user_id, amount, description, admin_id=None):
             )
             return {"status": "error", "details": "Пользователь не найден"}
 
-        current_balance = user.get("money", 0.0)
-        if current_balance < amount:
-            logger.warning(
-                section=LogSection.PAYMENT,
-                subsection=LogSubsection.PAYMENT.DEBIT,
-                message=f"Недостаточно средств у пользователя {user_id}: пытается списать {amount} тг при балансе {current_balance} тг"
-            )
-            return {"status": "error", "details": "Недостаточно средств на балансе"}
-
-        # Выполняем всё в Mongo-транзакции
-        async with await db.client.start_session() as session:
+        # Выполняем всё в Mongo-транзакции для атомарности
+        async with await db_to_use.client.start_session() as session:
             async with session.start_transaction():
-                result = await db.users.update_one(
-                    {"_id": ObjectId(user_id)},
+                # Получаем актуальный баланс внутри транзакции
+                current_user = await db_to_use.users.find_one(
+                    {"_id": ObjectId(user_id)}, 
+                    session=session
+                )
+                
+                if current_user is None:
+                    logger.error(
+                        section=LogSection.USER,
+                        subsection=LogSubsection.USER.PROFILE,
+                        message=f"Пользователь {user_id} не найден внутри транзакции при списании {amount} тг"
+                    )
+                    raise Exception("Пользователь не найден")
+                
+                current_balance = current_user.get("money", 0.0)
+                
+                # Проверяем достаточность средств внутри транзакции
+                if current_balance < amount:
+                    logger.warning(
+                        section=LogSection.PAYMENT,
+                        subsection=LogSubsection.PAYMENT.DEBIT,
+                        message=f"Недостаточно средств у пользователя {user_id}: пытается списать {amount} тг при балансе {current_balance} тг"
+                    )
+                    raise Exception("Недостаточно средств на балансе")
+                
+                # Выполняем списание с проверкой результата
+                result = await db_to_use.users.update_one(
+                    {"_id": ObjectId(user_id), "money": {"$gte": amount}},  # Оптимистичная блокировка
                     {"$inc": {"money": -amount}},
                     session=session
                 )
@@ -267,25 +339,27 @@ async def debit_user_balance(user_id, amount, description, admin_id=None):
                         "amount": -amount,
                         "type": "debit",
                         "description": description,
-                        "created_at": datetime.utcnow()
+                        "created_at": datetime.utcnow(),
+                        "balance_before": current_balance,
+                        "balance_after": current_balance - amount
                     }
                     if admin_id:
                         txn["admin_id"] = admin_id
-                    await log_transaction(txn, session=session)
+                    await log_transaction(txn, session=session, db_instance=db_to_use)
                     
                     logger.info(
                         section=LogSection.PAYMENT,
                         subsection=LogSubsection.PAYMENT.DEBIT,
-                        message=f"Списание с баланса: у пользователя {user_id} списано {amount} тг{f' администратором {admin_id}' if admin_id else ''} - {description}"
+                        message=f"Списание с баланса: у пользователя {user_id} списано {amount} тг{f' администратором {admin_id}' if admin_id else ''} - {description}, баланс: {current_balance} → {current_balance - amount}"
                     )
                     return {"status": "ok", "details": "Транзакция успешна"}
                 else:
                     logger.error(
                         section=LogSection.PAYMENT,
                         subsection=LogSubsection.PAYMENT.DEBIT,
-                        message=f"НЕ УДАЛОСЬ списать с баланса пользователя {user_id} сумму {amount} тг"
+                        message=f"НЕ УДАЛОСЬ списать с баланса пользователя {user_id} сумму {amount} тг (возможно, недостаточно средств или пользователь был изменен)"
                     )
-                    raise Exception("Не удалось обновить баланс пользователя.")
+                    raise Exception("Не удалось обновить баланс пользователя")
                     
     except Exception as e:
         logger.error(

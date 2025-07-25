@@ -409,7 +409,7 @@ const TestDashboardPage = () => {
 
   // Get subscription tier info
   const getSubscriptionTier = () => {
-    if (!subscription) return { name: 'Free', icon: null, color: 'gray' };
+    if (!subscription) return { name: 'Без подписки', icon: null, color: 'none' };
     
     const type = subscription.subscription_type?.toLowerCase();
     switch(type) {
@@ -422,8 +422,13 @@ const TestDashboardPage = () => {
       case 'school':
         return { name: 'School', icon: <FaGraduationCap />, color: 'golden' };
       default:
-        return { name: 'Free', icon: null, color: 'gray' };
+        return { name: 'Без подписки', icon: null, color: 'none' };
     }
+  };
+
+  // Handler for navigation to subscription page
+  const handleUpgradeClick = () => {
+    navigate('/dashboard/subscription');
   };
 
   // Handler for starting a test
@@ -549,10 +554,10 @@ const TestDashboardPage = () => {
           
           <div className="subscription-card">
             <div className="subscription-header">
-              <div className={`subscription-badge tier-${subscriptionTier.color}`}>
-                {subscriptionTier.icon}
-                <span>{subscriptionTier.name}</span>
-              </div>
+                        <div className={`subscription-badge ${subscriptionTier.color !== 'none' ? `tier-${subscriptionTier.color}` : 'tier-none'}`}>
+            {subscriptionTier.icon}
+            <span>{subscriptionTier.name}</span>
+          </div>
               {subscription && (
                 <div className="days-remaining">
                   <FaClock className="clock-icon" />
@@ -565,7 +570,7 @@ const TestDashboardPage = () => {
               <div className="upgrade-prompt">
                 <FaExclamationCircle className="warning-icon" />
                 <span>{t['subscriptionBenefits'] || 'Активируйте подписку для доступа ко всем функциям'}</span>
-                <button className="upgrade-btn">
+                <button className="upgrade-btn" onClick={handleUpgradeClick}>
                   <FaRocket />
                   {t['upgrade'] || 'Обновить'}
                 </button>
@@ -693,7 +698,7 @@ const TestDashboardPage = () => {
                       <div className="lock-overlay">
                         <FaLock />
                         <span>{t['test.upgrade_required'] || 'Требуется подписка'}</span>
-                        <button className="unlock-btn">
+                        <button className="unlock-btn" onClick={handleUpgradeClick}>
                           {t['upgrade'] || 'Обновить'}
                         </button>
                       </div>

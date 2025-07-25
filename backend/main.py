@@ -189,11 +189,6 @@ async def validation_exception_handler(request, exc: RequestValidationError):
         message=formatted_error_details
     )
 
-# Telegram бот теперь запускается в отдельном микросервисе
-async def start_bot():
-    # Функция оставлена для совместимости, но не используется
-    pass
-
 async def check_stalled_lobbies():
     """Автоматически завершает зависшие тесты"""
     logger.info(
@@ -327,9 +322,6 @@ async def startup_event():
     # Запускаем фоновые задачи
     asyncio.create_task(security_background_tasks())
     asyncio.create_task(check_stalled_lobbies())
-    
-    # Запускаем бота
-    await start_bot()
 
 @app.on_event("shutdown")
 async def shutdown_event():

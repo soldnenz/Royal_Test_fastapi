@@ -131,7 +131,8 @@ async def create_subscription(
             await process_referral(
                 ObjectId(payload.user_id),
                 amount,
-                description
+                description,
+                db_instance=db
             )
             user["referred_use"] = True
             await db.users.find_one_and_update(

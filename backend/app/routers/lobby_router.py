@@ -770,7 +770,9 @@ async def start_background_tasks():
                 "media_file_id": str(q.get("media_file_id", "")),
                 "has_after_answer_media": q.get("has_after_answer_media", False),
                 "after_answer_media_type": "video" if is_after_answer_video else "image",
-                "after_answer_media_id": str(q.get("after_answer_media_file_id", ""))
+                "after_answer_media_id": str(q.get("after_answer_media_file_id", "")),
+                "categories": q.get("categories", []),
+                "pdd_section_uids": q.get("pdd_section_uids", [])
             }
 
         # Генерируем уникальный ID лобби
@@ -2197,15 +2199,20 @@ async def finish_lobby(lobby_id: str, request: Request = None, current_user: dic
         detailed_results = {}
         total_questions = len(lobby.get("question_ids", []))
         
-        # Получаем детальную информацию по всем вопросам
+        # Получаем детальную информацию по всем вопросам одним запросом
         questions_data = {}
-        for q_id in lobby.get("question_ids", []):
-            question = await db.questions.find_one({"_id": ObjectId(q_id)})
-            if question:
+        question_ids = [ObjectId(q_id) for q_id in lobby.get("question_ids", [])]
+        if question_ids:
+            questions_cursor = db.questions.find({"_id": {"$in": question_ids}})
+            questions = await questions_cursor.to_list(length=len(question_ids))
+            
+            for question in questions:
+                q_id = str(question["_id"])
                 questions_data[q_id] = {
                     "text": question.get("question_text", ""),
                     "section": question.get("pdd_section", ""),
-                    "category": question.get("categories", []),
+                    "categories": question.get("categories", []),
+                    "pdd_section_uids": question.get("pdd_section_uids", []),
                     "correct_answer": chr(ord('A') + lobby["correct_answers"].get(q_id, 0))
                 }
         
@@ -2604,15 +2611,20 @@ async def get_test_results(lobby_id: str, request: Request = None, current_user:
         
         total_questions = len(lobby.get("question_ids", []))
         
-        # Получаем информацию о всех вопросах
+        # Получаем информацию о всех вопросах одним запросом
         questions_data = {}
-        for q_id in lobby.get("question_ids", []):
-            question = await db.questions.find_one({"_id": ObjectId(q_id)})
-            if question:
+        question_ids = [ObjectId(q_id) for q_id in lobby.get("question_ids", [])]
+        if question_ids:
+            questions_cursor = db.questions.find({"_id": {"$in": question_ids}})
+            questions = await questions_cursor.to_list(length=len(question_ids))
+            
+            for question in questions:
+                q_id = str(question["_id"])
                 questions_data[q_id] = {
                     "text": question.get("question_text", ""),
                     "section": question.get("pdd_section", ""),
                     "categories": question.get("categories", []),
+                    "pdd_section_uids": question.get("pdd_section_uids", []),
                     "correct_answer": chr(ord('A') + lobby["correct_answers"].get(q_id, 0))
                 }
         
@@ -3766,7 +3778,9 @@ async def create_lobby(lobby_data: LobbyCreate, request: Request = None, current
                 "media_file_id": str(q.get("media_file_id", "")),
                 "has_after_answer_media": q.get("has_after_answer_media", False),
                 "after_answer_media_type": "video" if is_after_answer_video else "image",
-                "after_answer_media_id": str(q.get("after_answer_media_file_id", ""))
+                "after_answer_media_id": str(q.get("after_answer_media_file_id", "")),
+                "categories": q.get("categories", []),
+                "pdd_section_uids": q.get("pdd_section_uids", [])
             }
 
         # Генерируем уникальный ID лобби

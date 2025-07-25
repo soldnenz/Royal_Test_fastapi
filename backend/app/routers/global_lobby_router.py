@@ -285,7 +285,9 @@ async def create_lobby(
                 "media_file_id": str(q.get("media_file_id", "")),
                 "has_after_answer_media": q.get("has_after_answer_media", False),
                 "after_answer_media_type": "video" if is_after_answer_video else "image",
-                "after_answer_media_id": str(q.get("after_answer_media_file_id", ""))
+                "after_answer_media_id": str(q.get("after_answer_media_file_id", "")),
+                "categories": q.get("categories", []),
+                "pdd_section_uids": q.get("pdd_section_uids", [])
             }
 
         # Генерируем уникальный ID лобби

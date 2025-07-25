@@ -591,3 +591,266 @@
 2025/07/25 03:51:29 [info] 7196#12096: *1880 client sent invalid method while reading client request line, client: 135.237.126.103, server: localhost, request: "MGLNDD_95.59.219.239_443"
 2025/07/25 04:32:34 [info] 7196#12096: *1881 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 68.183.97.63, server: 0.0.0.0:443
 2025/07/25 04:32:35 [info] 7196#12096: *1882 client 68.183.97.63 closed keepalive connection
+2025/07/25 04:43:09 [info] 7196#12096: *1883 client 66.132.153.54 closed keepalive connection
+2025/07/25 04:43:11 [info] 7196#12096: *1886 client closed connection while waiting for request, client: 66.132.153.54, server: 0.0.0.0:443
+2025/07/25 04:43:13 [info] 7196#12096: *1887 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 66.132.153.54, server: 0.0.0.0:443
+2025/07/25 04:43:15 [info] 7196#12096: *1888 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 66.132.153.54, server: 0.0.0.0:443
+2025/07/25 04:43:16 [info] 7196#12096: *1889 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 66.132.153.54, server: 0.0.0.0:443
+2025/07/25 04:43:23 [info] 7196#12096: *1891 client 66.132.153.54 closed keepalive connection
+2025/07/25 05:22:38 [info] 7196#12096: *1892 peer closed connection in SSL handshake while SSL handshaking, client: 144.202.82.88, server: 0.0.0.0:443
+2025/07/25 06:54:15 [info] 7196#12096: *1894 client 135.237.127.87 closed keepalive connection
+2025/07/25 07:08:47 [info] 7196#12096: *1896 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 198.235.24.40, server: 0.0.0.0:443
+2025/07/25 07:11:07 [info] 7196#12096: *1897 peer closed connection in SSL handshake while SSL handshaking, client: 144.202.82.88, server: 0.0.0.0:443
+2025/07/25 07:37:38 [info] 7196#12096: *1899 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 202.93.141.18, server: 0.0.0.0:443
+2025/07/25 07:59:42 [info] 7196#12096: *1900 client sent invalid request while reading client request line, client: 80.75.212.17, server: localhost, request: "CONNECT httpbin.org:443 HTTP/1.1"
+2025/07/25 08:24:35 [info] 7196#12096: *1901 client timed out (10060: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond) while SSL handshaking, client: 95.214.52.169, server: 0.0.0.0:443
+2025/07/25 09:01:40 [info] 7196#12096: *1902 SSL_do_handshake() failed (SSL: error:0A000418:SSL routines::tlsv1 alert unknown ca:SSL alert number 48) while SSL handshaking, client: 4.227.36.80, server: 0.0.0.0:443
+2025/07/25 09:04:21 [info] 7196#12096: *1903 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 20.14.81.42, server: 0.0.0.0:443
+2025/07/25 09:59:02 [info] 7196#12096: *1905 client 216.218.206.67 closed keepalive connection
+2025/07/25 09:59:38 [info] 7196#12096: *1906 client 149.50.96.5 closed keepalive connection
+2025/07/25 10:03:26 [info] 7196#12096: *1907 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 216.218.206.67, server: 0.0.0.0:443
+2025/07/25 10:04:19 [info] 7196#12096: *1908 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 216.218.206.67, server: 0.0.0.0:443
+2025/07/25 10:04:49 [info] 7196#12096: *1909 client 216.218.206.67 closed keepalive connection
+2025/07/25 10:06:27 [info] 7196#12096: *1910 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 216.218.206.67, server: 0.0.0.0:443
+2025/07/25 10:06:28 [info] 7196#12096: *1911 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 216.218.206.67, server: 0.0.0.0:443
+2025/07/25 10:06:28 [info] 7196#12096: *1912 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 216.218.206.67, server: 0.0.0.0:443
+2025/07/25 10:06:29 [info] 7196#12096: *1913 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 216.218.206.67, server: 0.0.0.0:443
+2025/07/25 10:06:29 [info] 7196#12096: *1914 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 216.218.206.67, server: 0.0.0.0:443
+2025/07/25 10:06:29 [info] 7196#12096: *1915 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 216.218.206.67, server: 0.0.0.0:443
+2025/07/25 10:06:30 [info] 7196#12096: *1916 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 216.218.206.67, server: 0.0.0.0:443
+2025/07/25 10:06:30 [info] 7196#12096: *1917 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 216.218.206.67, server: 0.0.0.0:443
+2025/07/25 10:06:31 [info] 7196#12096: *1918 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 216.218.206.67, server: 0.0.0.0:443
+2025/07/25 10:06:31 [info] 7196#12096: *1919 SSL_do_handshake() failed (SSL: error:0A00006C:SSL routines::bad key share) while SSL handshaking, client: 216.218.206.67, server: 0.0.0.0:443
+2025/07/25 10:07:56 [info] 7196#12096: *1920 client 185.218.84.40 closed keepalive connection (10054: An existing connection was forcibly closed by the remote host)
+2025/07/25 10:08:39 [info] 7196#12096: *1921 client 216.218.206.67 closed keepalive connection (10054: An existing connection was forcibly closed by the remote host)
+2025/07/25 10:10:28 [info] 7196#12096: *1922 client 216.218.206.67 closed keepalive connection
+2025/07/25 10:21:25 [info] 7196#12096: *1923 client 216.218.206.67 closed keepalive connection
+2025/07/25 10:24:33 [info] 7196#12096: *1924 client 216.218.206.67 closed keepalive connection (10054: An existing connection was forcibly closed by the remote host)
+2025/07/25 10:30:46 [info] 7196#12096: *1925 client timed out (10060: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond) while SSL handshaking, client: 87.255.194.135, server: 0.0.0.0:443
+2025/07/25 10:40:01 [info] 7196#12096: *1927 client 185.180.140.105 closed keepalive connection
+2025/07/25 10:54:59 [info] 7196#12096: *1928 client sent invalid request while reading client request line, client: 119.18.55.217, server: localhost, request: "POST /cgi-bin/.%2e/.%2e/.%2e/.%2e/.%2e/.%2e/.%2e/.%2e/.%2e/.%2e/bin/sh HTTP/1.1"
+2025/07/25 10:55:01 [info] 7196#12096: *1929 client sent invalid request while reading client request line, client: 119.18.55.217, server: localhost, request: "POST /cgi-bin/%%32%65%%32%65/%%32%65%%32%65/%%32%65%%32%65/%%32%65%%32%65/%%32%65%%32%65/%%32%65%%32%65/%%32%65%%32%65/bin/sh HTTP/1.1"
+2025/07/25 10:55:40 [info] 7196#12096: *1930 client 119.18.55.217 closed keepalive connection
+2025/07/25 10:59:42 [info] 7196#12096: *1933 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 85.117.113.152, server: 0.0.0.0:443
+2025/07/25 10:59:42 [info] 7196#12096: *1934 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 85.117.113.152, server: 0.0.0.0:443
+2025/07/25 10:59:55 [info] 7196#12096: *1931 client terminated stream 93 with status 0 while connecting to upstream, client: 212.96.81.207, server: localhost, request: "GET /api/users/me HTTP/2.0", upstream: "http://127.0.0.1:8000/users/me", host: "royal-test.duckdns.org", referrer: "https://royal-test.duckdns.org/"
+2025/07/25 11:01:37 [info] 7196#12096: *1943 client terminated stream 27 with status 0 while sending request to upstream, client: 85.117.113.152, server: localhost, request: "GET /api/test-stats/user/684350e5e71e01087569f204/recent-tests HTTP/2.0", upstream: "http://127.0.0.1:8000/test-stats/user/684350e5e71e01087569f204/recent-tests", host: "royal-test.duckdns.org", referrer: "https://royal-test.duckdns.org/dashboard"
+2025/07/25 11:01:37 [info] 7196#12096: *1943 client terminated stream 25 with status 0 while sending request to upstream, client: 85.117.113.152, server: localhost, request: "GET /api/test-stats/user/684350e5e71e01087569f204/simple-stats HTTP/2.0", upstream: "http://127.0.0.1:8000/test-stats/user/684350e5e71e01087569f204/simple-stats", host: "royal-test.duckdns.org", referrer: "https://royal-test.duckdns.org/dashboard"
+2025/07/25 11:02:51 [info] 7196#12096: *1974 client 185.242.226.109 closed keepalive connection
+2025/07/25 11:43:44 [info] 7196#12096: *2000 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/25 11:43:44 [info] 7196#12096: *2001 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/25 11:43:44 [info] 7196#12096: *2002 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/25 11:43:45 [info] 7196#12096: *2003 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/25 11:43:45 [info] 7196#12096: *2004 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/25 11:43:45 [info] 7196#12096: *2005 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/25 11:43:45 [info] 7196#12096: *2006 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/25 11:43:45 [info] 7196#12096: *2007 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/25 11:43:45 [info] 7196#12096: *2008 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/25 11:43:46 [info] 7196#12096: *2009 SSL_do_handshake() failed (SSL: error:0A00006C:SSL routines::bad key share) while SSL handshaking, client: 185.242.226.109, server: 0.0.0.0:443
+2025/07/25 11:44:32 [info] 7196#12096: *2010 client 185.242.226.109 closed keepalive connection
+2025/07/25 11:47:47 [info] 7196#12096: *2011 client sent HTTP/1.1 request without "Host" header while reading client request headers, client: 165.154.36.91, server: localhost, request: "GET / HTTP/1.1"
+2025/07/25 11:47:48 [info] 7196#12096: *2012 client sent plain HTTP request to HTTPS port while reading client request headers, client: 165.154.36.91, server: localhost, request: "GET /version HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 11:47:49 [info] 7196#12096: *2013 client sent plain HTTP request to HTTPS port while reading client request headers, client: 165.154.36.91, server: localhost, request: "GET / HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 11:47:49 [info] 7196#12096: *2014 client sent plain HTTP request to HTTPS port while reading client request headers, client: 165.154.36.91, server: localhost, request: "GET / HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 11:47:50 [info] 7196#12096: *2015 client sent plain HTTP request to HTTPS port while reading client request headers, client: 165.154.36.91, server: localhost, request: "GET /v1 HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 11:47:52 [info] 7196#12096: *2016 client 165.154.36.91 closed keepalive connection
+2025/07/25 11:47:52 [info] 7196#12096: *2017 peer closed connection in SSL handshake while SSL handshaking, client: 165.154.36.91, server: 0.0.0.0:443
+2025/07/25 11:47:53 [info] 7196#12096: *2018 peer closed connection in SSL handshake while SSL handshaking, client: 165.154.36.91, server: 0.0.0.0:443
+2025/07/25 11:47:53 [info] 7196#12096: *2019 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 165.154.36.91, server: 0.0.0.0:443
+2025/07/25 11:47:54 [info] 7196#12096: *2020 peer closed connection in SSL handshake while SSL handshaking, client: 165.154.36.91, server: 0.0.0.0:443
+2025/07/25 11:47:54 [info] 7196#12096: *2021 peer closed connection in SSL handshake while SSL handshaking, client: 165.154.36.91, server: 0.0.0.0:443
+2025/07/25 11:47:55 [info] 7196#12096: *2022 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 165.154.36.91, server: 0.0.0.0:443
+2025/07/25 11:47:55 [info] 7196#12096: *2023 peer closed connection in SSL handshake while SSL handshaking, client: 165.154.36.91, server: 0.0.0.0:443
+2025/07/25 11:47:56 [info] 7196#12096: *2024 peer closed connection in SSL handshake while SSL handshaking, client: 165.154.36.91, server: 0.0.0.0:443
+2025/07/25 11:47:56 [info] 7196#12096: *2025 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 165.154.36.91, server: 0.0.0.0:443
+2025/07/25 11:47:57 [info] 7196#12096: *2026 SSL_do_handshake() failed (SSL: error:0A00006C:SSL routines::bad key share) while SSL handshaking, client: 165.154.36.91, server: 0.0.0.0:443
+2025/07/25 11:47:57 [info] 7196#12096: *2027 peer closed connection in SSL handshake while SSL handshaking, client: 165.154.36.91, server: 0.0.0.0:443
+2025/07/25 11:54:27 [info] 7196#12096: *2028 SSL_do_handshake() failed (SSL: error:0A0000FC:SSL routines::unknown protocol) while SSL handshaking, client: 16.176.125.169, server: 0.0.0.0:443
+2025/07/25 11:54:27 [info] 7196#12096: *2029 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 16.176.125.169, server: 0.0.0.0:443
+2025/07/25 11:54:27 [info] 7196#12096: *2031 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 16.176.125.169, server: 0.0.0.0:443
+2025/07/25 11:54:27 [info] 7196#12096: *2032 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 16.176.125.169, server: 0.0.0.0:443
+2025/07/25 11:54:27 [info] 7196#12096: *2033 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 16.176.125.169, server: 0.0.0.0:443
+2025/07/25 11:54:27 [info] 7196#12096: *2030 client closed connection while waiting for request, client: 16.176.125.169, server: 0.0.0.0:443
+2025/07/25 11:54:27 [info] 7196#12096: *2034 client closed connection while waiting for request, client: 16.176.125.169, server: 0.0.0.0:443
+2025/07/25 12:05:02 [info] 7196#12096: *2035 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 3.76.72.143, server: 0.0.0.0:443
+2025/07/25 12:05:02 [info] 7196#12096: *2036 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 3.76.72.143, server: 0.0.0.0:443
+2025/07/25 12:05:02 [info] 7196#12096: *2037 SSL_do_handshake() failed (SSL: error:0A0000FC:SSL routines::unknown protocol) while SSL handshaking, client: 3.76.72.143, server: 0.0.0.0:443
+2025/07/25 12:05:02 [info] 7196#12096: *2039 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 3.76.72.143, server: 0.0.0.0:443
+2025/07/25 12:05:02 [info] 7196#12096: *2040 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 3.76.72.143, server: 0.0.0.0:443
+2025/07/25 12:05:02 [info] 7196#12096: *2038 client closed connection while waiting for request, client: 3.76.72.143, server: 0.0.0.0:443
+2025/07/25 12:05:02 [info] 7196#12096: *2041 peer closed connection in SSL handshake while SSL handshaking, client: 3.76.72.143, server: 0.0.0.0:443
+2025/07/25 12:06:51 [info] 7196#12096: *2042 client 162.216.149.3 closed keepalive connection
+2025/07/25 12:07:39 [info] 7196#12096: *2043 client 138.246.253.24 closed keepalive connection
+2025/07/25 12:34:04 [info] 7196#12096: *2044 client 164.90.153.27 closed keepalive connection
+2025/07/25 12:34:05 [info] 7196#12096: *2045 client sent plain HTTP request to HTTPS port while reading client request headers, client: 164.90.153.27, server: localhost, request: "GET /.env HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 12:34:06 [info] 7196#12096: *2046 client 164.90.153.27 closed keepalive connection
+2025/07/25 12:34:06 [info] 7196#12096: *2047 client sent plain HTTP request to HTTPS port while reading client request headers, client: 164.90.153.27, server: localhost, request: "GET /.git/config HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 12:57:45 [info] 7196#12096: *2049 client closed connection while waiting for request, client: 178.79.131.201, server: 0.0.0.0:443
+2025/07/25 14:17:39 [info] 7196#12096: *2050 client closed connection while waiting for request, client: 170.187.203.20, server: 0.0.0.0:443
+2025/07/25 14:19:19 [info] 7196#12096: *2051 client closed connection while waiting for request, client: 169.228.66.212, server: 0.0.0.0:443
+2025/07/25 14:29:31 [info] 7196#12096: *2055 SSL_do_handshake() failed (SSL: error:0A000416:SSL routines::sslv3 alert certificate unknown:SSL alert number 46) while SSL handshaking, client: 85.117.120.235, server: 0.0.0.0:443
+2025/07/25 15:28:28 [info] 7196#12096: *2094 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 20.65.195.20, server: 0.0.0.0:443
+2025/07/25 15:28:29 [info] 7196#12096: *2095 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 20.65.195.20, server: 0.0.0.0:443
+2025/07/25 15:28:29 [info] 7196#12096: *2096 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 20.65.195.20, server: 0.0.0.0:443
+2025/07/25 15:28:29 [info] 7196#12096: *2097 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 20.65.195.20, server: 0.0.0.0:443
+2025/07/25 15:28:30 [info] 7196#12096: *2098 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 20.65.195.20, server: 0.0.0.0:443
+2025/07/25 15:28:30 [info] 7196#12096: *2099 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 20.65.195.20, server: 0.0.0.0:443
+2025/07/25 15:28:31 [info] 7196#12096: *2100 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 20.65.195.20, server: 0.0.0.0:443
+2025/07/25 15:28:31 [info] 7196#12096: *2101 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 20.65.195.20, server: 0.0.0.0:443
+2025/07/25 15:28:31 [info] 7196#12096: *2102 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 20.65.195.20, server: 0.0.0.0:443
+2025/07/25 15:28:32 [info] 7196#12096: *2103 SSL_do_handshake() failed (SSL: error:0A00006C:SSL routines::bad key share) while SSL handshaking, client: 20.65.195.20, server: 0.0.0.0:443
+2025/07/25 15:36:16 [info] 7196#12096: *2104 recv() failed (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 159.223.29.168, server: 0.0.0.0:443
+2025/07/25 15:36:23 [info] 7196#12096: *2105 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 159.223.29.168, server: 0.0.0.0:443
+2025/07/25 15:36:31 [info] 7196#12096: *2112 client 159.223.29.168 closed keepalive connection
+2025/07/25 15:36:31 [info] 7196#12096: *2113 client sent plain HTTP request to HTTPS port while reading client request headers, client: 161.35.29.17, server: localhost, request: "GET /solr/admin/info/system HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:36:31 [info] 7196#12096: *2114 client sent plain HTTP request to HTTPS port while reading client request headers, client: 46.101.114.158, server: localhost, request: "GET /v2/_catalog HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:36:31 [info] 7196#12096: *2115 client sent plain HTTP request to HTTPS port while reading client request headers, client: 164.92.254.229, server: localhost, request: "GET /query?q=SHOW+DIAGNOSTICS HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:36:31 [info] 7196#12096: *2117 client sent plain HTTP request to HTTPS port while reading client request headers, client: 209.38.205.167, server: localhost, request: "GET / HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:36:31 [info] 7196#12096: *2118 client sent plain HTTP request to HTTPS port while reading client request headers, client: 159.89.16.175, server: localhost, request: "GET /cgi-bin/authLogin.cgi HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:36:32 [info] 7196#12096: *2119 client sent plain HTTP request to HTTPS port while reading client request headers, client: 161.35.29.17, server: localhost, request: "GET /solr/admin/cores?action=STATUS&wt=json HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:36:32 [info] 7196#12096: *2120 client 209.38.205.167 closed keepalive connection
+2025/07/25 15:38:20 [info] 7196#12096: *2123 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /.env HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:21 [info] 7196#12096: *2125 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /api/.env HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:21 [info] 7196#12096: *2124 client 78.153.140.177 closed keepalive connection
+2025/07/25 15:38:21 [info] 7196#12096: *2126 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /backend/.env HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:21 [info] 7196#12096: *2127 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /admin/.env HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:22 [info] 7196#12096: *2128 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /.env.example HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:22 [info] 7196#12096: *2130 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /app_dev.php/_profiler/phpinfo HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:22 [info] 7196#12096: *2129 client 78.153.140.177 closed keepalive connection
+2025/07/25 15:38:22 [info] 7196#12096: *2131 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /?phpinfo=-1 HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:23 [info] 7196#12096: *2133 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /client_secrets.json HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:23 [info] 7196#12096: *2134 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /pinfo.php HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:23 [info] 7196#12096: *2132 client 78.153.140.177 closed keepalive connection
+2025/07/25 15:38:24 [info] 7196#12096: *2136 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /misc/.env HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:24 [info] 7196#12096: *2135 client 78.153.140.177 closed keepalive connection
+2025/07/25 15:38:24 [info] 7196#12096: *2138 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /content/.env HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:24 [info] 7196#12096: *2137 client 78.153.140.177 closed keepalive connection
+2025/07/25 15:38:24 [info] 7196#12096: *2139 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /docker/.env HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:25 [info] 7196#12096: *2141 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /web/debug/default/view HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:25 [info] 7196#12096: *2140 client 78.153.140.177 closed keepalive connection
+2025/07/25 15:38:25 [info] 7196#12096: *2142 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /etc/.env HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:25 [info] 7196#12096: *2143 client 78.153.140.177 closed keepalive connection
+2025/07/25 15:38:26 [info] 7196#12096: *2144 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /env/.env HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:26 [info] 7196#12096: *2145 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /.env.backup HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:27 [info] 7196#12096: *2146 client 78.153.140.177 closed keepalive connection
+2025/07/25 15:38:27 [info] 7196#12096: *2148 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /Dev/.env HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:27 [info] 7196#12096: *2147 client 78.153.140.177 closed keepalive connection
+2025/07/25 15:38:27 [info] 7196#12096: *2149 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /appsettings.json HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:28 [info] 7196#12096: *2151 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /api/test HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:28 [info] 7196#12096: *2152 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /cron/.env HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:29 [info] 7196#12096: *2150 client 78.153.140.177 closed keepalive connection
+2025/07/25 15:38:29 [info] 7196#12096: *2153 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /localhost/.env HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:29 [info] 7196#12096: *2155 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /.gitlab-ci/.env HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:29 [info] 7196#12096: *2156 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /laravel/.env.production HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:29 [info] 7196#12096: *2157 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /local/.env.prod HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:30 [info] 7196#12096: *2158 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /public/.env HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:30 [info] 7196#12096: *2159 client sent plain HTTP request to HTTPS port while reading client request headers, client: 78.153.140.177, server: localhost, request: "GET /frontend/.env HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 15:38:30 [info] 7196#12096: *2154 client 78.153.140.177 closed keepalive connection
+2025/07/25 15:46:31 [info] 7196#12096: *2162 client sent invalid method while reading client request line, client: 80.94.95.168, server: localhost, request: "  /*‡     Cookie: mstshash=Administr"
+2025/07/25 15:46:31 [info] 7196#12096: *2162 WSARecv() failed (10054: An existing connection was forcibly closed by the remote host) while reading client request line, client: 80.94.95.168, server: localhost, request: "  /*‡     Cookie: mstshash=Administr"
+2025/07/25 16:02:24 [info] 7196#12096: *2163 client closed connection while waiting for request, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 16:02:30 [info] 7196#12096: *2164 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 16:02:30 [info] 7196#12096: *2165 peer closed connection in SSL handshake while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 16:02:30 [info] 7196#12096: *2166 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 16:02:30 [info] 7196#12096: *2167 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 16:02:30 [info] 7196#12096: *2168 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 16:02:31 [info] 7196#12096: *2169 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 16:02:31 [info] 7196#12096: *2170 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 16:02:31 [info] 7196#12096: *2171 peer closed connection in SSL handshake while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 16:02:31 [info] 7196#12096: *2172 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 16:02:31 [info] 7196#12096: *2173 SSL_do_handshake() failed (SSL: error:0A00006C:SSL routines::bad key share) while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 16:05:53 [info] 7196#12096: *2174 client closed connection while waiting for request, client: 146.88.240.71, server: 0.0.0.0:443
+2025/07/25 16:22:57 [info] 7196#12096: *2176 client sent plain HTTP request to HTTPS port while reading client request headers, client: 20.163.14.51, server: localhost, request: "GET / HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 16:43:37 [info] 7196#12096: *2177 client timed out (10060: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond) while SSL handshaking, client: 87.255.194.135, server: 0.0.0.0:443
+2025/07/25 17:21:19 [info] 7196#12096: *2227 client terminated stream 19 with status 0 while sending request to upstream, client: 85.117.113.152, server: localhost, request: "GET /api/test-stats/user/684350e5e71e01087569f204/recent-tests HTTP/2.0", upstream: "http://127.0.0.1:8000/test-stats/user/684350e5e71e01087569f204/recent-tests", host: "royal-test.duckdns.org", referrer: "https://royal-test.duckdns.org/dashboard"
+2025/07/25 17:30:51 [info] 7196#12096: *2242 recv() failed (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 207.154.241.189, server: 0.0.0.0:443
+2025/07/25 17:30:57 [info] 7196#12096: *2243 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 207.154.241.189, server: 0.0.0.0:443
+2025/07/25 17:31:05 [info] 7196#12096: *2250 client 207.154.241.189 closed keepalive connection
+2025/07/25 17:31:06 [info] 7196#12096: *2251 client sent plain HTTP request to HTTPS port while reading client request headers, client: 165.227.149.229, server: localhost, request: "GET /query?q=SHOW+DIAGNOSTICS HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 17:31:06 [info] 7196#12096: *2255 client sent plain HTTP request to HTTPS port while reading client request headers, client: 161.35.29.17, server: localhost, request: "GET /v2/_catalog HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 17:31:06 [info] 7196#12096: *2253 client sent plain HTTP request to HTTPS port while reading client request headers, client: 209.38.205.167, server: localhost, request: "GET /solr/admin/info/system HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 17:31:06 [info] 7196#12096: *2256 client sent plain HTTP request to HTTPS port while reading client request headers, client: 64.226.80.5, server: localhost, request: "GET /cgi-bin/authLogin.cgi HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 17:31:06 [info] 7196#12096: *2254 client sent plain HTTP request to HTTPS port while reading client request headers, client: 134.209.246.170, server: localhost, request: "GET / HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 17:31:06 [info] 7196#12096: *2258 client sent plain HTTP request to HTTPS port while reading client request headers, client: 209.38.205.167, server: localhost, request: "GET /solr/admin/cores?action=STATUS&wt=json HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 17:31:06 [info] 7196#12096: *2257 client 134.209.246.170 closed keepalive connection
+2025/07/25 17:37:18 [info] 7196#12096: *2263 client 20.65.193.168 closed keepalive connection
+2025/07/25 17:43:12 [info] 7196#12096: *2268 client closed connection while SSL handshaking, client: 13.59.242.100, server: 0.0.0.0:443
+2025/07/25 18:01:56 [info] 7196#12096: *2281 client terminated stream 87 with status 0 while sending request to upstream, client: 85.117.113.152, server: localhost, request: "GET /api/test-stats/user/684350e5e71e01087569f204/recent-tests HTTP/2.0", upstream: "http://127.0.0.1:8000/test-stats/user/684350e5e71e01087569f204/recent-tests", host: "royal-test.duckdns.org", referrer: "https://royal-test.duckdns.org/dashboard"
+2025/07/25 18:04:07 [info] 7196#12096: *2318 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 40.76.99.43, server: 0.0.0.0:443
+2025/07/25 18:21:10 [info] 7196#12096: *2355 client timed out (10060: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond) while SSL handshaking, client: 95.214.52.169, server: 0.0.0.0:443
+2025/07/25 18:23:31 [info] 7196#12096: *2356 client sent invalid method while reading client request line, client: 80.94.95.168, server: localhost, request: "  /*‡     Cookie: mstshash=Administr"
+2025/07/25 18:23:31 [info] 7196#12096: *2356 WSARecv() failed (10054: An existing connection was forcibly closed by the remote host) while reading client request line, client: 80.94.95.168, server: localhost, request: "  /*‡     Cookie: mstshash=Administr"
+2025/07/25 18:50:28 [info] 7196#12096: *2428 client 71.6.134.231 closed keepalive connection
+2025/07/25 18:59:28 [info] 7196#12096: *2430 recv() failed (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 207.154.232.77, server: 0.0.0.0:443
+2025/07/25 18:59:34 [info] 7196#12096: *2431 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 207.154.232.77, server: 0.0.0.0:443
+2025/07/25 18:59:43 [info] 7196#12096: *2438 client 207.154.232.77 closed keepalive connection
+2025/07/25 18:59:43 [info] 7196#12096: *2439 client sent plain HTTP request to HTTPS port while reading client request headers, client: 161.35.29.17, server: localhost, request: "GET /solr/admin/info/system HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 18:59:43 [info] 7196#12096: *2440 client sent plain HTTP request to HTTPS port while reading client request headers, client: 209.38.205.167, server: localhost, request: "GET / HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 18:59:43 [info] 7196#12096: *2441 client sent plain HTTP request to HTTPS port while reading client request headers, client: 164.92.254.229, server: localhost, request: "GET /query?q=SHOW+DIAGNOSTICS HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 18:59:43 [info] 7196#12096: *2443 client sent plain HTTP request to HTTPS port while reading client request headers, client: 46.101.114.158, server: localhost, request: "GET /v2/_catalog HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 18:59:43 [info] 7196#12096: *2444 client sent plain HTTP request to HTTPS port while reading client request headers, client: 159.89.16.175, server: localhost, request: "GET /cgi-bin/authLogin.cgi HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 18:59:43 [info] 7196#12096: *2446 client sent plain HTTP request to HTTPS port while reading client request headers, client: 161.35.29.17, server: localhost, request: "GET /solr/admin/cores?action=STATUS&wt=json HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 18:59:43 [info] 7196#12096: *2445 client 209.38.205.167 closed keepalive connection
+2025/07/25 19:06:21 [info] 7196#12096: *2449 client closed connection while waiting for request, client: 209.38.205.167, server: 0.0.0.0:443
+2025/07/25 19:06:35 [info] 7196#12096: *2450 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 209.38.205.167, server: 0.0.0.0:443
+2025/07/25 19:06:35 [info] 7196#12096: *2451 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 209.38.205.167, server: 0.0.0.0:443
+2025/07/25 19:06:35 [info] 7196#12096: *2452 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 209.38.205.167, server: 0.0.0.0:443
+2025/07/25 19:06:35 [info] 7196#12096: *2453 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 209.38.205.167, server: 0.0.0.0:443
+2025/07/25 19:06:36 [info] 7196#12096: *2454 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 209.38.205.167, server: 0.0.0.0:443
+2025/07/25 19:06:36 [info] 7196#12096: *2455 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 209.38.205.167, server: 0.0.0.0:443
+2025/07/25 19:06:36 [info] 7196#12096: *2456 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 209.38.205.167, server: 0.0.0.0:443
+2025/07/25 19:06:36 [info] 7196#12096: *2457 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 209.38.205.167, server: 0.0.0.0:443
+2025/07/25 19:06:36 [info] 7196#12096: *2458 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 209.38.205.167, server: 0.0.0.0:443
+2025/07/25 19:06:36 [info] 7196#12096: *2459 SSL_do_handshake() failed (SSL: error:0A00006C:SSL routines::bad key share) while SSL handshaking, client: 209.38.205.167, server: 0.0.0.0:443
+2025/07/25 19:25:52 [info] 7196#12096: *2461 SSL_do_handshake() failed (SSL: error:0A0000FC:SSL routines::unknown protocol) while SSL handshaking, client: 52.204.132.161, server: 0.0.0.0:443
+2025/07/25 19:25:52 [info] 7196#12096: *2462 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 52.204.132.161, server: 0.0.0.0:443
+2025/07/25 19:25:52 [info] 7196#12096: *2463 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 52.204.132.161, server: 0.0.0.0:443
+2025/07/25 19:25:52 [info] 7196#12096: *2464 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 52.204.132.161, server: 0.0.0.0:443
+2025/07/25 19:25:52 [info] 7196#12096: *2466 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 52.204.132.161, server: 0.0.0.0:443
+2025/07/25 19:25:52 [info] 7196#12096: *2460 client closed connection while waiting for request, client: 52.204.132.161, server: 0.0.0.0:443
+2025/07/25 19:25:52 [info] 7196#12096: *2465 client closed connection while waiting for request, client: 52.204.132.161, server: 0.0.0.0:443
+2025/07/25 19:45:59 [info] 7196#12096: *2467 client 52.180.146.145 closed keepalive connection
+2025/07/25 19:45:59 [info] 7196#12096: *2468 client sent invalid method while reading client request line, client: 52.180.146.145, server: localhost, request: "MGLNDD_95.59.219.239_443"
+2025/07/25 19:53:45 [info] 7196#12096: *2469 client sent invalid method while reading client request line, client: 80.94.95.168, server: localhost, request: "  /*‡     Cookie: mstshash=Administr"
+2025/07/25 19:53:45 [info] 7196#12096: *2469 WSARecv() failed (10054: An existing connection was forcibly closed by the remote host) while reading client request line, client: 80.94.95.168, server: localhost, request: "  /*‡     Cookie: mstshash=Administr"
+2025/07/25 20:12:07 [info] 7196#12096: *2470 client sent invalid request while reading client request line, client: 38.211.193.130, server: localhost, request: "POST /cgi-bin/.%2e/.%2e/.%2e/.%2e/.%2e/.%2e/.%2e/.%2e/.%2e/.%2e/bin/sh HTTP/1.1"
+2025/07/25 20:12:09 [info] 7196#12096: *2471 client sent invalid request while reading client request line, client: 38.211.193.130, server: localhost, request: "POST /cgi-bin/%%32%65%%32%65/%%32%65%%32%65/%%32%65%%32%65/%%32%65%%32%65/%%32%65%%32%65/%%32%65%%32%65/%%32%65%%32%65/bin/sh HTTP/1.1"
+2025/07/25 20:12:36 [info] 7196#12096: *2472 client 38.211.193.130 closed keepalive connection
+2025/07/25 20:21:12 [info] 7196#12096: *2524 client closed connection while waiting for request, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 20:21:14 [info] 7196#12096: *2525 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 20:21:14 [info] 7196#12096: *2526 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 20:21:14 [info] 7196#12096: *2527 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 20:21:14 [info] 7196#12096: *2528 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 20:21:15 [info] 7196#12096: *2529 peer closed connection in SSL handshake (10053: An established connection was aborted by the software in your host machine) while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 20:21:15 [info] 7196#12096: *2530 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 20:21:15 [info] 7196#12096: *2531 peer closed connection in SSL handshake (10054: An existing connection was forcibly closed by the remote host) while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 20:21:15 [info] 7196#12096: *2532 peer closed connection in SSL handshake while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 20:21:15 [info] 7196#12096: *2533 SSL_do_handshake() failed (SSL: error:0A0000C1:SSL routines::no shared cipher) while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 20:21:15 [info] 7196#12096: *2534 SSL_do_handshake() failed (SSL: error:0A00006C:SSL routines::bad key share) while SSL handshaking, client: 164.92.255.234, server: 0.0.0.0:443
+2025/07/25 20:27:26 [info] 7196#12096: *2535 peer closed connection in SSL handshake while SSL handshaking, client: 85.117.120.235, server: 0.0.0.0:443
+2025/07/25 20:40:34 [info] 7196#12096: *2602 client sent invalid method while reading client request line, client: 45.140.17.52, server: localhost, request: " ^     $  *  +  ,  0  1 $ U ˇº      – Ø/f˜  P¯÷õ…   ‡Å<f˜              "
+2025/07/25 20:40:34 [info] 7196#12096: *2602 WSARecv() failed (10054: An existing connection was forcibly closed by the remote host) while reading client request line, client: 45.140.17.52, server: localhost, request: " ^     $  *  +  ,  0  1 $ U ˇº      – Ø/f˜  P¯÷õ…   ‡Å<f˜              "
+2025/07/25 20:55:05 [info] 7196#12096: *2603 client sent plain HTTP request to HTTPS port while reading client request headers, client: 3.137.73.221, server: localhost, request: "GET / HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 20:55:07 [info] 7196#12096: *2604 client sent plain HTTP request to HTTPS port while reading client request headers, client: 3.137.73.221, server: localhost, request: "GET / HTTP/1.1", host: "95.59.219.239:443"
+2025/07/25 20:58:15 [info] 7196#12096: *2605 client sent invalid method while reading client request line, client: 3.137.73.221, server: localhost, request: "SSH-2.0-Go"
+2025/07/25 20:58:26 [info] 7196#12096: *2607 client 3.137.73.221 closed keepalive connection
+2025/07/25 20:58:30 [info] 7196#12096: *2606 client prematurely closed connection while reading client request line, client: 3.137.73.221, server: localhost
+2025/07/25 20:59:04 [info] 7196#12096: *2608 client closed connection while waiting for request, client: 3.137.73.221, server: 0.0.0.0:443
+2025/07/25 21:04:11 [info] 7196#12096: *2609 client sent invalid method while reading client request line, client: 66.240.205.34, server: localhost, request: "145.ll|'|'|SGFjS2VkX0Q0OTkwNjI3|'|'|WIN-JNAPIER0859|'|'|JNapier|'|'|19-02-01|'|'||'|'|Win 7 Professional SP1 x64|'|'|No|'|'|0.7d|'|'|..|'|'|AA==|'|'|112.inf|'|'|SGFjS2VkDQoxOTIuMTY4LjkyLjIyMjo1NTUyDQpEZXNrdG9wDQpjbGllbnRhLmV4ZQ0KRmFsc2UNCkZhbHNlDQpUcnVlDQpGYWxzZQ==12.act|'|'|AA=="
+2025/07/25 21:07:33 [info] 7196#12096: *2610 client 66.132.153.53 closed keepalive connection
+2025/07/25 21:07:36 [info] 7196#12096: *2613 client closed connection while waiting for request, client: 66.132.153.53, server: 0.0.0.0:443
+2025/07/25 21:07:37 [info] 7196#12096: *2614 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 66.132.153.53, server: 0.0.0.0:443
+2025/07/25 21:07:39 [info] 7196#12096: *2615 SSL_do_handshake() failed (SSL: error:0A000102:SSL routines::unsupported protocol) while SSL handshaking, client: 66.132.153.53, server: 0.0.0.0:443
+2025/07/25 21:07:40 [info] 7196#12096: *2616 SSL_do_handshake() failed (SSL: error:0A00018C:SSL routines::version too low) while SSL handshaking, client: 66.132.153.53, server: 0.0.0.0:443
+2025/07/25 21:07:48 [info] 7196#12096: *2618 client 66.132.153.53 closed keepalive connection
+2025/07/25 21:21:51 [info] 7196#12096: *2619 client sent invalid method while reading client request line, client: 80.94.95.168, server: localhost, request: "  /*‡     Cookie: mstshash=Administr"
+2025/07/25 21:21:51 [info] 7196#12096: *2619 WSARecv() failed (10054: An existing connection was forcibly closed by the remote host) while reading client request line, client: 80.94.95.168, server: localhost, request: "  /*‡     Cookie: mstshash=Administr"
+2025/07/25 22:29:18 [info] 7196#12096: *2630 client 149.86.227.127 closed keepalive connection
+2025/07/25 23:00:44 [info] 7196#12096: *2640 client canceled stream 7 while sending mp4 to client, client: 2.76.114.32, server: localhost, request: "GET /api/tests/media/686b77f8b43f103d17dbde85 HTTP/2.0", upstream: "http://127.0.0.1:8000/tests/media/686b77f8b43f103d17dbde85", host: "royal-test.duckdns.org", referrer: "https://royal-test.duckdns.org/UDKeZNwbGVdH2iXEjkUFCkAuQb4Z1bbz/tests/edit/9559641358?tab=edit&uid=9559641358"
+2025/07/25 23:00:44 [info] 7196#12096: *2640 client prematurely closed connection while sending mp4 to client, client: 2.76.114.32, server: localhost, request: "GET /api/tests/media/686b77f8b43f103d17dbde85 HTTP/2.0", upstream: "http://127.0.0.1:8000/tests/media/686b77f8b43f103d17dbde85", host: "royal-test.duckdns.org", referrer: "https://royal-test.duckdns.org/UDKeZNwbGVdH2iXEjkUFCkAuQb4Z1bbz/tests/edit/9559641358?tab=edit&uid=9559641358"
+2025/07/25 23:00:45 [info] 7196#12096: *2640 client canceled stream 9 while sending mp4 to client, client: 2.76.114.32, server: localhost, request: "GET /api/tests/media/686b77f8b43f103d17dbde85 HTTP/2.0", upstream: "http://127.0.0.1:8000/tests/media/686b77f8b43f103d17dbde85", host: "royal-test.duckdns.org", referrer: "https://royal-test.duckdns.org/UDKeZNwbGVdH2iXEjkUFCkAuQb4Z1bbz/tests/edit/9559641358?tab=edit&uid=9559641358"
+2025/07/25 23:00:45 [info] 7196#12096: *2640 client prematurely closed connection while sending mp4 to client, client: 2.76.114.32, server: localhost, request: "GET /api/tests/media/686b77f8b43f103d17dbde85 HTTP/2.0", upstream: "http://127.0.0.1:8000/tests/media/686b77f8b43f103d17dbde85", host: "royal-test.duckdns.org", referrer: "https://royal-test.duckdns.org/UDKeZNwbGVdH2iXEjkUFCkAuQb4Z1bbz/tests/edit/9559641358?tab=edit&uid=9559641358"
+2025/07/25 23:00:46 [info] 7196#12096: *2640 client canceled stream 15 while sending mp4 to client, client: 2.76.114.32, server: localhost, request: "GET /api/tests/media/686b77f8b43f103d17dbde85 HTTP/2.0", upstream: "http://127.0.0.1:8000/tests/media/686b77f8b43f103d17dbde85", host: "royal-test.duckdns.org", referrer: "https://royal-test.duckdns.org/UDKeZNwbGVdH2iXEjkUFCkAuQb4Z1bbz/tests/edit/9559641358?tab=edit&uid=9559641358"
+2025/07/25 23:00:46 [info] 7196#12096: *2640 client prematurely closed connection while sending mp4 to client, client: 2.76.114.32, server: localhost, request: "GET /api/tests/media/686b77f8b43f103d17dbde85 HTTP/2.0", upstream: "http://127.0.0.1:8000/tests/media/686b77f8b43f103d17dbde85", host: "royal-test.duckdns.org", referrer: "https://royal-test.duckdns.org/UDKeZNwbGVdH2iXEjkUFCkAuQb4Z1bbz/tests/edit/9559641358?tab=edit&uid=9559641358"
+2025/07/25 23:00:46 [info] 7196#12096: *2640 client canceled stream 17 while sending request to upstream, client: 2.76.114.32, server: localhost, request: "GET /api/tests/media/686b77f8b43f103d17dbde85 HTTP/2.0", upstream: "http://127.0.0.1:8000/tests/media/686b77f8b43f103d17dbde85", host: "royal-test.duckdns.org", referrer: "https://royal-test.duckdns.org/UDKeZNwbGVdH2iXEjkUFCkAuQb4Z1bbz/tests/edit/9559641358?tab=edit&uid=9559641358"
+2025/07/25 23:04:12 [info] 7196#12096: *2649 client 13.86.115.189 closed keepalive connection

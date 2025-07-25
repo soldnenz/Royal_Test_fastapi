@@ -763,7 +763,7 @@ async def logout_user(request: Request):
     role = payload.get("role")
 
     # Проверка роли
-    if role not in ["user", "admin", "moderator", "manager", "super_admin", "guest"]:
+    if role not in ["user", "admin", "moderator", "manager", "super_admin", "guest", "tests_creator"]:
         logger.warning(
             section=LogSection.SECURITY,
             subsection=LogSubsection.SECURITY.SUSPICIOUS_ACTIVITY,

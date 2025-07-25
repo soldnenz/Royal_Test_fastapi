@@ -205,12 +205,12 @@ async def get_my_subscription_info(
         message=f"Запрос информации о подписке пользователем {current_user.get('id')} с ролью {current_user.get('role')}"
     )
     
-    # Если пользователь админ или модератор, возвращаем специальный ответ для редиректа
-    if current_user["role"] in {"admin", "moderator"}:
+    # Если пользователь админ, модератор или создатель тестов, возвращаем специальный ответ для редиректа
+    if current_user["role"] in {"admin", "moderator", "tests_creator"}:
         logger.info(
             section=LogSection.USER,
             subsection=LogSubsection.USER.PROFILE,
-            message=f"Админ {current_user.get('id')} запросил информацию о подписке - возвращаем админ URL"
+            message=f"Админ/модератор/создатель тестов {current_user.get('id')} запросил информацию о подписке - возвращаем админ URL"
         )
         return success(
             data={
@@ -1155,7 +1155,7 @@ async def purchase_gift_subscription(
         
         # Обработка реферальной системы через finance.process_referral
         description = f"Реферальный бонус за покупку подарочной подписки {gift_data.subscription_type}"
-        await process_referral(str(user_id), price, description)
+        await process_referral(str(user_id), price, description, db_instance=db)
         
         logger.info(
             section=LogSection.PAYMENT,

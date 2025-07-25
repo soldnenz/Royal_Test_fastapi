@@ -151,6 +151,60 @@
   text-shadow: none;
 }
 
+/* Dark theme styles for subscription badges */
+.dark .test-dashboard .tier-emerald { 
+  background: linear-gradient(135deg, #10B981, #059669) !important; 
+  color: white !important;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4) !important;
+}
+
+.dark .test-dashboard .tier-purple { 
+  background: linear-gradient(135deg, #8B5CF6, #7C3AED) !important; 
+  color: white !important;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4) !important;
+}
+
+.dark .test-dashboard .tier-amber { 
+  background: linear-gradient(135deg, #F59E0B, #D97706) !important; 
+  color: white !important;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4) !important;
+}
+
+.dark .test-dashboard .tier-golden { 
+  background: linear-gradient(135deg, #FFD700, #FFA500) !important; 
+  color: #2c3e50 !important;
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.4) !important;
+}
+
+.dark .test-dashboard .tier-none { 
+  background: linear-gradient(135deg, #6B7280, #9CA3AF) !important; 
+  color: white !important;
+  box-shadow: 0 2px 8px rgba(107, 114, 128, 0.4) !important;
+}
+
+/* Dark theme styles for upgrade buttons */
+.dark .test-dashboard .upgrade-btn {
+  background: linear-gradient(135deg, #FFD700, #FFA500) !important;
+  color: #2c3e50 !important;
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3) !important;
+}
+
+.dark .test-dashboard .upgrade-btn:hover {
+  background: linear-gradient(135deg, #FFA500, #FFD700) !important;
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.4) !important;
+}
+
+.dark .test-dashboard .unlock-btn {
+  background: linear-gradient(135deg, #FFD700, #FFA500) !important;
+  color: #2c3e50 !important;
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3) !important;
+}
+
+.dark .test-dashboard .unlock-btn:hover {
+  background: linear-gradient(135deg, #FFA500, #FFD700) !important;
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.4) !important;
+}
+
 /* Dark theme for active test alert */
 .dark .test-dashboard .active-test-alert > div {
   background: linear-gradient(135deg, #334155, #475569);
@@ -558,24 +612,29 @@
 }
 
 .tier-emerald { 
-  background: linear-gradient(135deg, #D4AF37, #B89128) !important; 
+  background: linear-gradient(135deg, #10B981, #059669) !important; 
   color: white !important;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3) !important;
 }
 .tier-purple { 
-  background: linear-gradient(135deg, #D4AF37, #B89128) !important; 
+  background: linear-gradient(135deg, #8B5CF6, #7C3AED) !important; 
   color: white !important;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3) !important;
 }
 .tier-amber { 
-  background: linear-gradient(135deg, #F59E0B, #FCD34D) !important; 
+  background: linear-gradient(135deg, #F59E0B, #D97706) !important; 
   color: white !important;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3) !important;
 }
 .tier-golden { 
   background: linear-gradient(135deg, #D4AF37, #B89128) !important; 
-  color: var(--text-primary) !important;
+  color: white !important;
+  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.3) !important;
 }
-.tier-gray { 
+.tier-none { 
   background: linear-gradient(135deg, #6B7280, #9CA3AF) !important; 
   color: white !important;
+  box-shadow: 0 2px 8px rgba(107, 114, 128, 0.3) !important;
 }
 
 .days-remaining {
@@ -616,21 +675,29 @@
   align-items: center;
   justify-content: center;
   gap: var(--spacing-xs);
-  background: rgba(255, 255, 255, 0.25);
+  background: linear-gradient(135deg, #D4AF37, #B89128) !important;
   color: white !important;
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  border: none;
   border-radius: var(--radius-md);
-  padding: var(--spacing-xs) var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
   font-weight: 600;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   cursor: pointer;
   transition: all var(--transition-normal);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.3) !important;
+  min-height: 40px;
 }
 
 .upgrade-btn:hover {
-  background: rgba(255, 255, 255, 0.35);
-  transform: translateY(-1px);
+  background: linear-gradient(135deg, #B89128, #D4AF37) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4) !important;
+}
+
+.upgrade-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(212, 175, 55, 0.3) !important;
 }
 
 /* Active Test Alert */
@@ -1261,44 +1328,67 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-md);
   border-radius: var(--radius-lg);
   text-align: center;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(4px);
+  border: 2px solid rgba(212, 175, 55, 0.2);
 }
 
 .dark .test-dashboard .lock-overlay {
   background: rgba(15, 23, 42, 0.95);
+  border-color: rgba(255, 215, 0, 0.2);
 }
 
 .lock-overlay svg:first-child {
-  font-size: 2rem;
-  color: var(--text-muted) !important;
+  font-size: 2.5rem;
+  color: #D4AF37 !important;
   margin-bottom: var(--spacing-xs);
+  filter: drop-shadow(0 2px 4px rgba(212, 175, 55, 0.3));
 }
 
 .lock-overlay span {
-  color: var(--text-secondary) !important;
-  font-weight: 500;
-  font-size: 0.85rem;
-  margin-bottom: var(--spacing-sm);
+  color: var(--text-primary) !important;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: var(--spacing-md);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.dark .test-dashboard .lock-overlay svg:first-child {
+  color: #FFD700 !important;
+  filter: drop-shadow(0 2px 4px rgba(255, 215, 0, 0.3));
+}
+
+.dark .test-dashboard .lock-overlay span {
+  color: #F8FAFC !important;
 }
 
 .unlock-btn {
-  background: var(--gradient-primary);
+  background: linear-gradient(135deg, #D4AF37, #B89128) !important;
   color: white !important;
   border: none;
-  border-radius: var(--radius-sm);
-  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
   font-weight: 600;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   cursor: pointer;
   transition: all var(--transition-normal);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.3) !important;
+  min-height: 40px;
+  min-width: 100px;
 }
 
 .unlock-btn:hover {
-  transform: translateY(-1px);
+  background: linear-gradient(135deg, #B89128, #D4AF37) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4) !important;
+}
+
+.unlock-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(212, 175, 55, 0.3) !important;
 }
 
 /* Multiplayer Content */
@@ -1692,6 +1782,47 @@
   }
 }
 
+@keyframes buttonPulse {
+  0% {
+    box-shadow: 0 2px 8px rgba(212, 175, 55, 0.3);
+  }
+  50% {
+    box-shadow: 0 4px 16px rgba(212, 175, 55, 0.5);
+  }
+  100% {
+    box-shadow: 0 2px 8px rgba(212, 175, 55, 0.3);
+  }
+}
+
+@keyframes buttonPulseDark {
+  0% {
+    box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 4px 16px rgba(255, 215, 0, 0.5);
+  }
+  100% {
+    box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
+  }
+}
+
+/* Add subtle animation to upgrade buttons */
+.upgrade-btn,
+.unlock-btn {
+  animation: buttonPulse 3s ease-in-out infinite;
+}
+
+.upgrade-btn:hover,
+.unlock-btn:hover {
+  animation: none;
+}
+
+/* Dark theme animation for upgrade buttons */
+.dark .test-dashboard .upgrade-btn,
+.dark .test-dashboard .unlock-btn {
+  animation: buttonPulseDark 3s ease-in-out infinite;
+}
+
 /* Responsive Design */
 @media (max-width: 1024px) {
   .hero-content {
@@ -1853,6 +1984,19 @@
 .dark .test-dashboard .create-btn:focus,
 .dark .test-dashboard .unlock-btn:focus {
   outline-color: #FFD700;
+}
+
+/* Enhanced focus styles for upgrade buttons */
+.upgrade-btn:focus,
+.unlock-btn:focus {
+  outline: 3px solid rgba(212, 175, 55, 0.5);
+  outline-offset: 3px;
+  transform: translateY(-1px);
+}
+
+.dark .test-dashboard .upgrade-btn:focus,
+.dark .test-dashboard .unlock-btn:focus {
+  outline-color: rgba(255, 215, 0, 0.5);
 }
 
 /* High contrast mode support */

@@ -1,12 +1,32 @@
-2025-07-23 06:48:14.409631+00:00 [warning] <0.14394.0> closing AMQP connection <0.14394.0> (172.20.0.1:51444 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
-2025-07-23 06:48:14.409631+00:00 [warning] <0.14394.0> client unexpectedly closed TCP connection
-2025-07-23 06:48:44.856874+00:00 [warning] <0.10802.3> closing AMQP connection <0.10802.3> (172.20.0.1:41812 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
-2025-07-23 06:48:44.856874+00:00 [warning] <0.10802.3> client unexpectedly closed TCP connection
-2025-07-23 06:48:44.866975+00:00 [warning] <0.10805.3> closing AMQP connection <0.10805.3> (172.20.0.1:41826 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
-2025-07-23 06:48:44.866975+00:00 [warning] <0.10805.3> client unexpectedly closed TCP connection
-2025-07-23 06:58:44.491118+00:00 [warning] <0.10779.3> closing AMQP connection <0.10779.3> (172.20.0.1:41800 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
-2025-07-23 06:58:44.491118+00:00 [warning] <0.10779.3> client unexpectedly closed TCP connection
-2025-07-23 06:58:44.491380+00:00 [warning] <0.10776.3> closing AMQP connection <0.10776.3> (172.20.0.1:41788 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
-2025-07-23 06:58:44.491380+00:00 [warning] <0.10776.3> client unexpectedly closed TCP connection
-2025-07-23 06:59:09.001442+00:00 [warning] <0.10951.3> closing AMQP connection <0.10951.3> (172.20.0.1:39496 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
-2025-07-23 06:59:09.001442+00:00 [warning] <0.10951.3> client unexpectedly closed TCP connection
+2025-07-25 05:59:42.891970+00:00 [warning] <0.949.4> closing AMQP connection <0.949.4> (172.20.0.1:42450 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
+2025-07-25 05:59:42.891970+00:00 [warning] <0.949.4> client unexpectedly closed TCP connection
+2025-07-25 06:06:56.328345+00:00 [warning] <0.920.4> closing AMQP connection <0.920.4> (172.20.0.1:42432 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
+2025-07-25 06:06:56.328345+00:00 [warning] <0.920.4> client unexpectedly closed TCP connection
+2025-07-25 12:06:53.222718+00:00 [warning] <0.1052.4> closing AMQP connection <0.1052.4> (172.20.0.1:36078 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
+2025-07-25 12:06:53.222718+00:00 [warning] <0.1052.4> client unexpectedly closed TCP connection
+2025-07-25 12:10:19.263258+00:00 [warning] <0.4072.4> closing AMQP connection <0.4072.4> (172.20.0.1:57892 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
+2025-07-25 12:10:19.263258+00:00 [warning] <0.4072.4> client unexpectedly closed TCP connection
+2025-07-25 12:16:54.758088+00:00 [warning] <0.4043.4> closing AMQP connection <0.4043.4> (172.20.0.1:57872 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
+2025-07-25 12:16:54.758088+00:00 [warning] <0.4043.4> client unexpectedly closed TCP connection
+2025-07-25 12:17:07.029976+00:00 [warning] <0.4193.4> closing AMQP connection <0.4193.4> (172.20.0.1:59642 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
+2025-07-25 12:17:07.029976+00:00 [warning] <0.4193.4> client unexpectedly closed TCP connection
+2025-07-25 12:30:58.922661+00:00 [warning] <0.4167.4> closing AMQP connection <0.4167.4> (172.20.0.1:59618 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
+2025-07-25 12:30:58.922661+00:00 [warning] <0.4167.4> client unexpectedly closed TCP connection
+2025-07-25 12:30:58.923286+00:00 [warning] <0.4164.4> closing AMQP connection <0.4164.4> (172.20.0.1:59602 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
+2025-07-25 12:30:58.923286+00:00 [warning] <0.4164.4> client unexpectedly closed TCP connection
+2025-07-25 12:42:33.468812+00:00 [warning] <0.4537.4> closing AMQP connection <0.4537.4> (172.20.0.1:54676 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
+2025-07-25 12:42:33.468812+00:00 [warning] <0.4537.4> client unexpectedly closed TCP connection
+2025-07-25 12:45:06.754525+00:00 [warning] <0.4509.4> closing AMQP connection <0.4509.4> (172.20.0.1:54658 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
+2025-07-25 12:45:06.754525+00:00 [warning] <0.4509.4> client unexpectedly closed TCP connection
+2025-07-25 12:45:06.754881+00:00 [warning] <0.4506.4> closing AMQP connection <0.4506.4> (172.20.0.1:54652 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
+2025-07-25 12:45:06.754881+00:00 [warning] <0.4506.4> client unexpectedly closed TCP connection
+2025-07-25 12:47:02.156781+00:00 [warning] <0.4709.4> closing AMQP connection <0.4709.4> (172.20.0.1:41950 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
+2025-07-25 12:47:02.156781+00:00 [warning] <0.4709.4> client unexpectedly closed TCP connection
+2025-07-25 12:54:11.789754+00:00 [warning] <0.4782.4> closing AMQP connection <0.4782.4> (172.20.0.1:51398 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
+2025-07-25 12:54:11.789754+00:00 [warning] <0.4782.4> client unexpectedly closed TCP connection
+2025-07-25 12:57:04.294112+00:00 [warning] <0.4874.4> closing AMQP connection <0.4874.4> (172.20.0.1:33332 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
+2025-07-25 12:57:04.294112+00:00 [warning] <0.4874.4> client unexpectedly closed TCP connection
+2025-07-25 13:01:57.083892+00:00 [warning] <0.5023.4> closing AMQP connection <0.5023.4> (172.20.0.1:35100 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
+2025-07-25 13:01:57.083892+00:00 [warning] <0.5023.4> client unexpectedly closed TCP connection
+2025-07-25 15:39:40.419578+00:00 [warning] <0.4997.4> closing AMQP connection <0.4997.4> (172.20.0.1:35094 -> 172.20.0.2:5672, vhost: 'royal_logs', user: 'royal_logger'):
+2025-07-25 15:39:40.419578+00:00 [warning] <0.4997.4> client unexpectedly closed TCP connection

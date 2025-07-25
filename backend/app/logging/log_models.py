@@ -198,6 +198,7 @@ class LogSubsection:
         TURNSTILE = "turnstile"
         REPORT_CREATE = "report_create"
         REPORT_VIEW = "report_view"
+        AUTHENTICATION = "authentication"
         REPORT_UPDATE = "report_update"
         REPORT_ERROR = "report_error"
     
@@ -217,6 +218,9 @@ class LogSubsection:
         STARTUP = "startup"
         SHUTDOWN = "shutdown"
         CLEANUP = "cleanup"
+        DATABASE = "database"
+        DATA_PROCESSING = "data_processing"
+        GENERAL = "general"
     
     # API подразделы
     class API:
