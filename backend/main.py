@@ -51,7 +51,7 @@ from app.multiplayer import (
     next_question_router,
     leave_router
 )
-from app.db.database import db
+from app.db.database import db, create_database_indexes
 
 # Инициализация новой структурированной системы логирования
 setup_application_logging()
@@ -294,6 +294,21 @@ async def startup_event():
         subsection=LogSubsection.SYSTEM.STARTUP,
         message="Запуск приложения"
     )
+    
+    # Создаем индексы базы данных
+    try:
+        await create_database_indexes(db)
+        logger.info(
+            section=LogSection.SYSTEM,
+            subsection=LogSubsection.SYSTEM.STARTUP,
+            message="Индексы базы данных успешно созданы"
+        )
+    except Exception as e:
+        logger.error(
+            section=LogSection.SYSTEM,
+            subsection=LogSubsection.SYSTEM.STARTUP,
+            message=f"Ошибка при создании индексов базы данных: {str(e)}"
+        )
     
     # Инициализируем rate limiter
     from app.rate_limit.rate_limiter import get_rate_limiter

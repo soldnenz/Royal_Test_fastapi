@@ -23,3 +23,6 @@ db = client[MONGO_DB_NAME]
 # 5) dependency для FastAPI
 async def get_database():
     return db
+
+# 6) Импорт функции создания индексов
+from .indexes import create_database_indexes

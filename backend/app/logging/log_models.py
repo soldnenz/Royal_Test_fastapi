@@ -208,6 +208,10 @@ class LogSubsection:
         ERROR = "error"
         QUERY = "query"
         TRANSACTION = "transaction"
+        INDEXES = "indexes"
+        INDEXES_CREATE = "indexes_create"
+        INDEXES_ERROR = "indexes_error"
+        INDEXES_SUCCESS = "indexes_success"
     
     # SYSTEM подразделы
     class SYSTEM:
