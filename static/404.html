@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Страница не найдена | ПДД Тест</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-gold: #FFD700;
+            --secondary-gold: #FFA500;
+            --accent-gold: #FFC107;
+            --text-primary: #333;
+            --text-secondary: #666;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --border-color: #e9ecef;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --shadow-hover: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        [data-theme="dark"] {
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --border-color: #404040;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            --shadow-hover: 0 8px 25px rgba(0, 0, 0, 0.4);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .error-card {
+            background: var(--bg-primary);
+            border-radius: 20px;
+            padding: 60px 40px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .error-card:hover {
+            box-shadow: var(--shadow-hover);
+            transform: translateY(-5px);
+        }
+
+        .error-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-gold), var(--secondary-gold), var(--accent-gold));
+            border-radius: 20px 20px 0 0;
+        }
+
+        .error-number {
+            font-size: 8rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--primary-gold), var(--secondary-gold));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 20px;
+            text-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from {
+                filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.3));
+            }
+            to {
+                filter: drop-shadow(0 0 30px rgba(255, 215, 0, 0.6));
+            }
+        }
+
+        .error-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+        }
+
+        .error-subtitle {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+            line-height: 1.6;
+        }
+
+        .language-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .lang-tab {
+            padding: 10px 20px;
+            border: 2px solid var(--border-color);
+            border-radius: 25px;
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .lang-tab.active {
+            border-color: var(--primary-gold);
+            background: linear-gradient(135deg, var(--primary-gold), var(--secondary-gold));
+            color: #000;
+            box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+        }
+
+        .lang-tab:hover {
+            border-color: var(--accent-gold);
+            transform: translateY(-2px);
+        }
+
+        .error-message {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+            line-height: 1.8;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-gold), var(--secondary-gold));
+            color: #000;
+            box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(255, 215, 0, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 2px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border-color);
+            transform: translateY(-3px);
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .traffic-sign {
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(135deg, var(--primary-gold), var(--secondary-gold));
+            border-radius: 50%;
+            margin: 0 auto 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #000;
+            box-shadow: 0 8px 25px rgba(255, 215, 0, 0.4);
+            animation: pulse 2s infinite;
+            position: relative;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .traffic-sign::before {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            right: -5px;
+            bottom: -5px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, var(--primary-gold), var(--secondary-gold), var(--accent-gold));
+            z-index: -1;
+            animation: rotate 3s linear infinite;
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+            }
+            50% {
+                transform: scale(1.05);
+                box-shadow: 0 6px 20px rgba(255, 215, 0, 0.5);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+            }
+        }
+
+        .floating-elements {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .floating-element {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background: linear-gradient(135deg, var(--primary-gold), var(--secondary-gold));
+            border-radius: 50%;
+            opacity: 0.4;
+            animation: float 8s infinite linear;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: #000;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+        }
+
+        .road-signs {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .road-sign {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: var(--primary-gold);
+            border-radius: 8px;
+            opacity: 0.6;
+            animation: roadSignFloat 10s infinite ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: #000;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .floating-element:nth-child(1) {
+            top: 10%;
+            left: 10%;
+            animation-delay: 0s;
+        }
+
+        .floating-element:nth-child(2) {
+            top: 20%;
+            right: 15%;
+            animation-delay: 2s;
+        }
+
+        .floating-element:nth-child(3) {
+            bottom: 30%;
+            left: 20%;
+            animation-delay: 4s;
+        }
+
+        .floating-element:nth-child(4) {
+            bottom: 20%;
+            right: 10%;
+            animation-delay: 1s;
+        }
+
+        .road-sign:nth-child(1) {
+            top: 15%;
+            left: 5%;
+            animation-delay: 1s;
+        }
+
+        .road-sign:nth-child(2) {
+            top: 25%;
+            right: 8%;
+            animation-delay: 3s;
+        }
+
+        .road-sign:nth-child(3) {
+            bottom: 25%;
+            left: 8%;
+            animation-delay: 5s;
+        }
+
+        .road-sign:nth-child(4) {
+            bottom: 15%;
+            right: 5%;
+            animation-delay: 2s;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0px) rotate(0deg);
+                opacity: 0.4;
+            }
+            50% {
+                transform: translateY(-25px) rotate(180deg);
+                opacity: 0.7;
+            }
+            100% {
+                transform: translateY(0px) rotate(360deg);
+                opacity: 0.4;
+            }
+        }
+
+        @keyframes roadSignFloat {
+            0% {
+                transform: translateY(0px) scale(1);
+                opacity: 0.6;
+            }
+            50% {
+                transform: translateY(-15px) scale(1.1);
+                opacity: 0.8;
+            }
+            100% {
+                transform: translateY(0px) scale(1);
+                opacity: 0.6;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+
+            .error-card {
+                padding: 40px 20px;
+            }
+
+            .error-number {
+                font-size: 5rem;
+            }
+
+            .error-title {
+                font-size: 1.8rem;
+            }
+
+            .error-subtitle {
+                font-size: 1rem;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .btn {
+                width: 100%;
+                max-width: 300px;
+                justify-content: center;
+            }
+
+            .language-tabs {
+                gap: 8px;
+            }
+
+            .lang-tab {
+                padding: 8px 16px;
+                font-size: 0.9rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .error-number {
+                font-size: 4rem;
+            }
+
+            .error-title {
+                font-size: 1.5rem;
+            }
+
+            .traffic-sign {
+                width: 70px;
+                height: 70px;
+                font-size: 1.8rem;
+            }
+
+            .floating-element {
+                width: 25px;
+                height: 25px;
+                font-size: 1rem;
+            }
+
+            .road-sign {
+                width: 35px;
+                height: 35px;
+                font-size: 1.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="error-card">
+            <div class="floating-elements">
+                <div class="floating-element">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5H6.5C5.84 5 5.28 5.42 5.08 6.01L3 12V20C3 20.55 3.45 21 4 21H5C5.55 21 6 20.55 6 20V19H18V20C18 20.55 18.45 21 19 21H20C20.55 21 21 20.55 21 20V12L18.92 6.01ZM6.5 16C5.67 16 5 15.33 5 14.5C5 13.67 5.67 13 6.5 13C7.33 13 8 13.67 8 14.5C8 15.33 7.33 16 6.5 16ZM17.5 16C16.67 16 16 15.33 16 14.5C16 13.67 16.67 13 17.5 13C18.33 13 19 13.67 19 14.5C19 15.33 18.33 16 17.5 16ZM5 11L6.5 6.5H17.5L19 11H5Z" fill="currentColor"/>
+                    </svg>
+                </div>
+                <div class="floating-element">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7V10C2 16.08 6.38 21.55 12 23C17.62 21.55 22 16.08 22 10V7L12 2ZM12 20C7.59 18.82 4 15.22 4 10V8.5L12 4L20 8.5V10C20 15.22 16.41 18.82 12 20Z" fill="currentColor"/>
+                        <path d="M12 6C9.24 6 7 8.24 7 11C7 13.76 9.24 16 12 16C14.76 16 17 13.76 17 11C17 8.24 14.76 6 12 6ZM12 14C10.34 14 9 12.66 9 11C9 9.34 10.34 8 12 8C13.66 8 15 9.34 15 11C15 12.66 13.66 14 12 14Z" fill="currentColor"/>
+                    </svg>
+                </div>
+                <div class="floating-element">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <div class="floating-element">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7V10C2 16.08 6.38 21.55 12 23C17.62 21.55 22 16.08 22 10V7L12 2ZM12 20C7.59 18.82 4 15.22 4 10V8.5L12 4L20 8.5V10C20 15.22 16.41 18.82 12 20Z" fill="currentColor"/>
+                        <path d="M12 6C9.24 6 7 8.24 7 11C7 13.76 9.24 16 12 16C14.76 16 17 13.76 17 11C17 8.24 14.76 6 12 6ZM12 14C10.34 14 9 12.66 9 11C9 9.34 10.34 8 12 8C13.66 8 15 9.34 15 11C15 12.66 13.66 14 12 14Z" fill="currentColor"/>
+                    </svg>
+                </div>
+            </div>
+            
+            <div class="road-signs">
+                <div class="road-sign">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7V10C2 16.08 6.38 21.55 12 23C17.62 21.55 22 16.08 22 10V7L12 2ZM12 20C7.59 18.82 4 15.22 4 10V8.5L12 4L20 8.5V10C20 15.22 16.41 18.82 12 20Z" fill="currentColor"/>
+                        <path d="M12 6C9.24 6 7 8.24 7 11C7 13.76 9.24 16 12 16C14.76 16 17 13.76 17 11C17 8.24 14.76 6 12 6ZM12 14C10.34 14 9 12.66 9 11C9 9.34 10.34 8 12 8C13.66 8 15 9.34 15 11C15 12.66 13.66 14 12 14Z" fill="currentColor"/>
+                    </svg>
+                </div>
+                <div class="road-sign">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7V10C2 16.08 6.38 21.55 12 23C17.62 21.55 22 16.08 22 10V7L12 2ZM12 20C7.59 18.82 4 15.22 4 10V8.5L12 4L20 8.5V10C20 15.22 16.41 18.82 12 20Z" fill="currentColor"/>
+                        <path d="M12 6C9.24 6 7 8.24 7 11C7 13.76 9.24 16 12 16C14.76 16 17 13.76 17 11C17 8.24 14.76 6 12 6ZM12 14C10.34 14 9 12.66 9 11C9 9.34 10.34 8 12 8C13.66 8 15 9.34 15 11C15 12.66 13.66 14 12 14Z" fill="currentColor"/>
+                    </svg>
+                </div>
+                <div class="road-sign">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7V10C2 16.08 6.38 21.55 12 23C17.62 21.55 22 16.08 22 10V7L12 2ZM12 20C7.59 18.82 4 15.22 4 10V8.5L12 4L20 8.5V10C20 15.22 16.41 18.82 12 20Z" fill="currentColor"/>
+                        <path d="M12 6C9.24 6 7 8.24 7 11C7 13.76 9.24 16 12 16C14.76 16 17 13.76 17 11C17 8.24 14.76 6 12 6ZM12 14C10.34 14 9 12.66 9 11C9 9.34 10.34 8 12 8C13.66 8 15 9.34 15 11C15 12.66 13.66 14 12 14Z" fill="currentColor"/>
+                    </svg>
+                </div>
+                <div class="road-sign">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7V10C2 16.08 6.38 21.55 12 23C17.62 21.55 22 16.08 22 10V7L12 2ZM12 20C7.59 18.82 4 15.22 4 10V8.5L12 4L20 8.5V10C20 15.22 16.41 18.82 12 20Z" fill="currentColor"/>
+                        <path d="M12 6C9.24 6 7 8.24 7 11C7 13.76 9.24 16 12 16C14.76 16 17 13.76 17 11C17 8.24 14.76 6 12 6ZM12 14C10.34 14 9 12.66 9 11C9 9.34 10.34 8 12 8C13.66 8 15 9.34 15 11C15 12.66 13.66 14 12 14Z" fill="currentColor"/>
+                    </svg>
+                </div>
+            </div>
+            
+            <div class="traffic-sign">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" fill="currentColor"/>
+                    <path d="M12 6C8.69 6 6 8.69 6 12C6 15.31 8.69 18 12 18C15.31 18 18 15.31 18 12C18 8.69 15.31 6 12 6ZM12 16C9.79 16 8 14.21 8 12C8 9.79 9.79 8 12 8C14.21 8 16 9.79 16 12C16 14.21 14.21 16 12 16Z" fill="currentColor"/>
+                </svg>
+            </div>
+            
+            <div class="error-number">404</div>
+            
+            <h1 class="error-title">Страница не найдена</h1>
+            <p class="error-subtitle">Похоже, что вы заехали в тупик</p>
+            
+            <div class="language-tabs">
+                <button class="lang-tab active" data-lang="ru">Русский</button>
+                <button class="lang-tab" data-lang="en">English</button>
+                <button class="lang-tab" data-lang="kk">Қазақша</button>
+            </div>
+            
+            <div class="error-message" id="errorMessage">
+                Ой! Похоже, что вы заехали в тупик! Эта страница не существует или была перемещена. Не волнуйтесь, мы поможем вам вернуться на правильный путь к изучению ПДД!
+            </div>
+            
+            <div class="action-buttons">
+                <button class="btn btn-primary" onclick="goBack()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M19 12H5M12 19L5 12L12 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    Назад
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Тема
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const theme = savedTheme || 'dark';
+            document.documentElement.setAttribute('data-theme', theme);
+        }
+
+        // Сообщения на разных языках
+        const messages = {
+            ru: {
+                title: "Страница не найдена",
+                subtitle: "Похоже, что вы заехали в тупик",
+                message: "Ой! Похоже, что вы заехали в тупик! Эта страница не существует или была перемещена. Не волнуйтесь, мы поможем вам вернуться на правильный путь к изучению ПДД!",
+                back: "Назад"
+            },
+            en: {
+                title: "Page Not Found",
+                subtitle: "Looks like you've hit a dead end",
+                message: "Oops! It looks like you've hit a dead end! This page doesn't exist or has been moved. Don't worry, we'll help you get back on the right track to study traffic rules!",
+                back: "Back"
+            },
+            kk: {
+                title: "Бет табылмады",
+                subtitle: "Тупикке кірген сияқтысыз",
+                message: "Ой! Тупикке кірген сияқтысыз! Бұл бет жоқ немесе жылжытылған. Алаңдамаңыз, біз сізді жол қозғалысы ережелерін зерттеуге дұрыс жолға қайтаруға көмектесеміз!",
+                back: "Артқа"
+            }
+        };
+
+        // Переключение языков
+        function switchLanguage(lang) {
+            const messageEl = document.getElementById('errorMessage');
+            const titleEl = document.querySelector('.error-title');
+            const subtitleEl = document.querySelector('.error-subtitle');
+            const backBtn = document.querySelector('.btn-primary');
+            
+            const msg = messages[lang];
+            
+            messageEl.textContent = msg.message;
+            titleEl.textContent = msg.title;
+            subtitleEl.textContent = msg.subtitle;
+            backBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M19 12H5M12 19L5 12L12 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>${msg.back}`;
+            
+            // Обновляем активную вкладку
+            document.querySelectorAll('.lang-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+
+        // Кнопка назад
+        function goBack() {
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.location.href = '/';
+            }
+        }
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function() {
+            initTheme();
+            
+            // Обработчики для языковых вкладок
+            document.querySelectorAll('.lang-tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    switchLanguage(this.dataset.lang);
+                });
+            });
+        });
+
+        // Слушатель изменения темы
+        window.addEventListener('storage', function(e) {
+            if (e.key === 'theme') {
+                initTheme();
+            }
+        });
+    </script>
+</body>
+</html> 
