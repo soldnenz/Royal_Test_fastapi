@@ -27,6 +27,8 @@ const TestCreator = ({ onCreated }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [progress, setProgress] = useState(0);
+  const [compactMode, setCompactMode] = useState(true); // По умолчанию компактный режим
+  const [showMediaSection, setShowMediaSection] = useState(true); // По умолчанию медиафайлы видны
   const { showToast } = useToast();
   
   // Add theme detection
@@ -144,6 +146,14 @@ const TestCreator = ({ onCreated }) => {
       observer.disconnect();
     };
   }, []);
+
+  // Auto-resize textareas when language changes
+  useEffect(() => {
+    const textareas = document.querySelectorAll('.auto-resize');
+    textareas.forEach(textarea => {
+      autoResizeTextarea(textarea);
+    });
+  }, [activeLanguage]);
   
   // Filter PDD sections (not categories) based on search term
   const filteredPddSections = Array.isArray(PDD_SECTIONS) ? 
@@ -363,6 +373,8 @@ const TestCreator = ({ onCreated }) => {
       ...questionText,
       [activeLanguage]: e.target.value
     });
+    // Auto-resize textarea
+    autoResizeTextarea(e.target);
   };
 
   // Handle explanation text change
@@ -371,6 +383,8 @@ const TestCreator = ({ onCreated }) => {
       ...explanationText,
       [activeLanguage]: e.target.value
     });
+    // Auto-resize textarea
+    autoResizeTextarea(e.target);
   };
 
   // Handle option changes
@@ -381,6 +395,17 @@ const TestCreator = ({ onCreated }) => {
       [activeLanguage]: value
     };
     setOptions(newOptions);
+    // Auto-resize textarea
+    const textarea = document.querySelector(`textarea[data-option-index="${index}"]`);
+    if (textarea) {
+      autoResizeTextarea(textarea);
+    }
+  };
+
+  // Auto-resize textarea function
+  const autoResizeTextarea = (textarea) => {
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
   };
 
   // Add a new option
@@ -632,305 +657,378 @@ const TestCreator = ({ onCreated }) => {
   return (
     <div className="test-creator">
       <form onSubmit={handleSubmit} className="form-section">
-        {/* Language selector */}
-        <div className="form-row">
-          <label className="form-label">Язык ввода:</label>
-          <LanguageSelector />
+        {/* Language selector card */}
+        <div className="form-card">
+          <div className="card-header">
+            <h3 className="card-title">Язык ввода</h3>
+          </div>
+          <div className="card-content">
+            <LanguageSelector />
+          </div>
         </div>
         
-        {/* Question text */}
-        <div className="form-row">
-          <label htmlFor="questionText" className="form-label">
-            Текст вопроса
-            {activeLanguage === 'ru' && <span className="required-star">*</span>}:
-          </label>
-          <textarea
-            id="questionText"
-            className="form-textarea"
-            value={questionText[activeLanguage]}
-            onChange={handleQuestionTextChange}
-            placeholder={`Введите текст вопроса на ${activeLanguage === 'ru' ? 'русском' : activeLanguage === 'kz' ? 'казахском' : 'английском'} языке...`}
-            required={activeLanguage === 'ru'}
-          />
-        </div>
-
-        {/* Explanation */}
-        <div className="form-row">
-          <label htmlFor="explanation" className="form-label">Объяснение (необязательно):</label>
-          <textarea
-            id="explanation"
-            className="form-textarea"
-            value={explanationText[activeLanguage]}
-            onChange={handleExplanationTextChange}
-            placeholder={`Введите объяснение на ${activeLanguage === 'ru' ? 'русском' : activeLanguage === 'kz' ? 'казахском' : 'английском'} языке...`}
-          />
-        </div>
-
-        {/* License categories */}
-        <div className="form-row">
-          <label className="form-label">Категории:</label>
-          <button
-            type="button"
-            className="form-button secondary"
-            onClick={toggleAllCategories}
-            style={{ 
-              marginBottom: '0.75rem', 
-              backgroundColor: 'var(--card-bg)', 
-              color: 'var(--main-text)', 
-              border: '1px solid var(--border-color)' 
-            }}
-          >
-            {selectedCategories.length === LICENSE_CATEGORIES.length ? 'Отменить все' : 'Выбрать все'}
-          </button>
-          <div className="checkbox-list" style={{ maxHeight: '200px', overflowY: 'auto', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 'var(--input-radius)' }}>
-            {LICENSE_CATEGORIES.map((category) => (
-              <label key={category} className="checkbox-item">
-                <input
-                  type="checkbox"
-                  checked={selectedCategories.includes(category)}
-                  onChange={() => handleCategoryChange(category)}
-                />
-                {category}
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* PDD sections search */}
-        <div className="form-row">
-          <label htmlFor="pddSearch" className="form-label">Поиск по разделам ПДД:</label>
-          <input
-            type="text"
-            id="pddSearch"
-            className="form-input"
-            value={pddSearchTerm}
-            onChange={(e) => setPddSearchTerm(e.target.value)}
-            placeholder="🔍 Начните вводить..."
-          />
-        </div>
-
-        {/* PDD sections */}
-        <div className="form-row">
-          <label className="form-label">Разделы ПДД:</label>
-          <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 'var(--input-radius)' }}>
-            {filteredPddSections.length > 0 ? (
-              filteredPddSections.map((section) => (
-                <label key={section.uid} className="checkbox-item">
-                  <input
-                    type="checkbox"
-                    checked={selectedSections.includes(section.uid)}
-                    onChange={() => handleSectionChange(section.uid)}
-                  />
-                  <span>{section.title}</span>
+        {/* Main content in compact layout */}
+        <div className="main-content compact-layout">
+          {/* Question content card */}
+          <div className="form-card">
+            <div className="card-header">
+              <h3 className="card-title">Содержание вопроса</h3>
+            </div>
+            <div className="card-content">
+              {/* Question text */}
+              <div className="form-row">
+                <label htmlFor="questionText" className="form-label">
+                  Текст вопроса
+                  {activeLanguage === 'ru' && <span className="required-star">*</span>}:
                 </label>
-              ))
-            ) : (
-              <div>Нет соответствующих разделов</div>
-            )}
+                <textarea
+                  id="questionText"
+                  className="form-textarea auto-resize"
+                  value={questionText[activeLanguage]}
+                  onChange={handleQuestionTextChange}
+                  placeholder={`Введите текст вопроса на ${activeLanguage === 'ru' ? 'русском' : activeLanguage === 'kz' ? 'казахском' : 'английском'} языке...`}
+                  required={activeLanguage === 'ru'}
+                  rows="3"
+                />
+              </div>
+
+              {/* Explanation */}
+              <div className="form-row">
+                <label htmlFor="explanation" className="form-label">Объяснение (необязательно):</label>
+                <textarea
+                  id="explanation"
+                  className="form-textarea auto-resize"
+                  value={explanationText[activeLanguage]}
+                  onChange={handleExplanationTextChange}
+                  placeholder={`Введите объяснение на ${activeLanguage === 'ru' ? 'русском' : activeLanguage === 'kz' ? 'казахском' : 'английском'} языке...`}
+                  rows="3"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Answer options card */}
+          <div className="form-card">
+            <div className="card-header">
+              <h3 className="card-title">
+                Варианты ответа
+                {activeLanguage === 'ru' && <span className="required-star">*</span>}
+              </h3>
+            </div>
+            <div className="card-content">
+              <div className="options-container">
+                {options.map((option, index) => (
+                  <div key={index} className="option-row">
+                    <input
+                      type="radio"
+                      name="correctOption"
+                      className="option-radio"
+                      checked={correctOptionIndex === index}
+                      onChange={() => setCorrectOptionIndex(index)}
+                    />
+                    <textarea
+                      className="form-textarea auto-resize option-textarea"
+                      value={option.text[activeLanguage]}
+                      onChange={(e) => handleOptionChange(index, e.target.value)}
+                      placeholder={`Вариант ${index + 1} на ${activeLanguage === 'ru' ? 'русском' : activeLanguage === 'kz' ? 'казахском' : 'английском'} языке`}
+                      required={activeLanguage === 'ru'}
+                      rows="2"
+                      data-option-index={index}
+                    />
+                    <button
+                      type="button"
+                      className="form-button remove-option"
+                      onClick={() => removeOption(index)}
+                      style={{ 
+                        backgroundColor: 'var(--danger)', 
+                        width: '36px', 
+                        height: '36px',
+                        minWidth: '36px',
+                        padding: '0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: 'var(--btn-radius)'
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+                <button 
+                  type="button" 
+                  className="form-button" 
+                  onClick={addOption}
+                  style={{ backgroundColor: 'var(--accent)', color: 'white' }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px' }}>
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  Добавить вариант
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Answer options */}
-        <div className="form-row">
-          <label className="form-label">
-            Варианты ответа
-            {activeLanguage === 'ru' && <span className="required-star">*</span>}:
-          </label>
-          <div className="options-container">
-            {options.map((option, index) => (
-              <div key={index} className="option-row">
-                <input
-                  type="radio"
-                  name="correctOption"
-                  className="option-radio"
-                  checked={correctOptionIndex === index}
-                  onChange={() => setCorrectOptionIndex(index)}
-                />
+        {/* Media upload card - always visible */}
+        <div className="form-card">
+          <div className="card-header">
+            <h3 className="card-title">Медиафайлы</h3>
+          </div>
+          <div className="card-content">
+            {/* Main Media upload */}
+            <div className="form-row">
+              <label className="form-label">Основной медиафайл (макс. 50 МБ):</label>
+              
+              {!media ? (
+                <div
+                  ref={dropzoneRef}
+                  className="file-input-container"
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px' }}>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7,10 12,15 17,10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  Перетащите файл сюда или{' '}
+                  <label htmlFor="media" className="file-label">
+                    выберите
+                  </label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    id="media"
+                    className="file-input"
+                    accept="image/jpeg,image/png,video/mp4,video/quicktime"
+                    onChange={handleFileChange}
+                  />
+                </div>
+              ) : (
+                <div className="media-preview">
+                  <div className="media-container">
+                    {media.type.startsWith('image') ? (
+                      <img src={URL.createObjectURL(media)} alt="Preview" />
+                    ) : media.type.startsWith('video') ? (
+                      <video controls>
+                        <source src={URL.createObjectURL(media)} type={media.type} />
+                        Ваш браузер не поддерживает видео.
+                      </video>
+                    ) : (
+                      <div className="media-placeholder">Неподдерживаемый тип файла</div>
+                    )}
+                  </div>
+                  <div className="media-info">
+                    <span className="media-name">{media.name}</span>
+                    <span className="media-size">({(media.size / 1024 / 1024).toFixed(2)} МБ)</span>
+                  </div>
+                  <div className="media-actions">
+                    <button
+                      type="button"
+                      className="form-button"
+                      style={{ backgroundColor: 'var(--danger)', padding: '0.5rem 1rem' }}
+                      onClick={() => {
+                        setMedia(null);
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = '';
+                        }
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px' }}>
+                        <polyline points="3,6 5,6 21,6"></polyline>
+                        <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
+                      </svg>
+                      Удалить медиа
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* After-answer Media upload */}
+            <div className="form-row">
+              <label className="form-label">Дополнительный медиафайл для показа после ответа (макс. 50 МБ):</label>
+              
+              {!afterAnswerMedia ? (
+                <div
+                  ref={afterAnswerDropzoneRef}
+                  className="file-input-container"
+                  onDragOver={handleAfterAnswerDragOver}
+                  onDragLeave={handleAfterAnswerDragLeave}
+                  onDrop={handleAfterAnswerDrop}
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px' }}>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7,10 12,15 17,10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  Перетащите файл сюда или{' '}
+                  <label htmlFor="afterAnswerMedia" className="file-label">
+                    выберите
+                  </label>
+                  <input
+                    ref={afterAnswerFileInputRef}
+                    type="file"
+                    id="afterAnswerMedia"
+                    className="file-input"
+                    accept="image/jpeg,image/png,video/mp4,video/quicktime"
+                    onChange={handleAfterAnswerFileChange}
+                  />
+                </div>
+              ) : (
+                <div className="media-preview">
+                  <div className="media-container">
+                    {afterAnswerMedia.type.startsWith('image') ? (
+                      <img src={URL.createObjectURL(afterAnswerMedia)} alt="Preview" />
+                    ) : afterAnswerMedia.type.startsWith('video') ? (
+                      <video controls>
+                        <source src={URL.createObjectURL(afterAnswerMedia)} type={afterAnswerMedia.type} />
+                        Ваш браузер не поддерживает видео.
+                      </video>
+                    ) : (
+                      <div className="media-placeholder">Неподдерживаемый тип файла</div>
+                    )}
+                  </div>
+                  <div className="media-info">
+                    <span className="media-name">{afterAnswerMedia.name}</span>
+                    <span className="media-size">({(afterAnswerMedia.size / 1024 / 1024).toFixed(2)} МБ)</span>
+                  </div>
+                  <div className="media-actions">
+                    <button
+                      type="button"
+                      className="form-button"
+                      style={{ backgroundColor: 'var(--danger)', padding: '0.5rem 1rem' }}
+                      onClick={() => {
+                        setAfterAnswerMedia(null);
+                        if (afterAnswerFileInputRef.current) {
+                          afterAnswerFileInputRef.current.value = '';
+                        }
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px' }}>
+                        <polyline points="3,6 5,6 21,6"></polyline>
+                        <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
+                      </svg>
+                      Удалить медиа
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Categories and sections card - moved to bottom */}
+        <div className="form-card">
+          <div className="card-header">
+            <h3 className="card-title">Категории и разделы</h3>
+          </div>
+          <div className="card-content">
+            {/* License categories */}
+            <div className="form-row">
+              <label className="form-label">Категории:</label>
+              <button
+                type="button"
+                className="form-button secondary"
+                onClick={toggleAllCategories}
+                style={{ 
+                  marginBottom: '0.75rem', 
+                  backgroundColor: 'var(--card-bg)', 
+                  color: 'var(--main-text)', 
+                  border: '1px solid var(--border-color)' 
+                }}
+              >
+                {selectedCategories.length === LICENSE_CATEGORIES.length ? 'Отменить все' : 'Выбрать все'}
+              </button>
+              <div className="checkbox-list" style={{ maxHeight: '200px', overflowY: 'auto', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 'var(--input-radius)' }}>
+                {LICENSE_CATEGORIES.map((category) => (
+                  <label key={category} className="checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={selectedCategories.includes(category)}
+                      onChange={() => handleCategoryChange(category)}
+                    />
+                    {category}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* PDD sections search */}
+            <div className="form-row">
+              <label htmlFor="pddSearch" className="form-label">Поиск по разделам ПДД:</label>
+              <div className="search-input-container">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="search-icon">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <path d="m21 21-4.35-4.35"></path>
+                </svg>
                 <input
                   type="text"
-                  className="form-input"
-                  value={option.text[activeLanguage]}
-                  onChange={(e) => handleOptionChange(index, e.target.value)}
-                  placeholder={`Вариант ${index + 1} на ${activeLanguage === 'ru' ? 'русском' : activeLanguage === 'kz' ? 'казахском' : 'английском'} языке`}
-                  required={activeLanguage === 'ru'}
+                  id="pddSearch"
+                  className="form-input search-input"
+                  value={pddSearchTerm}
+                  onChange={(e) => setPddSearchTerm(e.target.value)}
+                  placeholder="Начните вводить..."
                 />
-                <button
-                  type="button"
-                  className="form-button remove-option"
-                  onClick={() => removeOption(index)}
-                  style={{ 
-                    backgroundColor: 'var(--danger)', 
-                    width: '36px', 
-                    height: '36px',
-                    minWidth: '36px',
-                    padding: '0',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: 'var(--btn-radius)'
-                  }}
-                >
-                  ✖
-                </button>
               </div>
-            ))}
-            <button 
-              type="button" 
-              className="form-button" 
-              onClick={addOption}
-              style={{ backgroundColor: 'var(--accent)', color: 'white' }}
-            >
-              ➕ Добавить вариант
-            </button>
+            </div>
+
+            {/* PDD sections */}
+            <div className="form-row">
+              <label className="form-label">Разделы ПДД:</label>
+              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 'var(--input-radius)' }}>
+                {filteredPddSections.length > 0 ? (
+                  filteredPddSections.map((section) => (
+                    <label key={section.uid} className="checkbox-item">
+                      <input
+                        type="checkbox"
+                        checked={selectedSections.includes(section.uid)}
+                        onChange={() => handleSectionChange(section.uid)}
+                      />
+                      <span>{section.title}</span>
+                    </label>
+                  ))
+                ) : (
+                  <div>Нет соответствующих разделов</div>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-
-        {/* Main Media upload */}
-        <div className="form-row">
-          <label className="form-label">Основной медиафайл (макс. 50 МБ):</label>
-          
-          {!media ? (
-            <div
-              ref={dropzoneRef}
-              className="file-input-container"
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-            >
-              📂 Перетащите файл сюда или{' '}
-              <label htmlFor="media" className="file-label">
-                выберите
-              </label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                id="media"
-                className="file-input"
-                accept="image/jpeg,image/png,video/mp4,video/quicktime"
-                onChange={handleFileChange}
-              />
-            </div>
-          ) : (
-            <div className="media-preview">
-              <div className="media-container">
-                {media.type.startsWith('image') ? (
-                  <img src={URL.createObjectURL(media)} alt="Preview" />
-                ) : media.type.startsWith('video') ? (
-                  <video controls>
-                    <source src={URL.createObjectURL(media)} type={media.type} />
-                    Ваш браузер не поддерживает видео.
-                  </video>
-                ) : (
-                  <div className="media-placeholder">Неподдерживаемый тип файла</div>
-                )}
-              </div>
-              <div className="media-info">
-                <span className="media-name">{media.name}</span>
-                <span className="media-size">({(media.size / 1024 / 1024).toFixed(2)} МБ)</span>
-              </div>
-              <div className="media-actions">
-                <button
-                  type="button"
-                  className="form-button"
-                  style={{ backgroundColor: 'var(--danger)', padding: '0.5rem 1rem' }}
-                  onClick={() => {
-                    setMedia(null);
-                    if (fileInputRef.current) {
-                      fileInputRef.current.value = '';
-                    }
-                  }}
-                >
-                  Удалить медиа
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* After-answer Media upload */}
-        <div className="form-row">
-          <label className="form-label">Дополнительный медиафайл для показа после ответа (макс. 50 МБ):</label>
-          
-          {!afterAnswerMedia ? (
-            <div
-              ref={afterAnswerDropzoneRef}
-              className="file-input-container"
-              onDragOver={handleAfterAnswerDragOver}
-              onDragLeave={handleAfterAnswerDragLeave}
-              onDrop={handleAfterAnswerDrop}
-            >
-              📂 Перетащите файл сюда или{' '}
-              <label htmlFor="afterAnswerMedia" className="file-label">
-                выберите
-              </label>
-              <input
-                ref={afterAnswerFileInputRef}
-                type="file"
-                id="afterAnswerMedia"
-                className="file-input"
-                accept="image/jpeg,image/png,video/mp4,video/quicktime"
-                onChange={handleAfterAnswerFileChange}
-              />
-            </div>
-          ) : (
-            <div className="media-preview">
-              <div className="media-container">
-                {afterAnswerMedia.type.startsWith('image') ? (
-                  <img src={URL.createObjectURL(afterAnswerMedia)} alt="Preview" />
-                ) : afterAnswerMedia.type.startsWith('video') ? (
-                  <video controls>
-                    <source src={URL.createObjectURL(afterAnswerMedia)} type={afterAnswerMedia.type} />
-                    Ваш браузер не поддерживает видео.
-                  </video>
-                ) : (
-                  <div className="media-placeholder">Неподдерживаемый тип файла</div>
-                )}
-              </div>
-              <div className="media-info">
-                <span className="media-name">{afterAnswerMedia.name}</span>
-                <span className="media-size">({(afterAnswerMedia.size / 1024 / 1024).toFixed(2)} МБ)</span>
-              </div>
-              <div className="media-actions">
-                <button
-                  type="button"
-                  className="form-button"
-                  style={{ backgroundColor: 'var(--danger)', padding: '0.5rem 1rem' }}
-                  onClick={() => {
-                    setAfterAnswerMedia(null);
-                    if (afterAnswerFileInputRef.current) {
-                      afterAnswerFileInputRef.current.value = '';
-                    }
-                  }}
-                >
-                  Удалить медиа
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Progress bar */}
         {loading && (
-          <div className="form-row">
-            <div className="advanced-progress">
-              <div className="progress-label">Загрузка данных на сервер</div>
-              <div className="progress-bar-container">
-                <div className="progress-bar-outer">
-                  <div 
-                    className="progress-bar-inner" 
-                    style={{ width: `${progress}%` }}
-                  ></div>
+          <div className="form-card">
+            <div className="card-content">
+              <div className="advanced-progress">
+                <div className="progress-label">Загрузка данных на сервер</div>
+                <div className="progress-bar-container">
+                  <div className="progress-bar-outer">
+                    <div 
+                      className="progress-bar-inner" 
+                      style={{ width: `${progress}%` }}
+                    ></div>
+                  </div>
+                  <div className="progress-percentage">{Math.round(progress)}%</div>
                 </div>
-                <div className="progress-percentage">{Math.round(progress)}%</div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Error display - we keep this for additional feedback but toasts are the primary error notification */}
+        {/* Error display */}
         {error && (
-          <div className="form-row">
-            <ErrorDisplay message={error} />
+          <div className="form-card">
+            <div className="card-content">
+              <ErrorDisplay message={error} />
+            </div>
           </div>
         )}
 
@@ -943,6 +1041,10 @@ const TestCreator = ({ onCreated }) => {
             disabled={loading}
             style={{ backgroundColor: 'var(--card-bg)', color: 'var(--main-text)', border: '1px solid var(--border-color)' }}
           >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px' }}>
+              <polyline points="1,4 1,10 7,10"></polyline>
+              <path d="M3.51,15a9,9 0 1,0 2.13,-3.86L1,10"></path>
+            </svg>
             Очистить
           </button>
           <button
@@ -951,12 +1053,121 @@ const TestCreator = ({ onCreated }) => {
             disabled={loading}
             style={{ backgroundColor: 'var(--success)', color: 'white' }}
           >
-            {loading ? <LoadingSpinner size="small" /> : '✅ Создать вопрос'}
+            {loading ? <LoadingSpinner size="small" /> : (
+              <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px' }}>
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22,4 12,14.01 9,11.01"></polyline>
+                </svg>
+                Создать вопрос
+              </>
+            )}
           </button>
         </div>
       </form>
 
       <style jsx>{`
+        /* Auto-resize textarea */
+        .auto-resize {
+          resize: none;
+          min-height: 60px;
+          transition: height 0.2s ease;
+          overflow-y: hidden;
+          box-sizing: border-box;
+        }
+        
+        .option-textarea {
+          min-height: 50px;
+          max-height: 300px;
+          flex: 1;
+          margin-right: 8px;
+          resize: none;
+        }
+        
+        /* Compact Layout */
+        .main-content {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+        
+        .main-content.compact-layout {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+        }
+        
+        @media (max-width: 768px) {
+          .main-content.compact-layout {
+            grid-template-columns: 1fr;
+          }
+        }
+        
+        /* Card styles */
+        .form-card {
+          background: var(--card-bg, #ffffff);
+          border: 1px solid var(--border-color, #e1e5e9);
+          border-radius: 12px;
+          margin-bottom: 24px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+          overflow: hidden;
+          transition: all 0.2s ease;
+        }
+        
+        .form-card:hover {
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card-header {
+          background: var(--bg-secondary, #f8f9fa);
+          padding: 16px 20px;
+          border-bottom: 1px solid var(--border-color, #e1e5e9);
+        }
+        
+        .card-title {
+          margin: 0;
+          font-size: 18px;
+          font-weight: 600;
+          color: var(--main-text, #2c3e50);
+        }
+        
+        .card-content {
+          padding: 20px;
+        }
+        
+        /* Search input styles */
+        .search-input-container {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+        
+        .search-icon {
+          position: absolute;
+          left: 12px;
+          color: var(--text-muted, #6c757d);
+          z-index: 1;
+        }
+        
+        .search-input {
+          padding-left: 40px !important;
+        }
+        
+        /* Dark theme support */
+        body.dark-theme .form-card {
+          background: var(--card-bg-dark, #2d3748);
+          border-color: var(--border-dark, #4a5568);
+        }
+        
+        body.dark-theme .card-header {
+          background: var(--bg-secondary-dark, #4a5568);
+          border-color: var(--border-dark, #4a5568);
+        }
+        
+        body.dark-theme .card-title {
+          color: var(--text-light, #f7fafc);
+        }
+        
         /* Улучшенные стили для основного прогресс-бара */
         .advanced-progress {
           width: 100%;
