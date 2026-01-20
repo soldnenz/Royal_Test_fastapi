@@ -29,7 +29,11 @@ class MediaManager:
         """
         if base_path is None:
             # Определяем путь относительно корня проекта
-            project_root = Path(__file__).parent.parent.parent.parent
+            # __file__ = /app/app/core/media_manager.py
+            # .parent = /app/app/core
+            # .parent.parent = /app/app
+            # .parent.parent.parent = /app (корень проекта)
+            project_root = Path(__file__).parent.parent.parent
             self.base_path = project_root / settings.MEDIA_BASE_PATH
         else:
             self.base_path = Path(base_path)
@@ -151,8 +155,26 @@ class MediaManager:
         
         # Сохраняем файл локально
         try:
+            # Сбрасываем курсор чтения файла в начало (важно!)
+            await file.seek(0)
+            
             with open(file_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
+            
+            # Проверяем что файл действительно создался
+            if not file_path.exists():
+                raise Exception(f"Файл не был создан: {file_path}")
+            
+            file_size = file_path.stat().st_size
+            if file_size == 0:
+                raise Exception(f"Файл создан но пустой: {file_path}")
+                
+            logger.info(
+                section=LogSection.FILES,
+                subsection=LogSubsection.FILES.UPLOAD,
+                message=f"Файл физически сохранен на диск: {file_path} ({file_size} байт)"
+            )
+            
         except Exception as e:
             logger.error(
                 section=LogSection.FILES,
