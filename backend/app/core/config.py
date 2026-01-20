@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_DAYS: int = 31
+    
+    # Настройки окружения
+    ENVIRONMENT: str = "development"  # development или production
+    REQUIRE_2FA: bool = False  # Требовать 2FA для админов (по умолчанию отключено)
 
     TELEGRAM_BOT_TOKEN: str
     SUPER_ADMIN_IDS: str  # можно преобразовать позже в list[int
@@ -39,12 +43,9 @@ class Settings(BaseSettings):
     DEFAULT_REFERRAL_RATE: int
     
     # Настройки медиафайлов
-    MEDIA_BASE_PATH: str = "static_media"  # Корневая папка проекта
+    MEDIA_BASE_PATH: str = "video_test"  # Корневая папка для медиа файлов
     MEDIA_X_ACCEL_PREFIX: str = "/media"
     MEDIA_MAX_FILE_SIZE_MB: int = 50
-    
-    # Turnstile settings
-    TURNSTILE_SECRET_KEY: str = ""  # Добавьте ваш секретный ключ здесь
     MEDIA_ALLOWED_TYPES: List[str] = [
         "video/mp4", "video/avi", "video/mov", "video/wmv", "video/flv",
         "image/jpeg", "image/png", "image/gif", "image/webp",

@@ -29,7 +29,6 @@ import secrets
 import re
 from app.core.response import success
 from app.logging import get_logger, LogSection, LogSubsection
-from app.core.turnstile_validator import validate_turnstile_token
 from app.rate_limit import rate_limit_ip
 
 logger = get_logger(__name__)
@@ -154,50 +153,7 @@ async def unified_login(data: AuthRequest, request: Request):
         )
         raise
 
-    # Проверяем Turnstile токен
-    try:
-        if settings.TURNSTILE_SECRET_KEY and data.cf_turnstile_response:
-            turnstile_success, turnstile_error = await validate_turnstile_token(data.cf_turnstile_response, ip)
-            if not turnstile_success:
-                logger.warning(
-                    section=LogSection.SECURITY,
-                    subsection=LogSubsection.SECURITY.TURNSTILE,
-                    message=f"Неудачная проверка Turnstile при входе с IP {ip}: {turnstile_error}"
-                )
-                register_attempt(ip)
-                raise HTTPException(
-                    status_code=400,
-                    detail={"message": "Ошибка проверки безопасности. Попробуйте еще раз."}
-                )
-        elif settings.TURNSTILE_SECRET_KEY and not data.cf_turnstile_response:
-            logger.warning(
-                section=LogSection.SECURITY,
-                subsection=LogSubsection.SECURITY.TURNSTILE,
-                message=f"Отсутствует Turnstile токен при входе с IP {ip} когда он требуется"
-            )
-            raise HTTPException(
-                status_code=400,
-                detail={"message": "Требуется подтверждение Turnstile"}
-            )
-        else:
-            logger.info(
-                section=LogSection.SECURITY,
-                subsection=LogSubsection.SECURITY.TURNSTILE,
-                message=f"Пропускаем проверку Turnstile (не настроен) для IP {ip}"
-            )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            section=LogSection.SECURITY,
-            subsection=LogSubsection.SECURITY.TURNSTILE,
-            message=f"Неожиданная ошибка при проверке Turnstile для IP {ip}: {str(e)} (тип: {type(e).__name__})"
-        )
-        raise HTTPException(
-            status_code=500,
-            detail={"message": "Внутренняя ошибка сервера при проверке безопасности"}
-        )
-
+    
     # Рейт лимит теперь обрабатывается декоратором @rate_limit_strict
 
     # БЕЗОПАСНЫЙ поиск админа (используем точное соответствие поля)
@@ -219,18 +175,23 @@ async def unified_login(data: AuthRequest, request: Request):
         requires_2fa = False
         old_ip = "неизвестен"
         
-        # Проверяем активную сессию
-        if admin.get("active_session"):
-            if (admin["active_session"].get("ip") != ip or
-                admin["active_session"].get("user_agent") != ua):
-                requires_2fa = True
-                old_ip = admin["active_session"].get("ip", "неизвестен")
-        # Если нет активной сессии, проверяем last_login
-        elif admin.get("last_login"):
-            if (admin["last_login"].get("ip") != ip or
-                admin["last_login"].get("user_agent") != ua):
-                requires_2fa = True
-                old_ip = admin["last_login"].get("ip", "неизвестен")
+        # 2FA отключена по умолчанию (управляется через REQUIRE_2FA в .env)
+        # is_production = settings.ENVIRONMENT == "production"
+        require_2fa_enabled = settings.REQUIRE_2FA
+        
+        # Проверяем активную сессию (только если 2FA включена)
+        if require_2fa_enabled:
+            if admin.get("active_session"):
+                if (admin["active_session"].get("ip") != ip or
+                    admin["active_session"].get("user_agent") != ua):
+                    requires_2fa = True
+                    old_ip = admin["active_session"].get("ip", "неизвестен")
+            # Если нет активной сессии, проверяем last_login
+            elif admin.get("last_login"):
+                if (admin["last_login"].get("ip") != ip or
+                    admin["last_login"].get("user_agent") != ua):
+                    requires_2fa = True
+                    old_ip = admin["last_login"].get("ip", "неизвестен")
         
         if requires_2fa:
             logger.info(
@@ -276,13 +237,14 @@ async def unified_login(data: AuthRequest, request: Request):
         )
 
         response = success(data={"access_token": token, "token_type": "bearer"})
-
+        
+        # Cookie настройки для dev (без secure для HTTP)
         response.set_cookie(
             key="access_token",
             value=token,
             httponly=True,
-            secure=True,
-            samesite="None",
+            secure=False,
+            samesite="Lax",
             max_age=60 * 60 * 24,  # 1 день
             expires=(datetime.now(timezone.utc) + timedelta(days=1)),
             path="/"
@@ -401,12 +363,13 @@ async def unified_login(data: AuthRequest, request: Request):
     )
 
     response = success(data={"access_token": access_token, "token_type": "bearer"})
+    # Cookie настройки для dev (без secure для HTTP)
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=True,
-        samesite="None",
+        secure=False,
+        samesite="Lax",
         max_age=60 * 60 * 24 * 31,  # 31 день
         expires=datetime.now(timezone.utc) + timedelta(days=31),
         path="/"
@@ -431,18 +394,7 @@ async def register_user(user_data: UserCreate, request: Request):
 
     # Рейт лимит теперь обрабатывается декоратором @rate_limit_strict
 
-    # Проверяем Turnstile токен
-    turnstile_success, turnstile_error = await validate_turnstile_token(user_data.cf_turnstile_response, ip)
-    if not turnstile_success:
-        logger.warning(
-            section=LogSection.SECURITY,
-            subsection=LogSubsection.SECURITY.TURNSTILE,
-            message=f"Неудачная проверка Turnstile при регистрации с IP {ip}: {turnstile_error}"
-        )
-        raise HTTPException(
-            status_code=400,
-            detail={"message": "Ошибка проверки безопасности. Попробуйте еще раз."}
-        )
+    
 
     # БЕЗОПАСНАЯ ВАЛИДАЦИЯ входных данных
     try:
@@ -570,12 +522,13 @@ async def register_user(user_data: UserCreate, request: Request):
 
     response = success(data={"access_token": access_token, "token_type": "bearer"})
 
+    # Cookie настройки для dev (без secure для HTTP)
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=True,
-        samesite="None",
+        secure=False,
+        samesite="Lax",
         max_age=60 * 60 * 24 * 31,
         expires=datetime.now(timezone.utc) + timedelta(days=31),
         path="/"
