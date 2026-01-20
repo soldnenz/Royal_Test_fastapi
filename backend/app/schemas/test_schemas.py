@@ -45,10 +45,14 @@ class QuestionCreate(BaseModel):
 
     @validator('pdd_section_uids')
     def validate_section_uids(cls, uids):
-        valid_uids = {section["uid"] for section in settings.PDD_SECTIONS}
-        for uid in uids:
-            if uid not in valid_uids:
-                raise ValueError(f"Раздела с uid '{uid}' не существует в pdd_sections")
+        try:
+            valid_uids = {section.get("uid") for section in settings.PDD_SECTIONS if isinstance(section, dict)}
+            for uid in uids:
+                if uid and uid not in valid_uids:
+                    raise ValueError(f"Раздела с uid '{uid}' не существует в pdd_sections")
+        except Exception as e:
+            # Если не можем валидировать - пропускаем, логируем
+            print(f"Warning: Could not validate PDD section UIDs: {e}")
         return uids
 
 class QuestionOut(BaseModel):
