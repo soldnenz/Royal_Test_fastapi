@@ -5,10 +5,10 @@ services:
       dockerfile: Dockerfile
     container_name: royal_backend_prod
     restart: unless-stopped
+    env_file:
+      - ./backend/.env
     environment:
       - TZ=Asia/Almaty
-      - MONGO_URI=mongodb://admin:rd_royal_driving_1337@host.docker.internal:27017/?authSource=admin
-      - MONGO_DB_NAME=royal
     volumes:
       - ./static:/app/static
       - ./video_test:/app/video_test
@@ -25,10 +25,10 @@ services:
       dockerfile: Dockerfile
     container_name: royal_backend_ws_prod
     restart: unless-stopped
+    env_file:
+      - ./backend_ws/.env
     environment:
       - TZ=Asia/Almaty
-      - MONGO_URI=mongodb://admin:rd_royal_driving_1337@host.docker.internal:27017/?authSource=admin
-      - MONGO_DB_NAME=royal
     volumes:
       - ./static:/app/static
       - ./video_test:/app/video_test
