@@ -3,14 +3,18 @@
 
 echo "🔐 Настройка .env файлов для production..."
 
+# Генерируем безопасный SECRET_KEY
+SECRET_KEY=$(openssl rand -hex 32)
+echo "🔑 Сгенерирован SECRET_KEY: $SECRET_KEY"
+
 # BACKEND - только нужные переменные
-cat > backend/.env << 'EOF'
+cat > backend/.env << EOF
 # MongoDB
-MONGO_URI=mongodb://admin:rd_royal_driving_1337@mongodb:27017/?authSource=admin
+MONGO_URI=mongodb://admin:rd_royal_driving_1337@host.docker.internal:27017/?authSource=admin
 MONGO_DB_NAME=royal
 
 # Security
-SECRET_KEY=change_me_prod_secret
+SECRET_KEY=$SECRET_KEY
 TELEGRAM_BOT_TOKEN=7664299581:AAFkROG8TXF0wkL6-nrL7G_8Y5v0J_V5lYI
 
 # Admin
@@ -37,12 +41,12 @@ EOF
 echo "✓ backend/.env создан"
 
 # BACKEND_WS - WebSocket config
-cat > backend_ws/.env << 'EOF'
+cat > backend_ws/.env << EOF
 HOST=0.0.0.0
 PORT=8002
-SECRET_KEY=change_me_prod_secret
+SECRET_KEY=$SECRET_KEY
 ALGORITHM=HS256
-MONGO_URI=mongodb://admin:rd_royal_driving_1337@mongodb:27017/?authSource=admin
+MONGO_URI=mongodb://admin:rd_royal_driving_1337@host.docker.internal:27017/?authSource=admin
 MONGO_DB_NAME=royal
 REDIS_HOST=redis
 REDIS_PORT=6379
@@ -54,30 +58,29 @@ EOF
 echo "✓ backend_ws/.env создан"
 
 # BACKEND_2FA_ADMIN
-cat > backend_2fa_admin/.env << 'EOF'
+cat > backend_2fa_admin/.env << EOF
 TELEGRAM_BOT_TOKEN_2FA=7666643669:AAHtiA7y1r_WR1LrBxp1tqU4GA3r2XWgO8o
 TELEGRAM_BOT_TOKEN=7664299581:AAFkROG8TXF0wkL6-nrL7G_8Y5v0J_V5lYI
-SECRET_KEY=change_me_prod_secret
-MONGO_URI=mongodb://admin:rd_royal_driving_1337@mongodb:27017/?authSource=admin
+SECRET_KEY=$SECRET_KEY
+MONGO_URI=mongodb://admin:rd_royal_driving_1337@host.docker.internal:27017/?authSource=admin
 MONGO_DB_NAME=royal
 EOF
 echo "✓ backend_2fa_admin/.env создан"
 
 # QUESTION REPORTS BOT
-cat > bot_question_reports/.env << 'EOF'
+cat > bot_question_reports/.env << EOF
 TELEGRAM_BOT_TOKEN=7664299581:AAFkROG8TXF0wkL6-nrL7G_8Y5v0J_V5lYI
 TELEGRAM_CHAT_ID=-1002793640921
 TELEGRAM_WARNING_TOPIC=2
-MONGO_URI=mongodb://admin:rd_royal_driving_1337@mongodb:27017/?authSource=admin
+MONGO_URI=mongodb://admin:rd_royal_driving_1337@host.docker.internal:27017/?authSource=admin
 MONGO_DB_NAME=royal
 EOF
 echo "✓ bot_question_reports/.env создан"
 
 echo "
-✅ Все .env файлы созданы!
+✅ Все .env файлы созданы с одинаковым SECRET_KEY!
 
-⚠️  ВАЖНО: Замените SECRET_KEY на безопасный ключ:
-   openssl rand -hex 32
+📝 SECRET_KEY сохранен во всех файлах: $SECRET_KEY
 
-Затем вручную отредактируйте файлы, если нужны другие значения.
+⚠️  ВАЖНО: Сохраните этот ключ в надежном месте!
 "
