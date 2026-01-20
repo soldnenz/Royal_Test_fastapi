@@ -1046,8 +1046,8 @@ async def get_media_by_id(
             headers={
                 "X-Accel-Redirect": f"/media/{file_info['relative_path']}",
                 "Content-Type": content_type,
-                "Content-Disposition": content_disposition,
-                "Content-Length": str(file_info.get("file_size", 0))
+                "Content-Disposition": content_disposition
+                # NOTE: Content-Length НЕ нужен для X-Accel-Redirect - Nginx сам установит!
             }
         )
     except Exception as e:

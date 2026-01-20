@@ -359,8 +359,8 @@ async def stream_media_file(
     headers = {
         "X-Accel-Redirect": f"/media/{file_info['relative_path']}",
         "Content-Type": file_info["content_type"],
-        "Content-Disposition": f"inline; filename={file_info['safe_filename']}",
-        "Content-Length": str(file_info["file_size"])
+        "Content-Disposition": f"inline; filename={file_info['safe_filename']}"
+        # NOTE: Content-Length НЕ нужен для X-Accel-Redirect - Nginx сам установит!
     }
 
     logger.info(

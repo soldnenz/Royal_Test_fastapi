@@ -246,7 +246,7 @@ async def get_after_answer_media_multiplayer(
                     "X-Accel-Redirect": f"/media/{file_info['relative_path']}",
                     "Content-Type": content_type,
                     "Content-Disposition": content_disposition,
-                    "Content-Length": str(file_info.get("file_size", 0)),
+                    # NOTE: Content-Length НЕ нужен для X-Accel-Redirect - Nginx сам установит!
                     "Accept-Ranges": "bytes",
                     "Access-Control-Allow-Origin": "*",
                     "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
