@@ -25,6 +25,9 @@ class QuestionCreate(BaseModel):
     after_answer_media_filename: Optional[str] = None  # Имя медиафайла, доступного после ответа
     explanation: Optional[MultilingualText] = None
 
+    class Config:
+        extra = "ignore"  # Игнорировать дополнительные поля (например, uid от фронтенда)
+
     @validator('options')
     def validate_options(cls, value):
         if len(value) < 2:
