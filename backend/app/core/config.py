@@ -1,6 +1,8 @@
 # app/core/config.py
 
 import os
+import json
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from pydantic import Json
 from dotenv import load_dotenv
@@ -39,8 +41,10 @@ class Settings(BaseSettings):
     pdd_categories: List[str]
     max_file_size_mb: int
     allowed_media_types: List[str]
-    PDD_SECTIONS: Json[List[Dict[str, Any]]]
     DEFAULT_REFERRAL_RATE: int
+    
+    # PDD_SECTIONS загружается из JSON файла, не из .env
+    PDD_SECTIONS: List[Dict[str, Any]] = []
     
     # Настройки медиафайлов
     MEDIA_BASE_PATH: str = "video_test"  # Корневая папка для медиа файлов
@@ -64,3 +68,11 @@ class Settings(BaseSettings):
 
 # Создаём экземпляр класса, и теперь по всему проекту можно импортировать
 settings = Settings()
+
+# Загружаем PDD_SECTIONS из JSON файла
+_pdd_sections_path = Path(__file__).parent.parent.parent / "pdd_sections.json"
+if _pdd_sections_path.exists():
+    with open(_pdd_sections_path, "r", encoding="utf-8") as f:
+        settings.PDD_SECTIONS = json.load(f)
+else:
+    print(f"WARNING: pdd_sections.json не найден по пути {_pdd_sections_path}")
