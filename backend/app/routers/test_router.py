@@ -330,7 +330,7 @@ async def create_question(
         )
         raise HTTPException(status_code=500, detail=f"Ошибка записи в базу: {e}")
 
-    return success(data=jsonable_encoder(question_dict, custom_encoder={ObjectId: str}))
+    return jsonable_encoder(question_dict, custom_encoder={ObjectId: str})
 
 
 @router.put("/", response_model=dict)
