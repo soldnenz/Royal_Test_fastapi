@@ -67,14 +67,15 @@ app = FastAPI(
     openapi_url=None
 )
 
-# CORS middleware - БЕЗОПАСНАЯ КОНФИГУРАЦИЯ
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://royal-test.duckdns.org",
-        "https://localhost:5173",  # Frontend dev server
-        "https://localhost:3000",  # Alternative dev port
-        # НЕ ИСПОЛЬЗУЕМ "*" в продакшене!
+        "https://royal-driving.cc",
+        "https://localhost:5173",
+        "https://localhost:3000",
+        "http://localhost",
+        "http://localhost:5173",
+        "http://localhost:3000",
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],  # Убираем OPTIONS из явного списка
@@ -188,6 +189,23 @@ async def validation_exception_handler(request, exc: RequestValidationError):
         details="Ошибка валидации данных",
         message=formatted_error_details
     )
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    import traceback
+    tb = traceback.format_exc()
+    print("=" * 80)
+    print("EXCEPTION TRACEBACK:")
+    print(tb)
+    print("=" * 80)
+    logger.error(
+        section=LogSection.API,
+        subsection=LogSubsection.API.ERROR,
+        message=f"Необработанное исключение: {str(exc)}\n{tb}"
+    )
+    return error(code=500, message="Internal Server Error", details=str(exc))
+
 
 async def check_stalled_lobbies():
     """Автоматически завершает зависшие тесты"""

@@ -1,15 +1,13 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { translations } from '../translations/translations';
-import TurnstileWidget from '../components/TurnstileWidget';
 
 const LoginPage = () => {
   const { theme, toggleTheme } = useTheme();
   const { language, changeLanguage } = useLanguage();
   const t = translations[language];
-  const turnstileRef = useRef(null);
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -17,61 +15,6 @@ const LoginPage = () => {
   const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [turnstileToken, setTurnstileToken] = useState('');
-  const [turnstileError, setTurnstileError] = useState('');
-  const [tokenTimestamp, setTokenTimestamp] = useState(null);
-
-  // Auto-refresh token every 4 minutes (Turnstile tokens expire after 5 minutes)
-  useEffect(() => {
-    let tokenRefreshInterval;
-    
-    if (turnstileToken) {
-      tokenRefreshInterval = setInterval(() => {
-        if (turnstileRef.current) {
-          console.log('Auto-refreshing Turnstile token');
-          turnstileRef.current.reset();
-          setTurnstileToken('');
-          setTokenTimestamp(null);
-        }
-      }, 4 * 60 * 1000); // 4 minutes
-    }
-
-    return () => {
-      if (tokenRefreshInterval) {
-        clearInterval(tokenRefreshInterval);
-      }
-    };
-  }, [turnstileToken]);
-
-  // Reset token when user returns to the page (focus event)
-  useEffect(() => {
-    let lastFocusTime = Date.now();
-    
-    const handleFocus = () => {
-      const timeDiff = Date.now() - lastFocusTime;
-      // If user was away for more than 3 minutes, reset the token
-      if (timeDiff > 3 * 60 * 1000 && turnstileToken && turnstileRef.current) {
-        console.log('User returned after being away, resetting Turnstile token');
-        turnstileRef.current.reset();
-        setTurnstileToken('');
-        setTurnstileError('Пройдите проверку безопасности заново');
-        setTokenTimestamp(null);
-      }
-      lastFocusTime = Date.now();
-    };
-
-    const handleBlur = () => {
-      lastFocusTime = Date.now();
-    };
-
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
-    };
-  }, [turnstileToken]);
 
   const validate = () => {
     const newErrors = {};
@@ -84,26 +27,7 @@ const LoginPage = () => {
       newErrors.password = t.passwordRequired;
     }
     
-    // Turnstile validation (presence & freshness)
-    if (!turnstileToken) {
-      setTurnstileError('Пожалуйста, завершите проверку безопасности');
-      return false;
-    }
-    
-    // Reject token if older than 2 minutes (Cloudflare tokens expire quickly)
-    if (tokenTimestamp && Date.now() - tokenTimestamp > 2 * 60 * 1000) {
-      // Auto reset the widget to prompt the user for a fresh token
-      if (turnstileRef.current) {
-        turnstileRef.current.reset();
-      }
-      setTurnstileToken('');
-      setTurnstileError('Срок действия проверки истек. Пожалуйста, пройдите проверку снова.');
-      setTokenTimestamp(null);
-      return false;
-    }
-    
     setErrors(newErrors);
-    setTurnstileError('');
     return Object.keys(newErrors).length === 0;
   };
 
@@ -120,33 +44,18 @@ const LoginPage = () => {
         },
         body: JSON.stringify({ 
           username, 
-          password,
-          cf_turnstile_response: turnstileToken
+          password
         }),
         credentials: 'include'
       });
       const data = await response.json();
       if (!response.ok) {
-        // Reset Turnstile widget on error
-        if (turnstileRef.current) {
-          turnstileRef.current.reset();
-          setTurnstileToken('');
-          setTokenTimestamp(null);
-          setTurnstileError('Пожалуйста, пройдите проверку безопасности снова');
-        }
         throw new Error(data.message || data.details?.message || 'Произошла ошибка при входе');
       }
       // Redirect to dashboard on success
       window.location.href = '/dashboard';
     } catch (err) {
       setServerError(err.message || 'Ошибка сервера');
-      // Reset Turnstile widget on error if not already reset
-      if (turnstileRef.current && turnstileToken) {
-        turnstileRef.current.reset();
-        setTurnstileToken('');
-        setTokenTimestamp(null);
-        setTurnstileError('Пожалуйста, пройдите проверку безопасности снова');
-      }
     } finally {
       setLoading(false);
     }
@@ -154,24 +63,6 @@ const LoginPage = () => {
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
-  };
-
-  const handleTurnstileSuccess = (token) => {
-    setTurnstileToken(token);
-    setTokenTimestamp(Date.now());
-    setTurnstileError('');
-  };
-
-  const handleTurnstileError = () => {
-    setTurnstileToken('');
-    setTokenTimestamp(null);
-    setTurnstileError('Ошибка проверки безопасности. Попробуйте еще раз.');
-  };
-
-  const handleTurnstileExpired = () => {
-    setTurnstileToken('');
-    setTokenTimestamp(null);
-    setTurnstileError('Время проверки истекло. Пожалуйста, пройдите проверку снова.');
   };
 
   return (
@@ -241,21 +132,6 @@ const LoginPage = () => {
                 {errors.password && <p className="text-red-500 mt-1 text-sm">{errors.password}</p>}
               </div>
               
-              {/* Turnstile Widget */}
-              <div>
-                <TurnstileWidget
-                  ref={turnstileRef}
-                  onSuccess={handleTurnstileSuccess}
-                  onError={handleTurnstileError}
-                  onExpired={handleTurnstileExpired}
-                  size="normal"
-                  theme="auto"
-                />
-                {turnstileError && (
-                  <p className="text-red-500 mt-1 text-sm">{turnstileError}</p>
-                )}
-              </div>
-              
               <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
                 <Link to="/forgot-password" className="text-sm text-primary-600 dark:text-primary-400 hover:underline transition-all">
                   {t.forgotPassword}
@@ -299,4 +175,4 @@ const LoginPage = () => {
   );
 };
 
-export default LoginPage; 
+export default LoginPage;

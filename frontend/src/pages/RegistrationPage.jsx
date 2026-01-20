@@ -4,15 +4,12 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { translations } from '../translations/translations';
 import { getStoredReferralCode, clearReferralCode } from '../utils/referralHelper';
-import TurnstileWidget from '../components/TurnstileWidget';
 
 const RegistrationPage = () => {
   const { theme } = useTheme();
   const { language } = useLanguage();
   const location = useLocation();
   const t = translations[language];
-  const turnstileRef = useRef(null);
-
   const [formData, setFormData] = useState({
     full_name: '',
     iin: '',
@@ -29,64 +26,7 @@ const RegistrationPage = () => {
   const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [turnstileToken, setTurnstileToken] = useState('');
-  const [turnstileError, setTurnstileError] = useState('');
-  const [tokenTimestamp, setTokenTimestamp] = useState(null);
-
-  // Auto-refresh token every 4 minutes (Turnstile tokens expire after 5 minutes)
-  useEffect(() => {
-    let tokenRefreshInterval;
-    
-    if (turnstileToken) {
-      tokenRefreshInterval = setInterval(() => {
-        if (turnstileRef.current) {
-          console.log('Auto-refreshing Turnstile token');
-          turnstileRef.current.reset();
-          setTurnstileToken('');
-          setTokenTimestamp(null);
-        }
-      }, 4 * 60 * 1000); // 4 minutes
-    }
-
-    return () => {
-      if (tokenRefreshInterval) {
-        clearInterval(tokenRefreshInterval);
-      }
-    };
-  }, [turnstileToken]);
-
-  // Reset token when user returns to the page (focus event)
-  useEffect(() => {
-    let lastFocusTime = Date.now();
-    
-    const handleFocus = () => {
-      const timeDiff = Date.now() - lastFocusTime;
-      // If user was away for more than 3 minutes, reset the token
-      if (timeDiff > 3 * 60 * 1000 && turnstileToken && turnstileRef.current) {
-        console.log('User returned after being away, resetting Turnstile token');
-        turnstileRef.current.reset();
-        setTurnstileToken('');
-        setTurnstileError('Пройдите проверку безопасности заново');
-        setTokenTimestamp(null);
-      }
-      lastFocusTime = Date.now();
-    };
-
-    const handleBlur = () => {
-      lastFocusTime = Date.now();
-    };
-
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
-    };
-  }, [turnstileToken]);
-
-  // Get referral code from URL if exists
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);  // Get referral code from URL if exists
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const refCode = params.get('referralCode') || params.get('ref');
@@ -144,27 +84,7 @@ const RegistrationPage = () => {
     // Confirm password validation
     if (formData.password !== formData.confirm_password) {
       newErrors.confirm_password = t.passwordMismatch;
-    }
-    
-    // Turnstile validation (presence & freshness)
-    if (!turnstileToken) {
-      setTurnstileError('Пожалуйста, завершите проверку безопасности');
-      return false;
-    }
-    
-    // Reject token if older than 2 minutes (Cloudflare tokens expire quickly)
-    if (tokenTimestamp && Date.now() - tokenTimestamp > 2 * 60 * 1000) {
-      if (turnstileRef.current) {
-        turnstileRef.current.reset();
-      }
-      setTurnstileToken('');
-      setTurnstileError('Срок действия проверки истек. Пожалуйста, пройдите проверку снова.');
-      return false;
-    }
-    
-    setErrors(newErrors);
-    setTurnstileError('');
-    return Object.keys(newErrors).length === 0;
+    }    setErrors(newErrors);    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
@@ -180,23 +100,13 @@ const RegistrationPage = () => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          ...formData,
-          cf_turnstile_response: turnstileToken
-        }),
+          ...formData,        }),
         credentials: 'include'
       });
       
       const data = await response.json();
       
-      if (!response.ok) {
-        // Reset Turnstile widget on error
-        if (turnstileRef.current) {
-          turnstileRef.current.reset();
-          setTurnstileToken('');
-          setTurnstileError('Пожалуйста, пройдите проверку безопасности снова');
-          setTokenTimestamp(null);
-        }
-        throw new Error(data.message || data.details?.message || 'Произошла ошибка при регистрации');
+      if (!response.ok) {        throw new Error(data.message || data.details?.message || 'Произошла ошибка при регистрации');
       }
       
       // Clear referral code from localStorage after successful registration
@@ -205,15 +115,7 @@ const RegistrationPage = () => {
       // Redirect to dashboard on success
       window.location.href = '/dashboard';
     } catch (err) {
-      setServerError(err.message || 'Ошибка сервера');
-      // Reset Turnstile widget on error if not already reset
-      if (turnstileRef.current && turnstileToken) {
-        turnstileRef.current.reset();
-        setTurnstileToken('');
-        setTurnstileError('Пожалуйста, пройдите проверку безопасности снова');
-        setTokenTimestamp(null);
-      }
-    } finally {
+      setServerError(err.message || 'Ошибка сервера');    } finally {
       setLoading(false);
     }
   };
@@ -224,27 +126,7 @@ const RegistrationPage = () => {
 
   const toggleConfirmPasswordVisibility = () => {
     setShowConfirmPassword(!showConfirmPassword);
-  };
-
-  const handleTurnstileSuccess = (token) => {
-    setTurnstileToken(token);
-    setTokenTimestamp(Date.now());
-    setTurnstileError('');
-  };
-
-  const handleTurnstileError = () => {
-    setTurnstileToken('');
-    setTokenTimestamp(null);
-    setTurnstileError('Ошибка проверки безопасности. Попробуйте еще раз.');
-  };
-
-  const handleTurnstileExpired = () => {
-    setTurnstileToken('');
-    setTokenTimestamp(null);
-    setTurnstileError('Время проверки истекло. Пожалуйста, пройдите проверку снова.');
-  };
-
-  return (
+  };  return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       <main className="flex-grow flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div className="w-full max-w-md bg-white dark:bg-dark-800 rounded-xl overflow-hidden transform transition-all duration-300 hover:scale-[1.01]"
@@ -417,24 +299,7 @@ const RegistrationPage = () => {
                     placeholder="Код приглашения"
                   />
                 </div>
-              </div>
-              
-              {/* Turnstile Widget */}
-              <div>
-                <TurnstileWidget
-                  ref={turnstileRef}
-                  onSuccess={handleTurnstileSuccess}
-                  onError={handleTurnstileError}
-                  onExpired={handleTurnstileExpired}
-                  size="normal"
-                  theme="auto"
-                />
-                {turnstileError && (
-                  <p className="text-red-500 mt-1 text-sm">{turnstileError}</p>
-                )}
-              </div>
-              
-              <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+              </div>              <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
                 <Link to="/login" className="text-sm text-primary-600 dark:text-primary-400 hover:underline transition-all">
                   {t.alreadyHaveAccount}
                 </Link>

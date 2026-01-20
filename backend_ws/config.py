@@ -23,7 +23,10 @@ class Settings:
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
     
     # CORS settings
-    CORS_ORIGINS: list[str] = os.getenv("CORS_ORIGINS", "http://localhost:5173,https://royal-test.duckdns.org").split(",")
+    CORS_ORIGINS: list[str] = os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:5173,https://royal-driving.cc"
+    ).split(",")
 
 
 settings = Settings() 

@@ -195,7 +195,6 @@ class LogSubsection:
         ACCESS_DENIED = "access_denied"
         INJECTION = "injection"
         VALIDATION = "validation"
-        TURNSTILE = "turnstile"
         REPORT_CREATE = "report_create"
         REPORT_VIEW = "report_view"
         AUTHENTICATION = "authentication"

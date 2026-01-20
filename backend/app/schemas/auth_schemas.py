@@ -70,7 +70,6 @@ class AuthRequest(BaseModel):
     """
     username: str
     password: str
-    cf_turnstile_response: str | None = Field(None, description="Cloudflare Turnstile токен")
 
     @validator("username")
     def validate_username(cls, v):
@@ -94,8 +93,7 @@ class AuthRequest(BaseModel):
         schema_extra = {
             "example": {
                 "username": "012345678901",  # или "user@example.com"
-                "password": "strong_password_123",
-                "cf_turnstile_response": None  # Optional during development
+                "password": "strong_password_123"
             }
         }
 

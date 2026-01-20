@@ -6,9 +6,15 @@ export default defineConfig({
   base: '/UDKeZNwbGVdH2iXEjkUFCkAuQb4Z1bbz/',
   plugins: [react()],
   server: {
-    port: 3000,
+    host: '0.0.0.0',
+    port: 5174,
     proxy: {
-      '/api': 'http://localhost:8000'
+      '/api': {
+        target: 'http://backend:8000',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      }
     },
     headers: {
       'Access-Control-Allow-Origin': '*'
