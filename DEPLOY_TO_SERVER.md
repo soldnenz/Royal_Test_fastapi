@@ -48,19 +48,19 @@ nano backend/.env
 ./start-prod.sh
 
 # Вариант 2: Вручную
-docker-compose -f docker-compose.prod.yml build
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 ### Шаг 5: Проверка запуска
 
 ```bash
 # Проверьте что все контейнеры запущены
-docker-compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml ps
 
 # Проверьте логи
-docker-compose -f docker-compose.prod.yml logs -f backend
-docker-compose -f docker-compose.prod.yml logs -f nginx
+docker compose -f docker-compose.prod.yml logs -f backend
+docker compose -f docker-compose.prod.yml logs -f nginx
 ```
 
 ## 🔄 Обновление (Pull новых изменений)
@@ -71,7 +71,7 @@ docker-compose -f docker-compose.prod.yml logs -f nginx
 cd /opt/Royal_Test_fastapi
 
 # Остановите контейнеры
-docker-compose -f docker-compose.prod.yml down
+docker compose -f docker-compose.prod.yml down
 
 # Подтяните изменения
 git pull origin master
@@ -80,11 +80,11 @@ git pull origin master
 ./init-media-folders.sh
 
 # Пересоберите и запустите
-docker-compose -f docker-compose.prod.yml build
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml up -d
 
 # Проверьте логи
-docker-compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.prod.yml logs -f
 ```
 
 ### Обновление без остановки (zero-downtime)
@@ -96,11 +96,11 @@ cd /opt/Royal_Test_fastapi
 git pull origin master
 
 # Пересоберите образы
-docker-compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml build
 
 # Перезапустите контейнеры по одному
-docker-compose -f docker-compose.prod.yml up -d --no-deps backend
-docker-compose -f docker-compose.prod.yml up -d --no-deps nginx
+docker compose -f docker-compose.prod.yml up -d --no-deps backend
+docker compose -f docker-compose.prod.yml up -d --no-deps nginx
 ```
 
 ## 🛠️ Полезные команды
@@ -109,7 +109,7 @@ docker-compose -f docker-compose.prod.yml up -d --no-deps nginx
 
 ```bash
 # Все логи
-docker-compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.prod.yml logs -f
 
 # Логи конкретного сервиса
 docker logs royal_backend_prod -f
@@ -123,24 +123,24 @@ docker logs royal_backend_prod --tail 100
 
 ```bash
 # Перезапустить всё
-docker-compose -f docker-compose.prod.yml restart
+docker compose -f docker-compose.prod.yml restart
 
 # Перезапустить конкретный сервис
-docker-compose -f docker-compose.prod.yml restart backend
-docker-compose -f docker-compose.prod.yml restart nginx
+docker compose -f docker-compose.prod.yml restart backend
+docker compose -f docker-compose.prod.yml restart nginx
 ```
 
 ### Остановка и удаление
 
 ```bash
 # Остановить всё
-docker-compose -f docker-compose.prod.yml stop
+docker compose -f docker-compose.prod.yml stop
 
 # Остановить и удалить контейнеры
-docker-compose -f docker-compose.prod.yml down
+docker compose -f docker-compose.prod.yml down
 
 # Удалить всё включая volumes (ОСТОРОЖНО!)
-docker-compose -f docker-compose.prod.yml down -v
+docker compose -f docker-compose.prod.yml down -v
 ```
 
 ### Проверка системы
@@ -221,10 +221,10 @@ du -sh video_test/*
 docker logs royal_backend_prod
 
 # Проверяем конфигурацию
-docker-compose -f docker-compose.prod.yml config
+docker compose -f docker-compose.prod.yml config
 
 # Пересоздаем контейнер
-docker-compose -f docker-compose.prod.yml up -d --force-recreate backend
+docker compose -f docker-compose.prod.yml up -d --force-recreate backend
 ```
 
 ### Проблема: 502 Bad Gateway
@@ -237,7 +237,7 @@ docker ps | grep backend
 docker logs royal_nginx_prod
 
 # Перезапускаем nginx
-docker-compose -f docker-compose.prod.yml restart nginx
+docker compose -f docker-compose.prod.yml restart nginx
 ```
 
 ### Проблема: Медиа не загружаются
@@ -250,7 +250,7 @@ ls -la video_test/
 ./init-media-folders.sh
 
 # Перезапускаем backend
-docker-compose -f docker-compose.prod.yml restart backend
+docker compose -f docker-compose.prod.yml restart backend
 ```
 
 ## 📝 Backup
@@ -291,8 +291,8 @@ nano /opt/update-royal.sh
 cd /opt/Royal_Test_fastapi
 git pull origin master
 ./init-media-folders.sh
-docker-compose -f docker-compose.prod.yml build
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 Сделайте исполняемым и добавьте в cron:

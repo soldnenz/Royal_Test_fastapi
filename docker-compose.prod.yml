@@ -1,0 +1,143 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: royal_backend_prod
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Almaty
+      - MONGO_URI=mongodb://admin:rd_royal_driving_1337@host.docker.internal:27017/?authSource=admin
+      - MONGO_DB_NAME=royal
+    volumes:
+      - ./static:/app/static
+      - ./video_test:/app/video_test
+    ports:
+      - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - royal_prod_network
+
+  backend_ws:
+    build:
+      context: ./backend_ws
+      dockerfile: Dockerfile
+    container_name: royal_backend_ws_prod
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Almaty
+      - MONGO_URI=mongodb://admin:rd_royal_driving_1337@host.docker.internal:27017/?authSource=admin
+      - MONGO_DB_NAME=royal
+    volumes:
+      - ./static:/app/static
+      - ./video_test:/app/video_test
+    ports:
+      - "8002:8002"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - royal_prod_network
+
+  nginx:
+    build:
+      context: .
+      dockerfile: ./nginx/Dockerfile
+      target: prod
+      args:
+        - NGINX_ENV=prod
+    container_name: royal_nginx_prod
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Almaty
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/certs/prod:/etc/nginx/certs:ro
+      - ./static:/static:ro
+      - ./video_test:/video_test:ro
+    depends_on:
+      - backend
+      - backend_ws
+    networks:
+      - royal_prod_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend_admin_build:
+    image: node:20-alpine
+    container_name: royal_frontend_admin_build
+    working_dir: /app
+    environment:
+      - TZ=Asia/Almaty
+    volumes:
+      - ./frontend_admin:/app
+    command: ["sh", "-c", "npm install && npm run build"]
+    networks:
+      - royal_prod_network
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: royal_redis_prod
+    restart: unless-stopped
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./redis/data:/data
+      - ./redis/logs:/var/log/redis
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    environment:
+      - TZ=Asia/Almaty
+    ports:
+      - "6379:6379"
+    networks:
+      - royal_prod_network
+
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: royal_rabbitmq_prod
+    hostname: royal-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-royal_admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-Royal_RabbitMQ_1337}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-royal_vhost}
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:-Royal_Cookie_Secret_12345}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - ./rabbitmq/data:/var/lib/rabbitmq
+      - ./rabbitmq/logs:/var/log/rabbitmq
+      - ./rabbitmq/config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./rabbitmq/config/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+      - ./rabbitmq/config/definitions.json:/etc/rabbitmq/definitions.json:ro
+    networks:
+      - royal_prod_network
+
+  rabbitmq_consumer:
+    build:
+      context: ./rabbitmq_consumer
+      dockerfile: Dockerfile
+    container_name: royal_rabbitmq_consumer_prod
+    restart: unless-stopped
+    env_file:
+      - ./rabbitmq_consumer/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONIOENCODING=utf-8
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-royal_logger}:${RABBITMQ_PASSWORD:-Royal_Logger_Pass}@rabbitmq:5672/${RABBITMQ_VHOST:-royal_logs}
+    volumes:
+      - ./rabbitmq_consumer/logs:/app/logs
+    depends_on:
+      - rabbitmq
+    networks:
+      - royal_prod_network
+
+networks:
+  royal_prod_network:
+    driver: bridge
+    name: royal_prod_network
+

@@ -1,0 +1,179 @@
+services:
+  mongodb:
+    image: mongo:8
+    container_name: royal_mongodb_dev
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: local_mongo_db
+      TZ: Asia/Almaty
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - ./mongodb/data:/data/db
+    networks:
+      - royal_dev_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: royal_backend_dev
+    restart: unless-stopped
+    env_file:
+      - .env.dev
+    environment:
+      - TZ=Asia/Almaty
+      - MONGO_URI=mongodb://admin:local_mongo_db@mongodb:27017/?authSource=admin
+      - MONGO_DB_NAME=royal
+    volumes:
+      - ./static:/app/static
+      - ./video_test:/app/video_test
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mongodb
+    networks:
+      - royal_dev_network
+
+  backend_ws:
+    build:
+      context: ./backend_ws
+      dockerfile: Dockerfile
+    container_name: royal_backend_ws_dev
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Almaty
+      - MONGO_URI=mongodb://admin:local_mongo_db@mongodb:27017/?authSource=admin
+      - MONGO_DB_NAME=royal
+    volumes:
+      - ./static:/app/static
+      - ./video_test:/app/video_test
+    ports:
+      - "8002:8002"
+    depends_on:
+      - mongodb
+    networks:
+      - royal_dev_network
+
+  frontend:
+    image: node:20-alpine
+    container_name: royal_frontend_dev
+    working_dir: /app
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Almaty
+    volumes:
+      - ./frontend:/app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    ports:
+      - "5173:5173"
+    networks:
+      - royal_dev_network
+
+  frontend_admin:
+    image: node:20-alpine
+    container_name: royal_frontend_admin_dev
+    working_dir: /app
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Almaty
+    volumes:
+      - ./frontend_admin:/app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5174"
+    ports:
+      - "5174:5174"
+    networks:
+      - royal_dev_network
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: royal_redis_dev
+    restart: unless-stopped
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./redis/data:/data
+      - ./redis/logs:/var/log/redis
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    environment:
+      - TZ=Asia/Almaty
+    ports:
+      - "6379:6379"
+    networks:
+      - royal_dev_network
+
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: royal_rabbitmq_dev
+    hostname: royal-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-royal_admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-Royal_RabbitMQ_1337}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-royal_vhost}
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:-Royal_Cookie_Secret_12345}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq/logs:/var/log/rabbitmq
+      - ./rabbitmq/config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./rabbitmq/config/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+      - ./rabbitmq/config/definitions.json:/etc/rabbitmq/definitions.json:ro
+    networks:
+      - royal_dev_network
+
+  rabbitmq_consumer:
+    build:
+      context: ./rabbitmq_consumer
+      dockerfile: Dockerfile
+    container_name: royal_rabbitmq_consumer_dev
+    restart: unless-stopped
+    env_file:
+      - ./rabbitmq_consumer/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONIOENCODING=utf-8
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-royal_logger}:${RABBITMQ_PASSWORD:-Royal_Logger_Pass}@rabbitmq:5672/${RABBITMQ_VHOST:-royal_logs}
+    volumes:
+      - ./rabbitmq_consumer/logs:/app/logs
+    depends_on:
+      - rabbitmq
+    networks:
+      - royal_dev_network
+
+  nginx:
+    build:
+      context: .
+      dockerfile: ./nginx/Dockerfile
+      target: dev
+      args:
+        - NGINX_ENV=dev
+    container_name: royal_nginx_dev
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Almaty
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/certs/dev:/etc/nginx/certs:ro
+      - ./static:/static:ro
+      - ./video_test:/video_test:ro
+    depends_on:
+      - backend
+      - backend_ws
+      - frontend
+    networks:
+      - royal_dev_network
+
+networks:
+  royal_dev_network:
+    driver: bridge
+    name: royal_dev_network
+
+volumes:
+  rabbitmq_data:

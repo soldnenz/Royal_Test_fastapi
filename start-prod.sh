@@ -18,8 +18,8 @@ echo ""
 echo "🐳 Запуск Docker контейнеров (PROD)..."
 echo ""
 
-# Запускаем docker-compose
-docker-compose -f docker-compose.prod.yml up -d
+# Запускаем docker compose (новый синтаксис Docker Compose V2)
+docker compose -f docker-compose.prod.yml up -d
 
 echo ""
 echo "✅ PROD окружение запущено!"
