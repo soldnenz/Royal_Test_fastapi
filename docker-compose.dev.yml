@@ -1,11 +1,11 @@
 services:
   mongodb:
     image: mongo:8
-    container_name: royal_mongodb_dev
+    container_name: 
     restart: unless-stopped
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: local_mongo_db
+      MONGO_INITDB_ROOT_USERNAME: 
+      MONGO_INITDB_ROOT_PASSWORD: 
       TZ: Asia/Almaty
     ports:
       - "127.0.0.1:27017:27017"
@@ -18,14 +18,14 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: royal_backend_dev
+    container_name: 
     restart: unless-stopped
     env_file:
       - .env.dev
     environment:
       - TZ=Asia/Almaty
-      - MONGO_URI=mongodb://admin:local_mongo_db@mongodb:27017/?authSource=admin
-      - MONGO_DB_NAME=royal
+      - MONGO_URI=
+      - MONGO_DB_NAME=
     volumes:
       - ./static:/app/static
       - ./video_test:/app/video_test
@@ -44,8 +44,8 @@ services:
     restart: unless-stopped
     environment:
       - TZ=Asia/Almaty
-      - MONGO_URI=mongodb://admin:local_mongo_db@mongodb:27017/?authSource=admin
-      - MONGO_DB_NAME=royal
+      - MONGO_URI=
+      - MONGO_DB_NAME=
     volumes:
       - ./static:/app/static
       - ./video_test:/app/video_test
