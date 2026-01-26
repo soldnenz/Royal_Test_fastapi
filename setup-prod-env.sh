@@ -10,12 +10,12 @@ echo "🔑 Сгенерирован SECRET_KEY: $SECRET_KEY"
 # BACKEND - только нужные переменные
 cat > backend/.env << EOF
 # MongoDB
-MONGO_URI=mongodb://admin:rd_royal_driving_1337@host.docker.internal:27017/?authSource=admin
+MONGO_URI=
 MONGO_DB_NAME=royal
 
 # Security
 SECRET_KEY=$SECRET_KEY
-TELEGRAM_BOT_TOKEN=7664299581:AAFkROG8TXF0wkL6-nrL7G_8Y5v0J_V5lYI
+TELEGRAM_BOT_TOKEN=
 
 # Admin
 SUPER_ADMIN_IDS=1,2,3
@@ -31,7 +31,7 @@ REQUIRE_2FA=false
 # Redis
 REDIS_HOST=redis
 REDIS_PORT=6379
-REDIS_PASSWORD=Royal_Redis_1337
+REDIS_PASSWORD=
 REDIS_DB=1
 REDIS_MULTIPLAYER_DB=2
 
@@ -46,7 +46,7 @@ HOST=0.0.0.0
 PORT=8002
 SECRET_KEY=$SECRET_KEY
 ALGORITHM=HS256
-MONGO_URI=mongodb://admin:rd_royal_driving_1337@host.docker.internal:27017/?authSource=admin
+MONGO_URI=
 MONGO_DB_NAME=royal
 REDIS_HOST=redis
 REDIS_PORT=6379
@@ -59,21 +59,20 @@ echo "✓ backend_ws/.env создан"
 
 # BACKEND_2FA_ADMIN
 cat > backend_2fa_admin/.env << EOF
-TELEGRAM_BOT_TOKEN_2FA=7666643669:AAHtiA7y1r_WR1LrBxp1tqU4GA3r2XWgO8o
-TELEGRAM_BOT_TOKEN=7664299581:AAFkROG8TXF0wkL6-nrL7G_8Y5v0J_V5lYI
+TELEGRAM_BOT_TOKEN_2FA=
+TELEGRAM_BOT_TOKEN=
 SECRET_KEY=$SECRET_KEY
-MONGO_URI=mongodb://admin:rd_royal_driving_1337@host.docker.internal:27017/?authSource=admin
+MONGO_URI=
 MONGO_DB_NAME=royal
 EOF
 echo "✓ backend_2fa_admin/.env создан"
 
 # QUESTION REPORTS BOT
 cat > bot_question_reports/.env << EOF
-TELEGRAM_BOT_TOKEN=7664299581:AAFkROG8TXF0wkL6-nrL7G_8Y5v0J_V5lYI
-TELEGRAM_CHAT_ID=-1002793640921
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
 TELEGRAM_WARNING_TOPIC=2
-MONGO_URI=mongodb://admin:rd_royal_driving_1337@host.docker.internal:27017/?authSource=admin
-MONGO_DB_NAME=royal
+MONGO_URI=
 EOF
 echo "✓ bot_question_reports/.env создан"
 
